@@ -1,3 +1,5 @@
+"use client";
+
 import Link from "next/link";
 import { ConnectWalletButton } from "./wallet/ConnectWalletButton";
 
@@ -8,6 +10,7 @@ export function Header() {
         Nexora
       </Link>
       <nav aria-label="Primary navigation">
+        <Link href="/create-agent">Create Agent</Link>
         <Link href="/demo">Demo</Link>
         <Link href="/docs">Docs</Link>
         <ConnectWalletButton variant="compact" />

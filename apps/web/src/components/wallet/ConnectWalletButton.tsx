@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 
 type ConnectWalletButtonProps = {
@@ -9,7 +10,8 @@ type ConnectWalletButtonProps = {
 export function ConnectWalletButton({
   variant = "primary",
 }: ConnectWalletButtonProps) {
-  const { connectWallet, isConnected, isConnecting } = useWalletConnection();
+  const { connectWallet, isConnected } = useWalletConnection();
+  const [isPending, setIsPending] = useState(false);
 
   if (isConnected) {
     return null;
@@ -25,11 +27,14 @@ export function ConnectWalletButton({
   return (
     <button
       className={className}
-      disabled={isConnecting}
-      onClick={() => void connectWallet()}
+      disabled={isPending}
+      onClick={() => {
+        setIsPending(true);
+        void connectWallet().finally(() => setIsPending(false));
+      }}
       type="button"
     >
-      {isConnecting ? "Connecting..." : "Connect MetaMask"}
+      {isPending ? "Connecting..." : "Connect MetaMask"}
     </button>
   );
 }

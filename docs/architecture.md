@@ -43,6 +43,32 @@ Supported user-facing states:
 - Connected on another configured chain: user is asked to switch to Mantle.
 - Disconnected after session: wallet card resets to disconnected state.
 
+## Delivery 3 Agent Identity
+
+The contract identity registry is the first durable on-chain module.
+
+```text
+NexoraAgentIdentity
+-> registerAgent(metadataURI)
+-> Agent ID
+-> owner address
+-> metadata URI
+```
+
+The current web flow creates a local MVP profile with the same fields:
+
+```text
+/create-agent
+-> AgentCreationForm
+-> local metadata object
+-> ipfs://nexora-local/agent-{id}
+-> /agents/{id}
+```
+
+This keeps the user journey testable before Delivery 10 deployment addresses
+exist. The storage boundary is isolated in `localAgentRegistry.ts` so the later
+contract write can replace it cleanly.
+
 ## Target MVP Data Flow
 
 ```text

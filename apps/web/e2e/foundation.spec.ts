@@ -22,7 +22,7 @@ test("demo route shows the full planned user journey", async ({ page }) => {
   await page.goto("/demo");
 
   await expect(page.getByRole("heading", { name: "Demo Flow" })).toBeVisible();
-  await expect(page.getByText("Create agent")).toBeVisible();
+  await expect(page.getByText("Create agent", { exact: true })).toBeVisible();
   await expect(page.getByText("Update reputation")).toBeVisible();
 });
 

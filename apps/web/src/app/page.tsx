@@ -19,8 +19,8 @@ export default function HomePage() {
             rules, let it propose actions, and record reputation on-chain.
           </p>
           <div className="actions">
-            <a className="primary-action" href="/demo">
-              Open Demo Route
+            <a className="primary-action" href="/create-agent">
+              Create Agent
             </a>
             <ConnectWalletButton variant="secondary" />
           </div>

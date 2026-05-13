@@ -20,6 +20,23 @@
 6. Click `Disconnect`.
 7. Confirm the wallet card resets to disconnected state.
 
+## Delivery 3 Script
+
+1. Connect MetaMask on Mantle Sepolia.
+2. Open `/create-agent`.
+3. Keep the default profile or enter:
+   - Agent Name: `YieldGuard-01`
+   - Goal: `Safe DeFi activity on Mantle`
+   - Risk Mode: `Conservative`
+4. Click `Create Agent`.
+5. Confirm `/agents/1` shows:
+   - Agent ID
+   - Owner wallet
+   - Metadata URI
+   - Risk mode
+6. Open the same profile with another wallet.
+7. Confirm the profile is view-only.
+
 ## Final MVP Script
 
 1. Connect wallet on Mantle.

@@ -82,6 +82,19 @@ pnpm --filter @nexora/web test:e2e
 The wallet E2E tests do not require the real MetaMask extension. They inject a
 mock EIP-1193 provider into Playwright and verify the same user-facing states.
 
+## Delivery 3 Scope
+
+Nexora now has the first agent identity layer:
+
+- `NexoraAgentIdentity.sol` registers agent IDs with owner and metadata URI.
+- Foundry tests cover registration, owner lookup, metadata validation, and owner-only updates.
+- `/create-agent` lets a connected Mantle wallet create a local MVP agent profile.
+- `/agents/[agentId]` shows the agent ID, owner, goal, risk mode, and metadata URI.
+- Browser tests cover create, view, invalid name, and non-owner view-only behavior.
+
+The web app stores Delivery 3 demo agents in browser `localStorage` until the
+frontend is wired to deployed contract addresses in later deliveries.
+
 If Playwright reports missing Linux libraries, install the browser
 dependencies for the local machine:
 

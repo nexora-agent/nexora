@@ -150,7 +150,9 @@ h1 {
 .panel,
 .doc-card,
 .journey-table,
-.owner-wallet-card {
+.owner-wallet-card,
+.agent-form-card,
+.agent-profile-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -165,6 +167,110 @@ h1 {
 .owner-wallet-card {
   box-shadow: none;
   padding: 18px;
+}
+
+.agent-form-card,
+.agent-profile-card {
+  max-width: 760px;
+  padding: 24px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 18px;
+}
+
+.form-grid label,
+.form-grid fieldset {
+  border: 0;
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.form-grid label span,
+.form-grid legend {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.form-grid input[type="text"],
+.form-grid textarea {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 46px;
+  padding: 12px 14px;
+  resize: vertical;
+  width: 100%;
+}
+
+.segmented-control {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.segmented-control label {
+  display: block;
+}
+
+.segmented-control input {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.segmented-control span {
+  align-items: center;
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  justify-content: center;
+  min-height: 44px;
+  padding: 8px 10px;
+}
+
+.segmented-control input:checked + span {
+  background: var(--surface-strong);
+  border-color: var(--accent);
+  color: var(--accent-strong);
+}
+
+.form-wallet-callout {
+  background: #f7fbf8;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+  padding: 14px;
+}
+
+.form-wallet-callout p,
+.ownership-note {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.form-submit {
+  margin-top: 22px;
+  width: 100%;
+}
+
+.form-submit:disabled,
+.primary-action:disabled,
+.secondary-action:disabled,
+.wallet-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 
 .console-topline {
@@ -371,7 +477,8 @@ dd {
   .hero-shell,
   .demo-layout,
   .loop-grid,
-  .docs-grid {
+  .docs-grid,
+  .segmented-control {
     grid-template-columns: 1fr;
   }
 
