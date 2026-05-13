@@ -1,0 +1,22 @@
+{
+  "name": "@nexora/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "build": "tsc --noEmit",
+    "lint": "eslint src",
+    "test": "echo \"No API tests yet\""
+  },
+  "dependencies": {
+    "@fastify/cors": "^11.0.1",
+    "@nexora/shared": "workspace:*",
+    "fastify": "^5.3.3",
+    "tsx": "^4.19.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.21",
+    "typescript": "^5.8.3"
+  }
+}

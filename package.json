@@ -1,0 +1,24 @@
+{
+  "name": "nexora",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Verifiable Safety Layer for On-Chain AI Agents.",
+  "packageManager": "pnpm@10.13.1",
+  "scripts": {
+    "dev": "pnpm --parallel dev",
+    "dev:web": "pnpm --filter @nexora/web dev",
+    "dev:api": "pnpm --filter @nexora/api dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
+    "contracts:build": "forge build --root contracts",
+    "contracts:test": "forge test --root contracts"
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.32.1",
+    "@typescript-eslint/parser": "^8.32.1",
+    "eslint": "^9.27.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3"
+  }
+}
