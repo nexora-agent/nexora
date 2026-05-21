@@ -5,9 +5,11 @@ test("landing page loads with Nexora value proposition", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "Nexora" })).toBeVisible();
   await expect(
-    page.getByText("Verifiable safety layer for on-chain AI agents."),
+    page.getByText("Verifiable safety layer for programmable smart wallets."),
   ).toBeVisible();
-  await expect(page.getByText("Create an AI agent, give it")).toBeVisible();
+  await expect(
+    page.getByLabel("Primary navigation").getByRole("link", { name: "Create Smart Wallet" }),
+  ).toBeVisible();
 });
 
 test("wallet button is visible on the homepage", async ({ page }) => {
@@ -18,19 +20,11 @@ test("wallet button is visible on the homepage", async ({ page }) => {
   );
 });
 
-test("demo route shows the full planned user journey", async ({ page }) => {
-  await page.goto("/demo");
+test("primary navigation stays product-focused", async ({ page }) => {
+  await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Demo Flow" })).toBeVisible();
-  await expect(page.getByText("Create agent", { exact: true })).toBeVisible();
-  await expect(page.getByText("Update reputation")).toBeVisible();
-});
-
-test("docs route shows setup instructions are present", async ({ page }) => {
-  await page.goto("/docs");
-
-  await expect(
-    page.getByRole("heading", { name: "Setup instructions are present" }),
-  ).toBeVisible();
-  await expect(page.getByText("/README.md")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Dashboard" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Arena" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Demo" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "Docs" })).toHaveCount(0);
 });

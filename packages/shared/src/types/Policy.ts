@@ -5,3 +5,5 @@ export type PolicyProfile = {
   blockUnverifiedContracts: boolean;
   requireRiskReport: boolean;
 };
+
+export type PolicyTemplateId = "conservative" | "balanced";

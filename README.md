@@ -1,44 +1,57 @@
 # Nexora
 
-**Nexora is a verifiable safety layer for on-chain AI agents.**
+**Nexora is a Mantle-native benchmark harness and safety layer for on-chain AI agents.**
 
-Users create AI agents, give them limited smart wallets, define safety policies, let them propose on-chain actions, store risk reports on-chain, and turn execution history into agent reputation.
+Users create agents, attach smart wallets, choose benchmark harnesses, run objectives through MCP-style tools, score the resulting proposals, record risk and benchmark reports, gate execution through policy, and turn behavior into reputation.
 
-## MVP Loop
+## Sponsor Focus
+
+Nexora intentionally focuses on three sponsor-aligned surfaces:
+
+- **Mantle:** smart wallets, policy-gated execution, risk registry, benchmark reports, reputation registry.
+- **Byreal / RealClaw:** Byreal Safe DeFi Harness with Byreal-style tools for agentic DeFi inspection and bounded intent proposals.
+- **Mirana Ventures / Alpha & Data:** risk scoring, benchmark analytics, Arena comparisons, and reputation from performance data.
+
+## Product Loop
 
 ```text
-Create agent
--> Create wallet
--> Set policy
--> Propose action
--> Analyze risk
--> Store report
--> Execute/block
--> Update reputation
+Agent
+-> Harness
+-> MCP-style tools
+-> Objective
+-> Proposal
+-> Risk report
+-> Benchmark score
+-> On-chain report
+-> Policy-gated execute/block
+-> Reputation
+-> Arena comparison
 ```
 
-## Delivery 1 Scope
+## Implemented Deliveries
 
-This repository contains the foundation for the hackathon build:
+- Agent dashboard and profile pages.
+- Agent creation wizard.
+- Harness templates.
+- MCP-style tool runtime.
+- Agent smart wallet and funding UX.
+- Objective runner.
+- Proposal and risk integration.
+- Byreal Safe DeFi Harness and adapter.
+- Benchmark scoring.
+- On-chain risk and benchmark registry contract.
+- Policy-gated smart wallet execution.
+- Reputation registry contract and UI.
+- Nexora Arena for side-by-side agent comparison.
+- Project docs for architecture, harnesses, tools, Byreal, scoring, deployment, judging notes, and limitations.
 
-- Monorepo with web, API, contracts, shared types, and docs.
-- Nexora landing page with the core product story.
-- Demo route showing the planned end-to-end user journey.
-- Docs route with local setup and architecture links.
-- Mantle network constants.
-- Placeholder Solidity contracts that compile with Foundry.
-- Initial user-facing E2E tests for the web foundation.
+## Apps
 
-## Delivery 2 Scope
-
-The web app now includes the first wallet-ready user path:
-
-- MetaMask/injected wallet connection through Wagmi and Viem.
-- Mantle Sepolia chain configuration.
-- Owner wallet status card.
-- Wrong-network detection and switch flow.
-- Disconnect/reset state.
-- Browser E2E tests that mock MetaMask for repeatable CI-style coverage.
+- `apps/web`: Next.js frontend for the full demo loop.
+- `apps/api`: Fastify API for objective, MCP, risk, and registry services.
+- `contracts`: Foundry Solidity workspace.
+- `packages/shared`: Shared TypeScript types and utilities.
+- `docs`: Project documentation.
 
 ## Local Setup
 
@@ -66,59 +79,40 @@ Run the API:
 pnpm dev:api
 ```
 
-Compile contracts:
+Run builds and checks:
 
 ```bash
-pnpm contracts:build
+pnpm --filter @nexora/api build
+pnpm --filter @nexora/shared build
+pnpm --filter @nexora/web lint
+pnpm --filter @nexora/web build
+pnpm contracts:test
 ```
 
-Run web E2E tests:
+Run browser tests:
 
 ```bash
 pnpm --filter @nexora/web exec playwright install chromium
 pnpm --filter @nexora/web test:e2e
 ```
 
-The wallet E2E tests do not require the real MetaMask extension. They inject a
-mock EIP-1193 provider into Playwright and verify the same user-facing states.
+The wallet E2E tests inject a mock EIP-1193 provider, so they do not require the real MetaMask extension.
 
-## Delivery 3 Scope
+## Mantle Deployment Shape
 
-Nexora now has the first agent identity layer:
+Contracts:
 
-- `NexoraAgentIdentity.sol` registers agent IDs with owner and metadata URI.
-- Foundry tests cover registration, owner lookup, metadata validation, and owner-only updates.
-- `/create-agent` lets a connected Mantle wallet create a local MVP agent profile.
-- `/agents/[agentId]` shows the agent ID, owner, goal, risk mode, and metadata URI.
-- Browser tests cover create, view, invalid name, and non-owner view-only behavior.
+- `NexoraAgentIdentity`
+- `NexoraFactory`
+- `NexoraPolicy`
+- `NexoraRiskRegistry`
+- `NexoraReputation`
 
-The web app stores Delivery 3 demo agents in browser `localStorage` until the
-frontend is wired to deployed contract addresses in later deliveries.
-
-If Playwright reports missing Linux libraries, install the browser
-dependencies for the local machine:
+Deployment entrypoint:
 
 ```bash
-pnpm --filter @nexora/web exec playwright install-deps chromium
+cd contracts
+forge script script/DeployNexora.s.sol --rpc-url "$MANTLE_RPC_URL" --broadcast
 ```
 
-## Apps
-
-- `apps/web`: Next.js interface for the user journey.
-- `apps/api`: Fastify API skeleton for health checks and future risk analysis.
-- `contracts`: Foundry Solidity workspace.
-- `packages/shared`: Shared TypeScript types and demo constants.
-- `docs`: Concept, architecture, and demo script.
-
-## Current Demo Story
-
-A judge should understand the product from the first screen:
-
-```text
-Create an AI agent.
-Give it a limited smart wallet.
-Set safety rules.
-Let it propose actions.
-Record reputation on-chain.
-```
-# nexora
+Explorer verification is intentionally left as an operator step because it requires the final broadcast addresses and Mantle Explorer configuration.

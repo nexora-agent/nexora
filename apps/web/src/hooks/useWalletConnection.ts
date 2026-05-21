@@ -1,6 +1,5 @@
 "use client";
 
-import { injected } from "@wagmi/core";
 import { useMemo } from "react";
 import {
   useAccount,
@@ -14,7 +13,11 @@ export type WalletReadiness = "disconnected" | "wrong-network" | "ready";
 
 export function useWalletConnection() {
   const { address, chainId, isConnected, isConnecting } = useAccount();
-  const { connectAsync, error: connectError } = useConnect();
+  const {
+    connectAsync,
+    connectors,
+    error: connectError,
+  } = useConnect();
   const { disconnect } = useDisconnect();
   const { switchChainAsync, error: switchError, isPending: isSwitching } =
     useSwitchChain();
@@ -32,8 +35,13 @@ export function useWalletConnection() {
   }, [chainId, isConnected]);
 
   const connectWallet = async () => {
+    const [connector] = connectors;
+    if (!connector) {
+      throw new Error("No injected wallet connector found.");
+    }
+
     await connectAsync({
-      connector: injected(),
+      connector,
     });
   };
 

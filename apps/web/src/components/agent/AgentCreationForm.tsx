@@ -2,7 +2,7 @@
 
 import type { RiskMode } from "@nexora/shared";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { createLocalAgent } from "@/lib/agents/localAgentRegistry";
 import { ConnectWalletButton } from "../wallet/ConnectWalletButton";
@@ -17,48 +17,56 @@ const riskModes: Array<{ label: string; value: RiskMode }> = [
 export function AgentCreationForm() {
   const router = useRouter();
   const { address, isReady, readiness } = useWalletConnection();
+  const [isMounted, setIsMounted] = useState(false);
   const [name, setName] = useState("YieldGuard-01");
-  const [goal, setGoal] = useState("Safe DeFi activity on Mantle");
+  const [goal, setGoal] = useState("Treasury risk monitor");
   const [riskMode, setRiskMode] = useState<RiskMode>("conservative");
   const [error, setError] = useState("");
 
-  const canSubmit = Boolean(address && isReady);
+  const displayReadiness = isMounted ? readiness : "disconnected";
+  const canSubmit = Boolean(isMounted && address && isReady);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   const createAgent = () => {
     setError("");
 
     if (!name.trim()) {
-      setError("Agent name is required.");
+      setError("Smart wallet name is required.");
       return;
     }
 
     if (!goal.trim()) {
-      setError("Agent goal is required.");
+      setError("Smart wallet goal is required.");
       return;
     }
 
     if (!address || !isReady) {
-      setError("Connect your owner wallet on Mantle before creating an agent.");
+      setError("Connect your owner wallet on Mantle before creating a smart wallet.");
       return;
     }
 
     const agent = createLocalAgent({
       name: name.trim(),
-      goal: goal.trim(),
+      description: goal.trim(),
+      runtime: "nexora-local",
+      strategyType: "defensive",
       riskMode,
       ownerAddress: address,
     });
 
-    router.push(`/agents/${agent.id}`);
+    router.push(`/wallets/${agent.id}`);
   };
 
   return (
-    <section className="agent-form-card" aria-label="Create agent form">
+    <section className="agent-form-card" aria-label="Create smart wallet form">
       <div className="form-grid">
         <label>
-          <span>Agent Name</span>
+          <span>Smart Wallet Name</span>
           <input
-            aria-label="Agent Name"
+            aria-label="Smart Wallet Name"
             onChange={(event) => setName(event.target.value)}
             placeholder="YieldGuard-01"
             type="text"
@@ -71,7 +79,7 @@ export function AgentCreationForm() {
           <textarea
             aria-label="Goal"
             onChange={(event) => setGoal(event.target.value)}
-            placeholder="Safe DeFi activity on Mantle"
+            placeholder="Treasury risk monitor"
             rows={4}
             value={goal}
           />
@@ -96,14 +104,13 @@ export function AgentCreationForm() {
         </fieldset>
       </div>
 
-      {readiness === "disconnected" && (
+      {displayReadiness === "disconnected" && (
         <div className="form-wallet-callout">
-          <p>Connect the owner wallet before creating the agent identity.</p>
           <ConnectWalletButton />
         </div>
       )}
 
-      <NetworkSwitcher />
+      {isMounted && <NetworkSwitcher />}
 
       {error && (
         <p className="error-text" role="alert">
@@ -117,7 +124,7 @@ export function AgentCreationForm() {
         onClick={createAgent}
         type="button"
       >
-        Create Agent
+        Create Smart Wallet
       </button>
     </section>
   );

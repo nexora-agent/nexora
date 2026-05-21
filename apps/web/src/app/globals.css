@@ -152,7 +152,53 @@ h1 {
 .journey-table,
 .owner-wallet-card,
 .agent-form-card,
-.agent-profile-card {
+.agent-create-modal,
+.agent-card,
+.agent-table-card,
+.empty-state-card,
+.agent-profile-card,
+.agent-hero-card,
+.agent-section-card,
+.agent-capability-card,
+.lifecycle-card,
+.agent-wallet-card,
+.wallet-balance-panel,
+.fund-wallet-panel,
+.harness-selector-card,
+.harness-builder-card,
+.harness-detail-panel,
+.policy-editor-card,
+.policy-summary-card,
+.objective-runner-card,
+.objective-result-card,
+.objective-history,
+.proposal-card,
+.proposal-risk-panel,
+.byreal-pool-card,
+.byreal-action-proposal,
+.benchmark-score-card,
+.onchain-report-card,
+.onchain-action-panel,
+.execution-action-panel,
+.execution-status-card,
+.blocked-execution-card,
+.reputation-panel,
+.trust-score-card,
+.reputation-stats-card,
+.reputation-event-table,
+.agent-leaderboard,
+.arena-setup,
+.arena-result-summary,
+.arena-scoreboard,
+.agent-comparison-table,
+.intent-builder-card,
+.transaction-intent-card,
+.tool-trace-panel,
+.intent-kind-card,
+.risk-score-card,
+.risk-flags-card,
+.ai-explanation-card,
+.policy-decision-card {
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -170,9 +216,665 @@ h1 {
 }
 
 .agent-form-card,
-.agent-profile-card {
+.agent-create-modal,
+.agent-card,
+.agent-table-card,
+.empty-state-card,
+.agent-profile-card,
+.agent-hero-card,
+.agent-section-card,
+.agent-capability-card,
+.lifecycle-card,
+.agent-wallet-card,
+.wallet-balance-panel,
+.fund-wallet-panel,
+.harness-selector-card,
+.harness-builder-card,
+.harness-detail-panel,
+.policy-editor-card,
+.policy-summary-card,
+.objective-runner-card,
+.objective-result-card,
+.objective-history,
+.proposal-card,
+.proposal-risk-panel,
+.byreal-pool-card,
+.byreal-action-proposal,
+.benchmark-score-card,
+.onchain-report-card,
+.onchain-action-panel,
+.execution-action-panel,
+.execution-status-card,
+.blocked-execution-card,
+.reputation-panel,
+.trust-score-card,
+.reputation-stats-card,
+.reputation-event-table,
+.agent-leaderboard,
+.arena-setup,
+.arena-result-summary,
+.arena-scoreboard,
+.agent-comparison-table,
+.intent-builder-card,
+.transaction-intent-card,
+.tool-trace-panel,
+.risk-score-card,
+.risk-flags-card,
+.ai-explanation-card,
+.policy-decision-card {
   max-width: 760px;
   padding: 24px;
+}
+
+.agent-create-modal {
+  display: grid;
+  gap: 22px;
+  max-width: 1180px;
+  padding: 24px;
+}
+
+.modal-topline {
+  align-items: center;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+
+.modal-topline h2 {
+  font-size: 1.35rem;
+  margin: 0 0 6px;
+}
+
+.modal-topline span {
+  color: var(--muted);
+  font-weight: 800;
+}
+
+.wizard-harness-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-table-card {
+  max-width: 1280px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.agent-table-scroll {
+  overflow-x: auto;
+}
+
+.agent-table-card table {
+  border-collapse: collapse;
+  min-width: 1050px;
+  width: 100%;
+}
+
+.agent-table-card th,
+.agent-table-card td {
+  border-bottom: 1px solid var(--line);
+  padding: 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.agent-table-card th {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
+}
+
+.agent-card {
+  box-shadow: none;
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+
+.agent-card-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.agent-card-grid dd {
+  overflow-wrap: anywhere;
+}
+
+.agent-card-link {
+  justify-self: start;
+}
+
+.empty-state-card {
+  box-shadow: none;
+  display: grid;
+  gap: 14px;
+  justify-items: start;
+}
+
+.empty-state-card h2,
+.empty-state-card p {
+  margin-bottom: 0;
+}
+
+.empty-state-card p {
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 560px;
+}
+
+.agent-detail-layout {
+  display: grid;
+  gap: 18px;
+  max-width: 1180px;
+}
+
+.agent-hero-card {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  max-width: 1180px;
+  padding: 24px;
+}
+
+.agent-hero-card h2 {
+  font-size: clamp(2rem, 5vw, 4.5rem);
+  line-height: 1;
+  margin: 0 0 10px;
+}
+
+.agent-hero-card p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.agent-metric-grid {
+  grid-column: 1 / -1;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.agent-section-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.agent-section-nav a {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 10px 12px;
+}
+
+.agent-section-card,
+.agent-capability-card,
+.lifecycle-card {
+  display: grid;
+  gap: 16px;
+  max-width: 1180px;
+  padding: 24px;
+}
+
+.agent-section-card h3,
+.agent-capability-card h3 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.capability-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.capability-grid section {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.capability-grid ul,
+.lifecycle-card ol {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.capability-grid li {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.lifecycle-step {
+  align-items: center;
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 12px;
+}
+
+.lifecycle-step span {
+  color: var(--muted);
+  font-size: 0.84rem;
+  font-weight: 850;
+  text-transform: capitalize;
+}
+
+.lifecycle-complete {
+  border-color: #b8e6c6;
+}
+
+.lifecycle-current {
+  border-color: var(--accent);
+}
+
+.lifecycle-blocked,
+.lifecycle-missing {
+  opacity: 0.72;
+}
+
+.agent-wallet-card {
+  display: grid;
+  gap: 16px;
+}
+
+.wallet-action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.copy-address-control {
+  display: grid;
+  gap: 4px;
+}
+
+.copy-address-control .success-text {
+  margin: 0;
+}
+
+.wallet-balance-panel {
+  align-items: center;
+  box-shadow: none;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  padding: 16px;
+}
+
+.wallet-balance-panel dl,
+.wallet-balance-panel dt,
+.wallet-balance-panel dd {
+  margin: 0;
+}
+
+.fund-wallet-panel {
+  background: #fbfdfc;
+  box-shadow: none;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.fund-wallet-panel h3,
+.fund-wallet-panel p {
+  margin: 0;
+}
+
+.fund-wallet-panel p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.fund-wallet-panel dd {
+  overflow-wrap: anywhere;
+}
+
+.funding-actions {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(140px, 1fr) auto auto;
+}
+
+.funding-actions label {
+  display: grid;
+  gap: 6px;
+}
+
+.funding-actions span {
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.funding-actions input {
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 42px;
+  padding: 0 12px;
+}
+
+.objective-runner-card {
+  display: grid;
+  gap: 18px;
+}
+
+.objective-input {
+  display: grid;
+  gap: 8px;
+}
+
+.objective-input span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.objective-input textarea {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  min-height: 92px;
+  padding: 12px 14px;
+  resize: vertical;
+  width: 100%;
+}
+
+.objective-result-card {
+  box-shadow: none;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.objective-result-card dd {
+  overflow-wrap: anywhere;
+}
+
+.objective-history {
+  background: #fbfdfc;
+  box-shadow: none;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.objective-history h3,
+.objective-history p {
+  margin: 0;
+}
+
+.objective-history p {
+  color: var(--muted);
+}
+
+.objective-history ol {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.objective-history li {
+  border-bottom: 1px solid var(--line);
+  display: grid;
+  gap: 4px;
+  padding-bottom: 8px;
+}
+
+.objective-history li span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.proposal-card,
+.proposal-risk-panel,
+.byreal-pool-card,
+.byreal-action-proposal,
+.benchmark-score-card,
+.onchain-report-card,
+.onchain-action-panel,
+.execution-action-panel,
+.execution-status-card,
+.blocked-execution-card,
+.trust-score-card,
+.reputation-stats-card,
+.reputation-event-table,
+.agent-leaderboard,
+.arena-result-summary,
+.arena-scoreboard,
+.agent-comparison-table {
+  background: #fbfdfc;
+  box-shadow: none;
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.proposal-card dd,
+.byreal-pool-card dd,
+.byreal-action-proposal dd,
+.onchain-report-card dd {
+  overflow-wrap: anywhere;
+}
+
+.proposal-risk-panel p,
+.byreal-action-proposal p,
+.execution-status-card p,
+.blocked-execution-card p,
+.reputation-event-table p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.byreal-action-proposal h3,
+.reputation-event-table h3 {
+  font-size: 1rem;
+  margin: 0;
+}
+
+.reputation-panel {
+  display: grid;
+  gap: 14px;
+}
+
+.reputation-event-table ol {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.reputation-event-table li,
+.agent-leaderboard div,
+.arena-scoreboard div {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+.reputation-event-table span,
+.agent-leaderboard span,
+.arena-scoreboard span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.harness-selector-card {
+  display: grid;
+  gap: 18px;
+}
+
+.harness-action-row,
+.harness-page-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.harness-builder-card {
+  display: grid;
+  gap: 18px;
+  max-width: 1180px;
+  padding: 24px;
+}
+
+.harness-builder-grid,
+.harness-library-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.tool-builder-panel {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.tool-list {
+  display: grid;
+  gap: 8px;
+}
+
+.tool-list div {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+.tool-list span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.code-tool-field {
+  display: grid;
+  gap: 8px;
+}
+
+.code-tool-field span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+
+.harness-card-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.harness-card {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  min-height: 92px;
+  padding: 14px;
+  text-align: left;
+}
+
+.harness-card span {
+  font-weight: 850;
+}
+
+.harness-card small {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.harness-card-selected {
+  background: var(--surface-strong);
+  border-color: var(--accent);
+}
+
+.harness-detail-panel {
+  box-shadow: none;
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.harness-summary {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.harness-detail-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.harness-detail-grid section {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.harness-detail-grid h3 {
+  font-size: 1rem;
+  margin: 0 0 12px;
+}
+
+.harness-detail-grid ul {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.harness-detail-grid li {
+  color: var(--muted);
+  display: grid;
+  gap: 4px;
+  line-height: 1.45;
+}
+
+.harness-detail-grid strong {
+  color: var(--ink);
 }
 
 .form-grid {
@@ -181,7 +883,12 @@ h1 {
 }
 
 .form-grid label,
-.form-grid fieldset {
+.form-grid fieldset,
+.wizard-fieldset,
+.policy-editor-fields label,
+.intent-input-grid label,
+.arena-field,
+.harness-builder-grid label {
   border: 0;
   display: grid;
   gap: 8px;
@@ -190,14 +897,28 @@ h1 {
 }
 
 .form-grid label span,
-.form-grid legend {
+.form-grid legend,
+.wizard-fieldset legend,
+.policy-editor-fields label span,
+.intent-input-grid label span,
+.arena-field span,
+.harness-builder-grid label span {
   color: var(--muted);
   font-size: 0.86rem;
   font-weight: 800;
 }
 
 .form-grid input[type="text"],
-.form-grid textarea {
+.form-grid textarea,
+.policy-editor-fields input[type="number"],
+.intent-input-grid input,
+.intent-input-grid textarea,
+.arena-field select,
+.arena-field textarea,
+.harness-builder-grid input,
+.harness-builder-grid select,
+.harness-builder-grid textarea,
+.code-tool-field textarea {
   background: #fbfdfc;
   border: 1px solid var(--line);
   border-radius: 8px;
@@ -243,6 +964,104 @@ h1 {
   color: var(--accent-strong);
 }
 
+.wizard-card {
+  display: grid;
+  gap: 22px;
+}
+
+.wizard-steps {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.wizard-steps li {
+  align-items: center;
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.86rem;
+  font-weight: 800;
+  gap: 8px;
+  min-height: 42px;
+  padding: 8px 10px;
+}
+
+.wizard-steps span {
+  align-items: center;
+  background: var(--surface-strong);
+  border-radius: 50%;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 24px;
+  justify-content: center;
+  width: 24px;
+}
+
+.wizard-step-active {
+  border-color: var(--accent) !important;
+  color: var(--accent-strong) !important;
+}
+
+.choice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.choice-card {
+  display: block;
+}
+
+.choice-card input {
+  opacity: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.choice-card span {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  cursor: pointer;
+  display: grid;
+  gap: 6px;
+  min-height: 64px;
+  padding: 12px 14px;
+}
+
+.choice-card input:checked + span {
+  background: var(--surface-strong);
+  border-color: var(--accent);
+}
+
+.choice-card strong,
+.choice-card small {
+  display: block;
+}
+
+.choice-card small {
+  color: var(--muted);
+  font-size: 0.86rem;
+}
+
+.wizard-review {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.wizard-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .form-wallet-callout {
   background: #f7fbf8;
   border: 1px solid var(--line);
@@ -251,6 +1070,172 @@ h1 {
   gap: 12px;
   margin-top: 20px;
   padding: 14px;
+}
+
+.policy-editor-card {
+  display: grid;
+  gap: 18px;
+}
+
+.policy-summary-card {
+  box-shadow: none;
+  padding: 18px;
+}
+
+.policy-editor-fields {
+  display: grid;
+  gap: 14px;
+}
+
+.policy-template-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.checkbox-row {
+  align-items: center;
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: flex !important;
+  gap: 10px !important;
+  min-height: 44px;
+  padding: 10px 12px !important;
+}
+
+.checkbox-row input {
+  height: 18px;
+  width: 18px;
+}
+
+.intent-builder-card {
+  display: grid;
+  gap: 18px;
+}
+
+.intent-input-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.transaction-intent-card {
+  box-shadow: none;
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+  padding: 18px;
+}
+
+.tool-trace-panel {
+  box-shadow: none;
+  display: grid;
+  gap: 12px;
+  padding: 18px;
+}
+
+.tool-trace-panel ol {
+  display: grid;
+  gap: 10px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.tool-trace-panel li {
+  background: #fbfdfc;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.tool-trace-panel li span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.tool-trace-panel li small {
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.45;
+}
+
+.intent-kind-card {
+  background: #f7fbf8;
+  box-shadow: none;
+  padding: 16px;
+}
+
+.intent-kind-card h3 {
+  font-size: 1rem;
+  margin: 0 0 8px;
+}
+
+.intent-kind-card p {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.risk-report-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 8px;
+}
+
+.risk-score-card strong {
+  display: block;
+  font-size: 2.4rem;
+  line-height: 1;
+}
+
+.risk-low {
+  background: #e7f7eb;
+  color: #166534;
+}
+
+.risk-medium {
+  background: #fff5df;
+  color: #92400e;
+}
+
+.risk-high {
+  background: #fee4e2;
+  color: #b42318;
+}
+
+.risk-flags-card h3,
+.ai-explanation-card h3 {
+  font-size: 1rem;
+  margin: 0 0 12px;
+}
+
+.risk-flags-card ul,
+.ai-explanation-card ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.risk-flags-card li {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 8px;
+}
+
+.ai-explanation-card p,
+.ai-explanation-card li {
+  color: var(--muted);
+  line-height: 1.45;
+  margin: 0;
 }
 
 .form-wallet-callout p,
@@ -331,6 +1316,14 @@ h1 {
   margin-top: 14px;
 }
 
+.success-text {
+  color: var(--accent-strong);
+  font-size: 0.92rem;
+  font-weight: 750;
+  line-height: 1.45;
+  margin: 14px 0 0;
+}
+
 .wallet-disconnect {
   margin-top: 18px;
   width: 100%;
@@ -388,8 +1381,7 @@ h1 {
   margin-bottom: 14px;
 }
 
-.loop-grid,
-.docs-grid {
+.loop-grid {
   display: grid;
   gap: 14px;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -415,10 +1407,77 @@ h1 {
   font-size: 1.1rem;
 }
 
-.demo-layout {
+.workspace-layout {
   display: grid;
   gap: 18px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.arena-layout {
+  display: grid;
+  gap: 18px;
+  max-width: 1180px;
+}
+
+.arena-setup {
+  display: grid;
+  gap: 18px;
+  max-width: 1180px;
+  padding: 24px;
+}
+
+.arena-setup h2,
+.arena-result-summary h2,
+.arena-scoreboard h2,
+.agent-comparison-table h2 {
+  font-size: 1.1rem;
+  margin: 0 0 12px;
+}
+
+.arena-agent-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.arena-run-button {
+  justify-self: start;
+}
+
+.arena-result-summary,
+.arena-scoreboard,
+.agent-comparison-table {
+  max-width: 1180px;
+}
+
+.arena-result-summary p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0 0 12px;
+}
+
+.comparison-table-scroll {
+  overflow-x: auto;
+}
+
+.agent-comparison-table table {
+  border-collapse: collapse;
+  min-width: 820px;
+  width: 100%;
+}
+
+.agent-comparison-table th,
+.agent-comparison-table td {
+  border-bottom: 1px solid var(--line);
+  padding: 12px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.agent-comparison-table th {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 850;
 }
 
 .panel,
@@ -463,21 +1522,21 @@ dd {
   padding-left: 24px;
 }
 
-.docs-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.doc-card code {
-  color: var(--muted);
-  white-space: normal;
-  word-break: break-word;
-}
-
 @media (max-width: 900px) {
   .hero-shell,
-  .demo-layout,
+  .workspace-layout,
   .loop-grid,
-  .docs-grid,
+  .agent-list,
+  .agent-card-grid,
+  .wallet-balance-panel,
+  .harness-card-grid,
+  .harness-detail-grid,
+  .harness-builder-grid,
+  .harness-library-grid,
+  .wizard-harness-grid,
+  .agent-metric-grid,
+  .capability-grid,
+  .wizard-steps,
   .segmented-control {
     grid-template-columns: 1fr;
   }

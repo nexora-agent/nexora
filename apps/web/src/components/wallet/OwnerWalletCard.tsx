@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { NetworkSwitcher } from "./NetworkSwitcher";
 
@@ -20,6 +21,7 @@ function statusLabel(readiness: string) {
 }
 
 export function OwnerWalletCard() {
+  const [isMounted, setIsMounted] = useState(false);
   const {
     address,
     chainId,
@@ -30,46 +32,54 @@ export function OwnerWalletCard() {
     readiness,
     switchError,
   } = useWalletConnection();
+  const displayReadiness = isMounted ? readiness : "disconnected";
+  const displayIsConnected = isMounted ? isConnected : false;
+  const displayAddress = isMounted ? address : undefined;
+  const displayChainId = isMounted ? chainId : undefined;
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   return (
     <section className="owner-wallet-card" aria-label="Owner wallet status">
       <div className="console-topline">
         <span>Owner wallet</span>
-        <span className={`status-pill status-${readiness}`}>
-          {statusLabel(readiness)}
+        <span className={`status-pill status-${displayReadiness}`}>
+          {statusLabel(displayReadiness)}
         </span>
       </div>
 
       <dl>
         <div>
           <dt>Owner wallet</dt>
-          <dd>{address ? formatAddress(address) : "Not connected"}</dd>
+          <dd>{displayAddress ? formatAddress(displayAddress) : "Not connected"}</dd>
         </div>
         <div>
           <dt>Network</dt>
           <dd>
-            {!isConnected
+            {!displayIsConnected
               ? "Not connected"
-              : readiness === "ready"
+              : displayReadiness === "ready"
                 ? mantleChain.name
-                : `Chain ${chainId}`}
+                : `Chain ${displayChainId}`}
           </dd>
         </div>
         <div>
           <dt>Status</dt>
-          <dd>{statusLabel(readiness)}</dd>
+          <dd>{statusLabel(displayReadiness)}</dd>
         </div>
       </dl>
 
-      <NetworkSwitcher />
+      {isMounted && <NetworkSwitcher />}
 
-      {(connectError || switchError) && (
+      {isMounted && (connectError || switchError) && (
         <p className="error-text">
           {(connectError ?? switchError)?.message ?? "Wallet action failed."}
         </p>
       )}
 
-      {isConnected && (
+      {displayIsConnected && (
         <button
           className="secondary-action wallet-disconnect"
           onClick={() => disconnectWallet()}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 
 type ConnectWalletButtonProps = {
@@ -11,7 +11,16 @@ export function ConnectWalletButton({
   variant = "primary",
 }: ConnectWalletButtonProps) {
   const { connectWallet, isConnected } = useWalletConnection();
+  const [isMounted, setIsMounted] = useState(false);
   const [isPending, setIsPending] = useState(false);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  if (!isMounted) {
+    return null;
+  }
 
   if (isConnected) {
     return null;

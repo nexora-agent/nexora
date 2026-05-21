@@ -10,9 +10,10 @@ export function Header() {
         Nexora
       </Link>
       <nav aria-label="Primary navigation">
-        <Link href="/create-agent">Create Agent</Link>
-        <Link href="/demo">Demo</Link>
-        <Link href="/docs">Docs</Link>
+        <Link href="/dashboard">Dashboard</Link>
+        <Link href="/create-wallet">Create Smart Wallet</Link>
+        <Link href="/harnesses">Harnesses</Link>
+        <Link href="/arena">Arena</Link>
         <ConnectWalletButton variant="compact" />
       </nav>
     </header>

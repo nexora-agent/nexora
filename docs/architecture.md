@@ -69,6 +69,150 @@ This keeps the user journey testable before Delivery 10 deployment addresses
 exist. The storage boundary is isolated in `localAgentRegistry.ts` so the later
 contract write can replace it cleanly.
 
+## Delivery 4 Agent Smart Wallet
+
+The wallet factory binds each agent identity to one controlled wallet.
+
+```text
+NexoraAgentIdentity
+-> NexoraFactory.createAgentWallet(agentId)
+-> NexoraAgentWallet(owner, agentId)
+```
+
+Contract rules:
+
+- Only the agent owner can create the wallet.
+- Duplicate creation returns the existing wallet.
+- Wallet execution is owner-only.
+- The factory tracks `walletOfAgent` and `agentOfWallet`.
+
+Frontend demo flow:
+
+```text
+/agents/{id}
+-> AgentWalletCard
+-> Create Agent Wallet
+-> wallet address linked to agent profile
+```
+
+The current frontend wallet address is deterministic local demo data. Delivery
+10 will replace it with the deployed factory transaction result.
+
+## Delivery 5 Policy System
+
+Policies define what an agent wallet is allowed to do before execution.
+
+```text
+NexoraPolicy
+-> setPolicy(agentId, rules)
+-> owner check via NexoraAgentIdentity
+-> getPolicy(agentId)
+```
+
+Policy fields:
+
+- Max risk score
+- Max transaction size
+- Block unlimited approvals
+- Block unverified contracts
+- Require risk report
+
+Frontend demo flow:
+
+```text
+/agents/{id}
+-> PolicyEditor
+-> PolicyProfileSelector
+-> PolicySummaryCard
+-> local policy saved to agent profile
+```
+
+The same boundary will later be replaced by a contract write to
+`NexoraPolicy.setPolicy`.
+
+## Delivery 6 Transaction Intent Builder
+
+The intent layer turns a natural task into structured transaction data before
+any execution is possible.
+
+```text
+Task text
+-> createTransactionIntent
+-> ERC-20 calldata
+-> deterministic intent hash
+-> transaction preview
+```
+
+Supported intents:
+
+- ERC-20 transfer
+- ERC-20 approval
+
+Shared utility:
+
+```text
+packages/shared/src/utils/hashIntent.ts
+```
+
+API routes:
+
+```text
+POST /analyze-task
+POST /analyze-intent
+```
+
+Frontend:
+
+```text
+/agents/{id}
+-> IntentBuilder
+-> TaskInputBox
+-> TransactionIntentCard
+```
+
+## Delivery 7 Risk Engine + AI Explanation
+
+The risk layer analyzes a structured intent before the wallet can execute it.
+The score is deterministic and inspectable; the explanation is generated from
+the resulting flags and policy decision.
+
+```text
+TransactionIntent
+-> evaluateRiskRules
+-> calculateRiskScore
+-> resolvePolicyDecision
+-> explainRisk
+-> RiskReport
+```
+
+Rules currently covered:
+
+- ERC-20 transfer baseline risk
+- ERC-20 approval baseline risk
+- Limited approval recognition
+- Unlimited approval detection
+- Demo verified-contract check
+- Transaction-size policy check
+
+API route:
+
+```text
+POST /analyze-risk
+```
+
+Frontend:
+
+```text
+/agents/{id}
+-> IntentBuilder
+-> analyzeRiskLocally
+-> RiskReportPanel
+-> RiskScoreCard
+-> PolicyDecisionCard
+-> RiskFlagsList
+-> AiExplanationCard
+```
+
 ## Target MVP Data Flow
 
 ```text

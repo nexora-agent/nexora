@@ -2,13 +2,38 @@
 pragma solidity ^0.8.28;
 
 import {NexoraAgentWallet} from "./NexoraAgentWallet.sol";
+import {NexoraAgentIdentity} from "./NexoraAgentIdentity.sol";
 
-/// @notice Delivery 1 placeholder factory for future agent wallets.
+/// @notice Factory that deploys one smart wallet per Nexora agent.
 contract NexoraFactory {
-    event AgentWalletCreated(address indexed owner, address wallet);
+    NexoraAgentIdentity public immutable identity;
 
-    function createAgentWallet() external returns (address wallet) {
-        wallet = address(new NexoraAgentWallet(msg.sender));
-        emit AgentWalletCreated(msg.sender, wallet);
+    mapping(uint256 agentId => address wallet) public walletOfAgent;
+    mapping(address wallet => uint256 agentId) public agentOfWallet;
+
+    event AgentWalletCreated(uint256 indexed agentId, address indexed owner, address wallet);
+
+    error NotAgentOwner();
+
+    constructor(NexoraAgentIdentity identity_) {
+        identity = identity_;
+    }
+
+    function createAgentWallet(uint256 agentId) external returns (address wallet) {
+        address agentOwner = identity.ownerOf(agentId);
+        if (agentOwner != msg.sender) {
+            revert NotAgentOwner();
+        }
+
+        wallet = walletOfAgent[agentId];
+        if (wallet != address(0)) {
+            return wallet;
+        }
+
+        wallet = address(new NexoraAgentWallet(msg.sender, agentId));
+        walletOfAgent[agentId] = wallet;
+        agentOfWallet[wallet] = agentId;
+
+        emit AgentWalletCreated(agentId, msg.sender, wallet);
     }
 }

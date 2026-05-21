@@ -6,7 +6,20 @@ export type TransactionIntent = {
   agentId: string;
   target: `0x${string}`;
   tokenAddress: `0x${string}`;
+  tokenSymbol: string;
+  tokenDecimals: number;
   amount: string;
-  calldata?: `0x${string}`;
-  intentHash?: `0x${string}`;
+  amountBaseUnits: string;
+  calldata: `0x${string}`;
+  intentHash: `0x${string}`;
+  summary: string;
+};
+
+export type CreateTransactionIntentInput = {
+  agentId: string;
+  chainId: number;
+  task: string;
+  tokenAddress: `0x${string}`;
+  tokenSymbol?: string;
+  tokenDecimals?: number;
 };

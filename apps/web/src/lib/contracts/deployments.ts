@@ -1,0 +1,7 @@
+export const mantleSepoliaContracts = {
+  agentIdentity: "0x5496C05Dc61b1c018C142371De1AC341c1C655a6",
+  factory: "0x53F86428401684BFE50D780353E175AE4E18066b",
+  policy: "0x5bc5A6E3dD358b67A752C9Dd58df49E863eA95F2",
+  riskRegistry: "0x9C854c49954EC1C494132C75115E9f82477A335F",
+  reputation: "0xbd97187c141F6AfE0c759C9dAc2bec011439ae82",
+} as const;

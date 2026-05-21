@@ -4,7 +4,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Nexora",
-  description: "Verifiable safety layer for on-chain AI agents.",
+  description: "Verifiable safety layer for programmable smart wallets.",
 };
 
 export default function RootLayout({

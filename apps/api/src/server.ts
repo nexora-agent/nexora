@@ -1,6 +1,11 @@
 import cors from "@fastify/cors";
 import Fastify from "fastify";
+import { analyzeIntentRoute } from "./routes/analyzeIntent.route";
+import { analyzeRiskRoute } from "./routes/analyzeRisk.route";
+import { analyzeTaskRoute } from "./routes/analyzeTask.route";
 import { healthRoute } from "./routes/health.route";
+import { nexoraMcpServer } from "./mcp/nexoraMcpServer";
+import { runObjectiveRoute } from "./routes/runObjective.route";
 
 const app = Fastify({
   logger: true,
@@ -11,6 +16,11 @@ await app.register(cors, {
 });
 
 await app.register(healthRoute);
+await app.register(analyzeTaskRoute);
+await app.register(analyzeIntentRoute);
+await app.register(analyzeRiskRoute);
+await app.register(nexoraMcpServer);
+await app.register(runObjectiveRoute);
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";

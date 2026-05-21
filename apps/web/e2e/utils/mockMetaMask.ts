@@ -22,6 +22,7 @@ export async function mockMetaMask(
         configurable: true,
         value: {
           isMetaMask: true,
+          isNexoraMock: true,
           request: async ({
             method,
             params,

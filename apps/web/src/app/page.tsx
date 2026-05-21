@@ -1,7 +1,8 @@
-import { mvpLoop } from "@nexora/shared";
 import { Header } from "@/components/Header";
 import { ConnectWalletButton } from "@/components/wallet/ConnectWalletButton";
 import { OwnerWalletCard } from "@/components/wallet/OwnerWalletCard";
+
+const workflow = ["Smart Wallets", "Harnesses", "Policies", "Arena"];
 
 export default function HomePage() {
   return (
@@ -9,18 +10,13 @@ export default function HomePage() {
       <Header />
       <section className="hero-shell">
         <div className="hero-copy">
-          <p className="eyebrow">Mantle hackathon MVP</p>
           <h1>Nexora</h1>
           <p className="subtitle">
-            Verifiable safety layer for on-chain AI agents.
-          </p>
-          <p className="lede">
-            Create an AI agent, give it a limited smart wallet, set safety
-            rules, let it propose actions, and record reputation on-chain.
+            Verifiable safety layer for programmable smart wallets.
           </p>
           <div className="actions">
-            <a className="primary-action" href="/create-agent">
-              Create Agent
+            <a className="primary-action" href="/create-wallet">
+              Create Smart Wallet
             </a>
             <ConnectWalletButton variant="secondary" />
           </div>
@@ -28,8 +24,8 @@ export default function HomePage() {
 
         <div className="agent-console" aria-label="Nexora wallet preview">
           <div className="console-topline">
-            <span>Mantle readiness</span>
-            <span className="status-pill">Delivery 2</span>
+            <span>Wallet</span>
+            <span className="status-pill">Ready</span>
           </div>
           <OwnerWalletCard />
         </div>
@@ -37,11 +33,10 @@ export default function HomePage() {
 
       <section className="content-band">
         <div className="section-heading">
-          <p className="eyebrow">Strong MVP loop</p>
-          <h2>Smallest real product path</h2>
+          <h2>Workspace</h2>
         </div>
         <div className="loop-grid">
-          {mvpLoop.map((step, index) => (
+          {workflow.map((step, index) => (
             <article className="loop-tile" key={step}>
               <span>{String(index + 1).padStart(2, "0")}</span>
               <strong>{step}</strong>
