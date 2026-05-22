@@ -10,6 +10,12 @@ import { createTransactionIntent } from "@nexora/shared";
 import { mantleSepolia } from "@/lib/chains/mantle";
 import { getAgentPolicy } from "@/lib/agents/localAgentRegistry";
 import { scoreBenchmarkRun } from "@/lib/benchmark/scoreBenchmarkRun";
+import {
+  createMntVaultDepositIntent,
+  nexoraMntVaults,
+  rejectedMntVaults,
+  selectMntVault,
+} from "@/lib/benchmark/mntVaults";
 import { inspectByrealPool } from "@/lib/byreal/byrealAdapter";
 import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
 import { analyzeRiskLocally } from "@/lib/risk/analyzeRisk";
@@ -45,6 +51,25 @@ function proposalForRun(input: {
   intent: TransactionIntent;
   toolTrace: ToolTraceEntry[];
 }): AgentProposal {
+  if (input.intent.kind === "mnt_vault_deposit") {
+    return {
+      id: `proposal-${input.intent.intentHash.slice(2, 10)}`,
+      agentId: input.agent.id,
+      harnessId: input.harnessId,
+      actionType: input.intent.kind,
+      asset: "MNT",
+      target: input.intent.target,
+      targetVault: input.intent.metadata?.targetVault,
+      token: "MNT",
+      amount: input.intent.amount,
+      rejectedOptions: input.intent.metadata?.rejectedOptions,
+      reasoning: `${input.intent.metadata?.targetVault} has ${input.intent.metadata?.vaultRiskProfile} benchmark risk and fits the ${input.agent.riskMode} policy for a controlled MNT test.`,
+      intentHash: input.intent.intentHash,
+      intent: input.intent,
+      toolTrace: input.toolTrace,
+    };
+  }
+
   return {
     id: `proposal-${input.intent.intentHash.slice(2, 10)}`,
     agentId: input.agent.id,
@@ -61,6 +86,57 @@ function proposalForRun(input: {
     intent: input.intent,
     toolTrace: input.toolTrace,
   };
+}
+
+function isMntBenchmarkObjective(objective: string) {
+  const normalized = objective.toLowerCase();
+  return (
+    normalized.includes("mnt") ||
+    normalized.includes("vault") ||
+    normalized.includes("safe yield test") ||
+    normalized.includes("risk trap") ||
+    normalized.includes("vault comparison")
+  );
+}
+
+function mntToolTraceForObjective(
+  agent: AgentRecord,
+  intent: TransactionIntent,
+  report: RiskReport,
+): ToolTraceEntry[] {
+  const selectedVault = intent.metadata?.targetVault ?? "NexoraSafeVault";
+  return [
+    {
+      index: 1,
+      status: "success",
+      summary: `Read MNT balance for ${agent.walletAddress ?? "smart wallet"} using the wallet balance system.`,
+      toolName: "get_mnt_balance",
+    },
+    {
+      index: 2,
+      status: "success",
+      summary: `Loaded ${nexoraMntVaults.length} verified Nexora benchmark vaults.`,
+      toolName: "inspect_nexora_vaults",
+    },
+    {
+      index: 3,
+      status: "success",
+      summary: `Compared vaults and selected ${selectedVault}; rejected ${rejectedMntVaults(nexoraMntVaults.find((vault) => vault.name === selectedVault) ?? nexoraMntVaults[0]).map((vault) => vault.name).join(", ")}.`,
+      toolName: "compare_nexora_vaults",
+    },
+    {
+      index: 4,
+      status: "success",
+      summary: intent.summary,
+      toolName: "create_mnt_deposit_intent",
+    },
+    {
+      index: 5,
+      status: "success",
+      summary: `Risk score ${report.riskScore}/100; policy ${report.policyDecision}.`,
+      toolName: "analyze_risk",
+    },
+  ];
 }
 
 function toolTraceForObjective(
@@ -204,6 +280,44 @@ export function runObjectiveLocally(
   objective: string,
 ): ObjectiveRun {
   const harness = getHarnessTemplate(agent.selectedHarnessId);
+  if (isMntBenchmarkObjective(objective)) {
+    const selectedVault = selectMntVault(agent);
+    const intent = createMntVaultDepositIntent({
+      agent,
+      amount: "0.01",
+      benchmarkName: "Safe MNT Yield Test",
+      selectedVault,
+    });
+    const riskReport = analyzeRiskLocally(intent, getAgentPolicy(agent), agent.walletAddress);
+    const toolTrace = mntToolTraceForObjective(agent, intent, riskReport);
+    const proposal = proposalForRun({
+      agent,
+      harnessId: harness.id,
+      intent,
+      toolTrace,
+    });
+    const benchmarkScore = scoreBenchmarkRun({
+      proposal,
+      report: riskReport,
+      toolTrace,
+    });
+
+    return {
+      id: `objective-${Date.now()}`,
+      agentId: agent.id,
+      harnessId: harness.id,
+      objective,
+      status: "completed",
+      createdAt: new Date().toISOString(),
+      intent,
+      proposal,
+      benchmarkScore,
+      riskReport,
+      toolTrace,
+      summary: `Selected ${selectedVault.name} for a controlled MNT benchmark. Rejected ${intent.metadata?.rejectedOptions?.map((vault) => vault.name).join(", ")}.`,
+    };
+  }
+
   const byrealPool = inspectByrealPool(objective);
   const intent = createTransactionIntent({
     agentId: agent.id,

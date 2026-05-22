@@ -142,6 +142,18 @@ echo "Parsed NexoraRiskRegistry: $risk_registry_address"
 reputation_address="$(deploy_contract "NexoraReputation" "src/NexoraReputation.sol:NexoraReputation")"
 echo "Parsed NexoraReputation: $reputation_address"
 
+smart_wallet_registry_address="$(deploy_contract "NexoraSmartWalletRegistry" "src/NexoraSmartWalletRegistry.sol:NexoraSmartWalletRegistry")"
+echo "Parsed NexoraSmartWalletRegistry: $smart_wallet_registry_address"
+
+safe_vault_address="$(deploy_contract "NexoraSafeVault" "src/NexoraSafeVault.sol:NexoraSafeVault")"
+echo "Parsed NexoraSafeVault: $safe_vault_address"
+
+risky_vault_address="$(deploy_contract "NexoraRiskyVault" "src/NexoraRiskyVault.sol:NexoraRiskyVault")"
+echo "Parsed NexoraRiskyVault: $risky_vault_address"
+
+volatile_vault_address="$(deploy_contract "NexoraVolatileVault" "src/NexoraVolatileVault.sol:NexoraVolatileVault")"
+echo "Parsed NexoraVolatileVault: $volatile_vault_address"
+
 cat > "$DEPLOYMENTS_DIR/$NETWORK_NAME.json" <<JSON
 {
   "network": "$NETWORK_NAME",
@@ -152,7 +164,11 @@ cat > "$DEPLOYMENTS_DIR/$NETWORK_NAME.json" <<JSON
     "NexoraFactory": "$factory_address",
     "NexoraPolicy": "$policy_address",
     "NexoraRiskRegistry": "$risk_registry_address",
-    "NexoraReputation": "$reputation_address"
+    "NexoraReputation": "$reputation_address",
+    "NexoraSmartWalletRegistry": "$smart_wallet_registry_address",
+    "NexoraSafeVault": "$safe_vault_address",
+    "NexoraRiskyVault": "$risky_vault_address",
+    "NexoraVolatileVault": "$volatile_vault_address"
   }
 }
 JSON

@@ -6,33 +6,36 @@ import type {
   HarnessId,
   RiskMode,
   RunnerMode,
+  SmartWalletModelConfig,
+  SmartWalletToolConfig,
 } from "@nexora/shared";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import {
-  createLocalAgent,
-  createLocalAgentWallet,
-} from "@/lib/agents/localAgentRegistry";
-import {
-  createAgentWalletOnchain,
-  registerAgentIdentityOnchain,
-  shouldFallbackToDemoWrite,
-} from "@/lib/contracts/onchainAgents";
+  createSmartWalletOnchain,
+  createSmartWalletProfileOnchain,
+} from "@/lib/contracts/onchainSmartWallets";
 import {
   getAllHarnessTemplates,
   getHarnessTemplate,
   harnessTemplates,
 } from "@/lib/harness/harnessTemplates";
+import {
+  defaultToolsForHarness,
+  modelConfigForRunner,
+  toolGroupLabel,
+  toolStatusLabel,
+} from "@/lib/smartWalletDefinition";
 import { ConnectWalletButton } from "../wallet/ConnectWalletButton";
 import { NetworkSwitcher } from "../wallet/NetworkSwitcher";
 
 const steps = [
-  "Wallet Identity",
-  "Wallet Strategy",
-  "Harness Selection",
-  "Runner Mode",
-  "Smart Wallet Setup",
+  "Mission",
+  "Model",
+  "Tools",
+  "Policy",
+  "Deploy Wallet",
   "Review",
 ];
 
@@ -90,6 +93,12 @@ export function AgentCreationWizard() {
     useState<HarnessId>("safe-approval");
   const [availableHarnesses, setAvailableHarnesses] = useState(harnessTemplates);
   const [runnerMode, setRunnerMode] = useState<RunnerMode>("demo");
+  const [modelConfig, setModelConfig] = useState<SmartWalletModelConfig>(
+    modelConfigForRunner("demo"),
+  );
+  const [toolsConfig, setToolsConfig] = useState<SmartWalletToolConfig[]>(
+    defaultToolsForHarness("safe-approval"),
+  );
   const [createWalletNow, setCreateWalletNow] = useState(false);
   const [error, setError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
@@ -119,7 +128,7 @@ export function AgentCreationWizard() {
       }
     }
 
-    if (stepIndex === 1 && !primaryPurpose.trim()) {
+    if (stepIndex === 0 && !primaryPurpose.trim()) {
       setError("Primary purpose is required.");
       return false;
     }
@@ -159,27 +168,14 @@ export function AgentCreationWizard() {
     setIsCreating(true);
 
     try {
-      let onchainRegistration:
-        | Awaited<ReturnType<typeof registerAgentIdentityOnchain>>
-        | undefined;
-
-      try {
-        onchainRegistration = await registerAgentIdentityOnchain(
-          "ipfs://nexora-local/agent-{agentId}",
-        );
-      } catch (caughtError) {
-        if (!shouldFallbackToDemoWrite(caughtError)) {
-          throw caughtError;
-        }
-      }
-
-      let agent = createLocalAgent({
-        id: onchainRegistration?.agentId,
+      let agent = await createSmartWalletProfileOnchain({
         name: name.trim(),
         description: description.trim(),
         agentType,
         runtime: "nexora-local",
-        runnerMode,
+        runnerMode: modelConfig.runnerMode,
+        modelConfig,
+        toolsConfig,
         strategyType,
         primaryPurpose: primaryPurpose.trim(),
         decisionStyle: decisionStyle.trim(),
@@ -188,30 +184,10 @@ export function AgentCreationWizard() {
         selectedHarnessId,
         riskMode,
         ownerAddress: address,
-        identityTransactionHash: onchainRegistration?.transactionHash,
       });
 
       if (createWalletNow) {
-        let onchainWallet:
-          | Awaited<ReturnType<typeof createAgentWalletOnchain>>
-          | undefined;
-
-        if (agent.identityTransactionHash) {
-          try {
-            onchainWallet = await createAgentWalletOnchain(agent.id);
-          } catch (caughtError) {
-            if (!shouldFallbackToDemoWrite(caughtError)) {
-              throw caughtError;
-            }
-          }
-        }
-
-        agent = createLocalAgentWallet(
-          agent.id,
-          address,
-          onchainWallet?.walletAddress,
-          onchainWallet?.transactionHash,
-        );
+        agent = await createSmartWalletOnchain(agent, address);
       }
 
       router.push(`/wallets/${agent.id}`);
@@ -270,7 +246,7 @@ export function AgentCreationWizard() {
             />
           </label>
           <fieldset className="wizard-fieldset">
-            <legend>Wallet Type</legend>
+            <legend>Mission Type</legend>
             <div className="choice-grid">
               {agentTypes.map((type) => (
                 <label className="choice-card" key={type.value}>
@@ -305,13 +281,8 @@ export function AgentCreationWizard() {
               ))}
             </div>
           </fieldset>
-        </div>
-      )}
-
-      {stepIndex === 1 && (
-        <div className="form-grid">
           <label>
-            <span>Primary Purpose</span>
+            <span>Primary Goal</span>
             <textarea
               aria-label="Primary Purpose"
               onChange={(event) => setPrimaryPurpose(event.target.value)}
@@ -346,34 +317,9 @@ export function AgentCreationWizard() {
         </div>
       )}
 
-      {stepIndex === 2 && (
-        <div className="wizard-harness-grid">
-          {availableHarnesses.map((harness) => (
-            <button
-              aria-pressed={selectedHarnessId === harness.id}
-              className={
-                selectedHarnessId === harness.id
-                  ? "harness-card harness-card-selected"
-                  : "harness-card"
-              }
-              key={harness.id}
-              onClick={() => setSelectedHarnessId(harness.id)}
-              type="button"
-            >
-              <span>{harness.name}</span>
-              <small>{harness.tools.map((tool) => tool.name).join(", ")}</small>
-              <small>Blocked: {harness.blockedActionTypes.join(", ")}</small>
-              <small>
-                Scoring: {harness.scoringRules.map((rule) => rule.label).join(", ")}
-              </small>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {stepIndex === 3 && (
+      {stepIndex === 1 && (
         <fieldset className="wizard-fieldset">
-          <legend>Runner Mode</legend>
+          <legend>Model</legend>
           <div className="choice-grid">
             {runnerModes.map((mode) => (
               <label className="choice-card" key={mode.value}>
@@ -381,7 +327,10 @@ export function AgentCreationWizard() {
                   checked={runnerMode === mode.value}
                   disabled={mode.disabled}
                   name="runner-mode"
-                  onChange={() => setRunnerMode(mode.value)}
+                  onChange={() => {
+                    setRunnerMode(mode.value);
+                    setModelConfig(modelConfigForRunner(mode.value));
+                  }}
                   type="radio"
                   value={mode.value}
                 />
@@ -392,12 +341,138 @@ export function AgentCreationWizard() {
               </label>
             ))}
           </div>
+          <div className="form-grid">
+            <label>
+              <span>Provider</span>
+              <input aria-label="Model provider" readOnly type="text" value={modelConfig.provider} />
+            </label>
+            <label>
+              <span>Model Name</span>
+              <input
+                aria-label="Model name"
+                onChange={(event) =>
+                  setModelConfig((current) => ({ ...current, modelName: event.target.value }))
+                }
+                type="text"
+                value={modelConfig.modelName}
+              />
+            </label>
+            {modelConfig.provider === "local" && (
+              <label>
+                <span>Endpoint URL</span>
+                <input
+                  aria-label="Endpoint URL"
+                  onChange={(event) =>
+                    setModelConfig((current) => ({ ...current, endpointUrl: event.target.value }))
+                  }
+                  type="text"
+                  value={modelConfig.endpointUrl ?? ""}
+                />
+              </label>
+            )}
+            <div className="segmented-control">
+              <label>
+                <input
+                  checked={modelConfig.executionMode === "simulation"}
+                  name="execution-mode"
+                  onChange={() =>
+                    setModelConfig((current) => ({ ...current, executionMode: "simulation" }))
+                  }
+                  type="radio"
+                />
+                <span>Simulation</span>
+              </label>
+              <label>
+                <input
+                  checked={modelConfig.executionMode === "policy-gated"}
+                  name="execution-mode"
+                  onChange={() =>
+                    setModelConfig((current) => ({ ...current, executionMode: "policy-gated" }))
+                  }
+                  type="radio"
+                />
+                <span>Policy gated</span>
+              </label>
+              <label>
+                <input
+                  checked={modelConfig.executionMode === "live-disabled"}
+                  name="execution-mode"
+                  onChange={() =>
+                    setModelConfig((current) => ({ ...current, executionMode: "live-disabled" }))
+                  }
+                  type="radio"
+                />
+                <span>Live disabled</span>
+              </label>
+            </div>
+          </div>
         </fieldset>
+      )}
+
+      {stepIndex === 2 && (
+        <div className="form-grid">
+          <div className="wizard-harness-grid">
+            {availableHarnesses.map((harness) => (
+              <button
+                aria-pressed={selectedHarnessId === harness.id}
+                className={
+                  selectedHarnessId === harness.id
+                    ? "harness-card harness-card-selected"
+                    : "harness-card"
+                }
+                key={harness.id}
+                onClick={() => {
+                  setSelectedHarnessId(harness.id);
+                  setToolsConfig(defaultToolsForHarness(harness.id));
+                }}
+                type="button"
+              >
+                <span>{harness.name}</span>
+                <small>{harness.tools.map((tool) => tool.name).join(", ")}</small>
+                <small>Blocked: {harness.blockedActionTypes.join(", ")}</small>
+                <small>
+                  Scoring: {harness.scoringRules.map((rule) => rule.label).join(", ")}
+                </small>
+              </button>
+            ))}
+          </div>
+          <section className="wizard-review" aria-label="Selected tools">
+            <dl>
+              {toolsConfig.map((tool) => (
+                <div key={tool.id}>
+                  <dt>{toolGroupLabel(tool.group)}</dt>
+                  <dd>
+                    {tool.name} · {toolStatusLabel(tool.status)}
+                  </dd>
+                </div>
+              ))}
+            </dl>
+          </section>
+        </div>
+      )}
+
+      {stepIndex === 3 && (
+        <section className="wizard-review" aria-label="Policy review">
+          <dl>
+            <div>
+              <dt>Risk Style</dt>
+              <dd>{riskModes.find((mode) => mode.value === riskMode)?.label}</dd>
+            </div>
+            <div>
+              <dt>Policy</dt>
+              <dd>Policy checks required before execution</dd>
+            </div>
+            <div>
+              <dt>Blocked Actions</dt>
+              <dd>{selectedHarness.blockedActionTypes.join(", ")}</dd>
+            </div>
+          </dl>
+        </section>
       )}
 
       {stepIndex === 4 && (
         <fieldset className="wizard-fieldset">
-          <legend>Smart Wallet Setup</legend>
+          <legend>Deploy Wallet</legend>
           <div className="choice-grid">
             <label className="choice-card">
               <input
@@ -452,7 +527,15 @@ export function AgentCreationWizard() {
             </div>
             <div>
               <dt>Runner Mode</dt>
-              <dd>{formatValue(runnerMode)}</dd>
+              <dd>{formatValue(modelConfig.runnerMode)}</dd>
+            </div>
+            <div>
+              <dt>Model</dt>
+              <dd>{modelConfig.modelName}</dd>
+            </div>
+            <div>
+              <dt>Tools</dt>
+              <dd>{toolsConfig.filter((tool) => tool.enabled).length} enabled</dd>
             </div>
             <div>
               <dt>Smart Wallet</dt>

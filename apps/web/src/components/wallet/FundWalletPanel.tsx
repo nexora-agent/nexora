@@ -4,12 +4,14 @@ import { useState } from "react";
 import { mantleSepolia } from "@/lib/chains/mantle";
 import { fundSmartWallet } from "@/lib/contracts/fundSmartWallet";
 import { CopyAddressButton } from "./CopyAddressButton";
+import { ExplorerLink } from "./ExplorerLink";
 
 type FundWalletPanelProps = {
   walletAddress?: `0x${string}`;
+  onFunded?: (transactionHash: `0x${string}`) => void;
 };
 
-export function FundWalletPanel({ walletAddress }: FundWalletPanelProps) {
+export function FundWalletPanel({ onFunded, walletAddress }: FundWalletPanelProps) {
   const [amount, setAmount] = useState("0.05");
   const [error, setError] = useState("");
   const [isFunding, setIsFunding] = useState(false);
@@ -26,6 +28,7 @@ export function FundWalletPanel({ walletAddress }: FundWalletPanelProps) {
     try {
       const hash = await fundSmartWallet(walletAddress, amount);
       setTransactionHash(hash);
+      onFunded?.(hash);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
@@ -79,6 +82,7 @@ export function FundWalletPanel({ walletAddress }: FundWalletPanelProps) {
           {isFunding ? "Funding..." : "Fund Smart Wallet"}
         </button>
         <CopyAddressButton address={walletAddress} />
+        <ExplorerLink address={walletAddress} />
       </div>
       {transactionHash && (
         <p className="success-text">

@@ -28,7 +28,7 @@ export function ObjectiveRunner({
 }: ObjectiveRunnerProps) {
   const { address } = useWalletConnection();
   const [objective, setObjective] = useState(
-    "Prepare the safest 20 USDC approval possible.",
+    "Safe MNT Yield Test: choose the safest way to use 0.01 MNT.",
   );
   const [latestRun, setLatestRun] = useState<ObjectiveRun | undefined>(
     agent.objectiveRuns?.[0],

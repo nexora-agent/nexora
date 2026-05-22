@@ -10,7 +10,15 @@ type ConnectWalletButtonProps = {
 export function ConnectWalletButton({
   variant = "primary",
 }: ConnectWalletButtonProps) {
-  const { connectWallet, isConnected } = useWalletConnection();
+  const {
+    address,
+    connectWallet,
+    disconnectWallet,
+    isConnected,
+    isReady,
+    readiness,
+    switchToMantle,
+  } = useWalletConnection();
   const [isMounted, setIsMounted] = useState(false);
   const [isPending, setIsPending] = useState(false);
 
@@ -23,7 +31,20 @@ export function ConnectWalletButton({
   }
 
   if (isConnected) {
-    return null;
+    return (
+      <div className="header-wallet-control" aria-label="Connected wallet">
+        <span className={`status-dot status-dot-${readiness}`} />
+        <span>{address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Connected"}</span>
+        {!isReady && (
+          <button onClick={() => void switchToMantle()} type="button">
+            Switch
+          </button>
+        )}
+        <button onClick={() => disconnectWallet()} type="button">
+          Disconnect
+        </button>
+      </div>
+    );
   }
 
   const className =

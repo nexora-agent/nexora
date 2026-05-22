@@ -10,6 +10,35 @@ export type AgentType =
   | "trading"
   | "custom";
 export type RunnerMode = "demo" | "local" | "hosted";
+export type SmartWalletMissionType =
+  | "wallet-defense"
+  | "safe-yield"
+  | "trading"
+  | "custom";
+export type SmartWalletExecutionMode = "simulation" | "policy-gated" | "live-disabled";
+export type SmartWalletModelConfig = {
+  runnerMode: RunnerMode;
+  provider: "demo" | "local" | "hosted";
+  modelName: string;
+  endpointUrl?: string;
+  temperature: number;
+  maxTokens: number;
+  executionMode: SmartWalletExecutionMode;
+};
+export type SmartWalletToolStatus = "demo" | "live" | "coming-soon";
+export type SmartWalletToolGroup =
+  | "wallet"
+  | "risk"
+  | "benchmark-defi"
+  | "byreal";
+export type SmartWalletToolConfig = {
+  id: string;
+  name: string;
+  group: SmartWalletToolGroup;
+  status: SmartWalletToolStatus;
+  enabled: boolean;
+  description: string;
+};
 
 export type AgentProfile = {
   id: string;
@@ -17,8 +46,11 @@ export type AgentProfile = {
   goal: string;
   description?: string;
   agentType?: AgentType;
+  missionType?: SmartWalletMissionType;
   runtime?: AgentRuntimeId;
   runnerMode?: RunnerMode;
+  modelConfig?: SmartWalletModelConfig;
+  toolsConfig?: SmartWalletToolConfig[];
   strategyType?: AgentStrategyType;
   primaryPurpose?: string;
   decisionStyle?: string;
@@ -30,6 +62,8 @@ export type AgentProfile = {
   walletAddress?: `0x${string}`;
   identityTransactionHash?: `0x${string}`;
   walletTransactionHash?: `0x${string}`;
+  walletFundingTransactionHash?: `0x${string}`;
+  walletFundedAt?: string;
   metadataUri?: string;
   objectiveRuns?: ObjectiveRun[];
 };
@@ -39,8 +73,11 @@ export type AgentMetadata = {
   goal: string;
   description: string;
   agentType?: AgentType;
+  missionType?: SmartWalletMissionType;
   runtime: AgentRuntimeId;
   runnerMode?: RunnerMode;
+  modelConfig?: SmartWalletModelConfig;
+  toolsConfig?: SmartWalletToolConfig[];
   strategyType: AgentStrategyType;
   primaryPurpose?: string;
   decisionStyle?: string;

@@ -4,7 +4,10 @@ import { mockMetaMask, otherAddress } from "./utils/mockMetaMask";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.name = "";
+  });
 });
 
 async function finishAgentWizard(page: Page) {
@@ -23,45 +26,56 @@ async function finishAgentWizard(page: Page) {
 
 async function deploySmartWallet(page: Page) {
   await page
-    .getByRole("region", { name: "Smart wallet", exact: true })
+    .getByLabel("Next step")
     .getByRole("button", { name: "Create Smart Wallet" })
     .click();
+  const modal = page.getByRole("dialog", { name: "CreateSmartWalletModal" });
+  await modal.getByRole("button", { name: "Create Smart Wallet" }).click();
+  await expect(modal.getByText("Smart wallet created.")).toBeVisible();
+  await modal.getByRole("button", { name: "Close" }).click();
+}
+
+async function connectIfNeeded(page: Page) {
+  const connectButton = page.getByRole("button", { name: "Connect MetaMask" }).first();
+  if (await connectButton.isVisible()) {
+    await connectButton.click();
+  }
 }
 
 test("create agent returns an agent profile", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
 
   await expect(page).toHaveURL(/\/wallets\/1$/);
   await expect(page.getByLabel("Smart wallet profile")).toContainText("YieldGuard-01");
   await expect(page.getByLabel("Smart wallet profile")).toContainText("Treasury risk monitor");
-  await expect(page.getByLabel("Smart wallet lifecycle")).toContainText("Smart wallet profile created");
-  await expect(page.getByLabel("Smart wallet capabilities")).toContainText("Create transaction proposals");
+  await expect(page.getByLabel("Next step")).toContainText("Create Smart Wallet");
+  await expect(page.getByLabel("Wallet setup summary")).toContainText("Safe Approval Harness");
+  await expect(page.getByRole("button", { name: "Mission" })).toHaveCount(0);
 });
 
 test("view agent profile route shows saved identity", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await page.getByLabel("Smart Wallet Name").fill("TreasuryGuard-02");
   await finishAgentWizard(page);
   await page.goto("/wallets/1");
 
-  await expect(page.getByText("TreasuryGuard-02")).toBeVisible();
-  await expect(
-    page.getByRole("region", { name: "Smart wallet", exact: true }),
-  ).toContainText("Wallet ID");
+  await expect(page.getByRole("heading", { name: "TreasuryGuard-02" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Edit Setup" })).toBeVisible();
+  await expect(page.getByLabel("Next step")).toContainText("Create Smart Wallet");
 });
 
 test("invalid name shows validation error", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await page.getByLabel("Smart Wallet Name").fill("");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
@@ -72,12 +86,13 @@ test("another wallet opens profile in view-only mode", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
+  await deploySmartWallet(page);
 
   await mockMetaMask(page, "0x138b", otherAddress);
   await page.goto("/wallets/1");
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
 
   await expect(page.getByText("View only")).toBeVisible();
   await expect(page.getByText("Only the owner wallet can edit this smart wallet.")).toBeVisible();
@@ -88,66 +103,88 @@ test("agent owner creates an agent smart wallet", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
   await deploySmartWallet(page);
 
-  const walletCard = page.getByRole("region", {
-    exact: true,
-    name: "Smart wallet",
-  });
-  await expect(walletCard.getByText("Deployed")).toBeVisible();
-  await expect(walletCard.getByText("0x0000...0001")).toBeVisible();
-  await expect(walletCard.getByText("Smart wallet created.")).toBeVisible();
+  await expect(page.getByLabel("Smart wallet profile")).toContainText("0x0000...0001");
+  await expect(page.getByRole("button", { name: "Fund Wallet" })).toBeVisible();
 });
 
-test("duplicate wallet creation shows the existing wallet", async ({ page }) => {
+test("wallet next step changes after wallet creation", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
   await deploySmartWallet(page);
-  await page.getByRole("button", { name: "Show Existing Wallet" }).click();
+  await expect(page.getByLabel("Smart wallet profile").getByRole("button", { name: "Fund Wallet" })).toBeVisible();
+});
 
-  const walletCard = page.getByRole("region", {
-    exact: true,
-    name: "Smart wallet",
-  });
-  await expect(walletCard.getByText("Existing wallet linked.")).toBeVisible();
-  await expect(walletCard.getByText("0x0000...0001")).toBeVisible();
+test("mission model tools reports timeline and controls tabs work", async ({ page }) => {
+  await mockMetaMask(page, "0x138b");
+  await page.goto("/create-wallet");
+
+  await connectIfNeeded(page);
+  await finishAgentWizard(page);
+  await deploySmartWallet(page);
+
+  await page.getByRole("button", { name: "Mission" }).click();
+  await expect(page.getByLabel("Mission tab")).toContainText("Mission Type");
+  await expect(page.getByLabel("Mission tab")).toContainText("Live Eligibility");
+
+  await page.getByRole("button", { name: "Model" }).click();
+  await expect(page.getByLabel("Model tab")).toContainText("Nexora Demo Model");
+  await page.getByRole("button", { name: "Edit Model" }).click();
+  await expect(page.getByRole("dialog", { name: "EditModelModal" })).toBeVisible();
+  await page.getByLabel("Edit model name").fill("Local Policy Model");
+  await page.getByRole("button", { name: "Save Model" }).click();
+  await expect(page.getByLabel("Model tab")).toContainText("Local Policy Model");
+
+  await page.getByRole("button", { name: "Tools", exact: true }).click();
+  await expect(page.getByLabel("Tools tab")).toContainText("Wallet Tools");
+  await expect(page.getByLabel("Tools tab")).toContainText("RealClaw / Byreal Tools");
+  await page.getByRole("button", { name: "Edit Tools" }).click();
+  await expect(page.getByRole("dialog", { name: "EditToolsModal" })).toBeVisible();
+  await page.getByRole("button", { name: "Save Tools" }).click();
+
+  await page.getByRole("button", { name: "Reports" }).click();
+  await expect(page.getByLabel("Reports tab")).toContainText("No reports yet");
+  await page.getByRole("button", { name: "Timeline" }).click();
+  await expect(page.getByLabel("Timeline tab")).toContainText("No Test Lab runs yet");
+  await page.getByRole("button", { name: "Controls" }).click();
+  await expect(page.getByLabel("Controls tab")).toContainText("Policy");
+  await expect(page.getByLabel("Controls tab")).toContainText("Tool Settings");
 });
 
 test("non-owner cannot create or control agent wallet", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
 
   await mockMetaMask(page, "0x138b", otherAddress);
   await page.goto("/wallets/1");
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
 
-  const walletCard = page.getByRole("region", {
-    exact: true,
-    name: "Smart wallet",
-  });
+  await page.getByLabel("Next step").getByRole("button", { name: "Create Smart Wallet" }).click();
+  const walletCard = page.getByRole("dialog", { name: "CreateSmartWalletModal" });
   await expect(
     walletCard.getByText("Only the owner wallet can control this smart wallet."),
   ).toBeVisible();
-  await expect(
-    page.getByRole("button", { name: "Create Smart Wallet" }),
-  ).toHaveCount(0);
 });
 
 test("agent owner saves and reloads policy", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
+  await deploySmartWallet(page);
 
+  await page.getByRole("button", { name: "Controls" }).click();
+  await page.getByRole("button", { name: "Policy Settings" }).click();
   await page.getByLabel("Max risk score").fill("55");
   await page.getByLabel("Max transaction size").fill("35");
   await page.getByRole("button", { name: "Save Policy" }).click();
@@ -155,6 +192,8 @@ test("agent owner saves and reloads policy", async ({ page }) => {
   await expect(page.getByText("Policy stored on-chain-ready profile.")).toBeVisible();
   await page.reload();
 
+  await page.getByRole("button", { name: "Controls" }).click();
+  await page.getByRole("button", { name: "Policy Settings" }).click();
   const policyCard = page.getByLabel("Active policy");
   await expect(policyCard.getByText("55")).toBeVisible();
   await expect(policyCard.getByText("35 USDC")).toBeVisible();
@@ -164,9 +203,12 @@ test("invalid policy threshold is rejected", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
+  await deploySmartWallet(page);
 
+  await page.getByRole("button", { name: "Controls" }).click();
+  await page.getByRole("button", { name: "Policy Settings" }).click();
   await page.getByLabel("Max risk score").fill("200");
   await page.getByRole("button", { name: "Save Policy" }).click();
 
@@ -179,13 +221,16 @@ test("non-owner cannot edit policy", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
+  await deploySmartWallet(page);
 
   await mockMetaMask(page, "0x138b", otherAddress);
   await page.goto("/wallets/1");
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
 
+  await page.getByRole("button", { name: "Controls" }).click();
+  await page.getByRole("button", { name: "Policy Settings" }).click();
   await expect(
     page.getByText("Only the owner wallet can update this policy."),
   ).toBeVisible();
@@ -196,9 +241,10 @@ test("owner creates ERC-20 transfer intent", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
   await deploySmartWallet(page);
+  await page.getByRole("button", { name: "Controls" }).click();
   await page.getByRole("button", { name: "Build Intent" }).click();
 
   const intentCard = page.getByLabel("Transaction intent");
@@ -211,9 +257,10 @@ test("owner creates ERC-20 approval intent", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
   await deploySmartWallet(page);
+  await page.getByRole("button", { name: "Controls" }).click();
   await page
     .getByLabel("Task")
     .fill("Approve 20 USDC to 0x0000000000000000000000000000000000000004");
@@ -230,9 +277,10 @@ test("bad address blocks intent creation", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
   await deploySmartWallet(page);
+  await page.getByRole("button", { name: "Controls" }).click();
   await page.getByLabel("Task").fill("Send 10 USDC to nope");
   await page.getByRole("button", { name: "Build Intent" }).click();
 
@@ -243,9 +291,10 @@ test("limited approval produces readable risk report", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
   await deploySmartWallet(page);
+  await page.getByRole("button", { name: "Controls" }).click();
   await page
     .getByLabel("Task")
     .fill("Approve 20 USDC to 0x0000000000000000000000000000000000000004");
@@ -262,9 +311,10 @@ test("unlimited approval is high risk and blocked", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
   await deploySmartWallet(page);
+  await page.getByRole("button", { name: "Controls" }).click();
   await page
     .getByLabel("Task")
     .fill("Approve unlimited USDC to 0x0000000000000000000000000000000000000004");
@@ -281,9 +331,10 @@ test("unverified target increases risk", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
 
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  await connectIfNeeded(page);
   await finishAgentWizard(page);
   await deploySmartWallet(page);
+  await page.getByRole("button", { name: "Controls" }).click();
   await page
     .getByLabel("Task")
     .fill("Send 10 USDC to 0x0000000000000000000000000000000000000099");

@@ -4,7 +4,10 @@ import { mockMetaMask } from "./utils/mockMetaMask";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.name = "";
+  });
 });
 
 async function createAgentWallet(page: Page) {
@@ -22,9 +25,16 @@ async function createAgentWallet(page: Page) {
   await page.getByRole("button", { name: "Create Smart Wallet" }).click();
   await expect(page).toHaveURL(/\/wallets\/\d+$/);
   await page
-    .getByRole("region", { name: "Smart wallet", exact: true })
+    .getByLabel("Next step")
     .getByRole("button", { name: "Create Smart Wallet" })
     .click();
+  const createModal = page.getByRole("dialog", { name: "CreateSmartWalletModal" });
+  await createModal
+    .getByRole("button", { name: "Create Smart Wallet" })
+    .click();
+  await expect(createModal.getByText("Smart wallet created.")).toBeVisible();
+  await createModal.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Test Lab" }).click();
 }
 
 test("user submits an objective inside the selected harness", async ({ page }) => {
@@ -60,7 +70,7 @@ test("user submits an objective inside the selected harness", async ({ page }) =
   await expect(page.getByLabel("Smart wallets table")).toContainText("90");
 });
 
-test("objective runner requires a wallet before running", async ({ page }) => {
+test("objective runner is hidden until the smart wallet exists", async ({ page }) => {
   await mockMetaMask(page, "0x138b");
   await page.goto("/create-wallet");
   await page.getByRole("button", { name: "Next", exact: true }).click();
@@ -74,10 +84,7 @@ test("objective runner requires a wallet before running", async ({ page }) => {
   }
   await page.getByRole("button", { name: "Create Smart Wallet" }).click();
 
-  const runner = page.getByLabel("Objective runner");
-  await runner.getByRole("button", { name: "Run Objective" }).click();
-
-  await expect(
-    runner.getByText("Create and fund the smart wallet before running objectives."),
-  ).toBeVisible();
+  await expect(page.getByLabel("Next step")).toContainText("Create Smart Wallet");
+  await expect(page.getByRole("button", { name: "Test Lab" })).toHaveCount(0);
+  await expect(page.getByLabel("Objective runner")).toHaveCount(0);
 });

@@ -22,7 +22,7 @@ export default function SmartWalletPage() {
       <Header />
       <section className="page-shell">
         <div className="section-heading">
-          <h1>Smart Wallet Dashboard</h1>
+          <h1>Smart Wallet</h1>
         </div>
 
         {agent ? (

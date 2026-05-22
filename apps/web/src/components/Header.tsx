@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { ThemeToggle } from "./ThemeToggle";
 import { ConnectWalletButton } from "./wallet/ConnectWalletButton";
 
 export function Header() {
@@ -14,6 +15,7 @@ export function Header() {
         <Link href="/create-wallet">Create Smart Wallet</Link>
         <Link href="/harnesses">Harnesses</Link>
         <Link href="/arena">Arena</Link>
+        <ThemeToggle />
         <ConnectWalletButton variant="compact" />
       </nav>
     </header>

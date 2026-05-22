@@ -4,7 +4,10 @@ import { mockMetaMask } from "./utils/mockMetaMask";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.name = "";
+  });
 });
 
 async function runSafeObjective(page: Page) {
@@ -19,9 +22,14 @@ async function runSafeObjective(page: Page) {
   await page.getByRole("button", { name: "Create Smart Wallet" }).click();
   await expect(page).toHaveURL(/\/wallets\/\d+$/);
   await page
-    .getByRole("region", { name: "Smart wallet", exact: true })
+    .getByLabel("Next step")
     .getByRole("button", { name: "Create Smart Wallet" })
     .click();
+  const modal = page.getByRole("dialog", { name: "CreateSmartWalletModal" });
+  await modal.getByRole("button", { name: "Create Smart Wallet" }).click();
+  await expect(modal.getByText("Smart wallet created.")).toBeVisible();
+  await modal.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Test Lab" }).click();
   await page
     .getByLabel("Objective runner")
     .getByRole("button", { name: "Run Objective" })
@@ -52,5 +60,5 @@ test("objective run shows benchmark breakdown and registry-ready report", async 
   );
 
   await page.goto("/dashboard");
-  await expect(page.getByLabel("Smart wallets table")).toContainText("90");
+  await expect(page.getByLabel("Smart wallets table")).toContainText("96");
 });

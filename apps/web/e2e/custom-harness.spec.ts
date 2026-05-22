@@ -3,7 +3,10 @@ import { mockMetaMask } from "./utils/mockMetaMask";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.name = "";
+  });
 });
 
 async function finishAgentWizard(page: import("@playwright/test").Page) {
@@ -42,6 +45,7 @@ test("user creates a custom harness and assigns it to an agent", async ({
   await page.goto("/create-wallet");
   await finishAgentWizard(page);
 
+  await page.getByRole("button", { name: "Edit Setup" }).click();
   const selector = page.getByLabel("Harness selector");
   await selector.getByRole("button", { name: "Aave Guard Harness" }).click();
   await selector.getByRole("button", { name: "Save Harness" }).click();

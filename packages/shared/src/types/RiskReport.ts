@@ -11,7 +11,16 @@ export type RiskFlag = {
     | "UNVERIFIED_TARGET"
     | "LARGE_TRANSACTION"
     | "TRANSFER"
-    | "APPROVAL";
+    | "APPROVAL"
+    | "MNT_TRANSFER"
+    | "MNT_VAULT_DEPOSIT"
+    | "MNT_VAULT_WITHDRAW"
+    | "VERIFIED_BENCHMARK_VAULT"
+    | "RISKY_BENCHMARK_VAULT"
+    | "VOLATILE_BENCHMARK_VAULT"
+    | "AMOUNT_EXCEEDS_BALANCE"
+    | "AMOUNT_EXCEEDS_POLICY"
+    | "UNKNOWN_PAYABLE_TARGET";
   label: string;
   severity: RiskLevel;
   scoreImpact: number;

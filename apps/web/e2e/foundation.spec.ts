@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-test("landing page loads with Nexora value proposition", async ({ page }) => {
+test("landing page opens the dashboard", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "Nexora" })).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole("heading", { name: "Nexora Smart Wallets" })).toBeVisible();
   await expect(
-    page.getByText("Verifiable safety layer for programmable smart wallets."),
+    page.getByText("Create AI-controlled smart wallets"),
   ).toBeVisible();
   await expect(
     page.getByLabel("Primary navigation").getByRole("link", { name: "Create Smart Wallet" }),
@@ -16,7 +17,7 @@ test("wallet button is visible on the homepage", async ({ page }) => {
   await page.goto("/");
 
   await expect(page.getByRole("button", { name: "Connect MetaMask" })).toHaveCount(
-    2,
+    1,
   );
 });
 

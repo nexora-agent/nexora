@@ -2,11 +2,7 @@
 
 import type { AgentRecord } from "@nexora/shared";
 import { useState } from "react";
-import { createLocalAgentWallet } from "@/lib/agents/localAgentRegistry";
-import {
-  createAgentWalletOnchain,
-  shouldFallbackToDemoWrite,
-} from "@/lib/contracts/onchainAgents";
+import { createSmartWalletOnchain } from "@/lib/contracts/onchainSmartWallets";
 
 export function useCreateAgentWallet() {
   const [error, setError] = useState("");
@@ -20,26 +16,7 @@ export function useCreateAgentWallet() {
     setIsCreating(true);
 
     try {
-      let onchainWallet:
-        | Awaited<ReturnType<typeof createAgentWalletOnchain>>
-        | undefined;
-
-      if (agent.identityTransactionHash) {
-        try {
-          onchainWallet = await createAgentWalletOnchain(agent.id);
-        } catch (caughtError) {
-          if (!shouldFallbackToDemoWrite(caughtError)) {
-            throw caughtError;
-          }
-        }
-      }
-
-      return createLocalAgentWallet(
-        agent.id,
-        ownerAddress,
-        onchainWallet?.walletAddress,
-        onchainWallet?.transactionHash,
-      );
+      return await createSmartWalletOnchain(agent, ownerAddress);
     } catch (caughtError) {
       const message =
         caughtError instanceof Error

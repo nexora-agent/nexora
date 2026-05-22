@@ -32,6 +32,72 @@ export const nexoraFactoryAbi = [
   },
 ] as const;
 
+export const nexoraSmartWalletRegistryAbi = [
+  {
+    inputs: [
+      { internalType: "string", name: "metadataURI", type: "string" },
+      { internalType: "bytes32", name: "harnessId", type: "bytes32" },
+      { internalType: "uint8", name: "riskMode", type: "uint8" },
+      { internalType: "uint8", name: "runnerMode", type: "uint8" },
+    ],
+    name: "registerSmartWallet",
+    outputs: [{ internalType: "uint256", name: "smartWalletId", type: "uint256" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "smartWalletId", type: "uint256" }],
+    name: "createSmartWallet",
+    outputs: [{ internalType: "address", name: "wallet", type: "address" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "smartWalletId", type: "uint256" }],
+    name: "getSmartWallet",
+    outputs: [
+      {
+        components: [
+          { internalType: "address", name: "owner", type: "address" },
+          { internalType: "address", name: "wallet", type: "address" },
+          { internalType: "string", name: "metadataURI", type: "string" },
+          { internalType: "bytes32", name: "harnessId", type: "bytes32" },
+          { internalType: "uint8", name: "riskMode", type: "uint8" },
+          { internalType: "uint8", name: "runnerMode", type: "uint8" },
+          { internalType: "uint64", name: "createdAt", type: "uint64" },
+          { internalType: "uint64", name: "walletCreatedAt", type: "uint64" },
+        ],
+        internalType: "struct NexoraSmartWalletRegistry.SmartWallet",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "owner", type: "address" }],
+    name: "smartWalletsOfOwner",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "smartWalletId", type: "uint256" }],
+    name: "walletOfSmartWallet",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "nextSmartWalletId",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
 export const nexoraRiskRegistryAbi = [
   {
     inputs: [

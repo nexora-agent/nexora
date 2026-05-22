@@ -4,7 +4,10 @@ import { mockMetaMask } from "./utils/mockMetaMask";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.name = "";
+  });
 });
 
 async function createAgent(page: Page) {
@@ -26,6 +29,7 @@ async function createAgent(page: Page) {
 test("user can inspect and select a harness for an agent", async ({ page }) => {
   await createAgent(page);
 
+  await page.getByRole("button", { name: "Edit Setup" }).click();
   const selector = page.getByLabel("Harness selector");
   await expect(
     selector.getByRole("button", { name: /Safe Approval Harness/ }),
@@ -53,10 +57,12 @@ test("user can inspect and select a harness for an agent", async ({ page }) => {
 test("harness selection is separate from objective state", async ({ page }) => {
   await createAgent(page);
 
+  await page.getByRole("button", { name: "Edit Setup" }).click();
   const selector = page.getByLabel("Harness selector");
   await selector.getByRole("button", { name: /Byreal Safe DeFi Harness/ }).click();
   await expect(selector.getByLabel("Harness tools")).toContainText(
     "get_byreal_pools",
   );
-  await expect(page.getByLabel("Objective runner")).toBeVisible();
+  await page.getByRole("button", { name: "Close" }).click();
+  await expect(page.getByLabel("Next step")).toContainText("Create Smart Wallet");
 });

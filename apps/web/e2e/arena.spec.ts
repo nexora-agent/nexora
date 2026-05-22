@@ -4,19 +4,30 @@ import { mockMetaMask } from "./utils/mockMetaMask";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.name = "";
+  });
 });
 
 async function createAgent(page: Page, name: string) {
   await page.goto("/create-wallet");
-  await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  const connectButton = page.getByRole("button", { name: "Connect MetaMask" }).first();
+  if (await connectButton.isVisible()) {
+    await connectButton.click();
+  }
   await page.getByLabel("Smart Wallet Name").fill(name);
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByRole("button", { name: "Create Smart Wallet" }).click();
+  const submitButton = page.getByRole("button", { name: "Create Smart Wallet" });
+  if (await submitButton.isDisabled()) {
+    await page.getByRole("button", { name: "Connect MetaMask" }).first().click();
+  }
+  await expect(submitButton).toBeEnabled();
+  await submitButton.click();
   await expect(page.getByLabel("Smart wallet profile")).toContainText(name);
 }
 

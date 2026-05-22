@@ -4,7 +4,10 @@ import { mockMetaMask } from "./utils/mockMetaMask";
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    window.localStorage.clear();
+    window.name = "";
+  });
 });
 
 async function createAgentWallet(page: Page) {
@@ -19,9 +22,14 @@ async function createAgentWallet(page: Page) {
   await page.getByRole("button", { name: "Create Smart Wallet" }).click();
   await expect(page).toHaveURL(/\/wallets\/\d+$/);
   await page
-    .getByRole("region", { name: "Smart wallet", exact: true })
+    .getByLabel("Next step")
     .getByRole("button", { name: "Create Smart Wallet" })
     .click();
+  const modal = page.getByRole("dialog", { name: "CreateSmartWalletModal" });
+  await modal.getByRole("button", { name: "Create Smart Wallet" }).click();
+  await expect(modal.getByText("Smart wallet created.")).toBeVisible();
+  await modal.getByRole("button", { name: "Close" }).click();
+  await page.getByRole("button", { name: "Test Lab" }).click();
 }
 
 test("safe proposal executes and updates reputation", async ({ page }) => {
@@ -37,6 +45,7 @@ test("safe proposal executes and updates reputation", async ({ page }) => {
   await expect(page.getByLabel("Execution status")).toContainText(
     "Policy report verified",
   );
+  await page.getByRole("button", { name: "Reports" }).click();
   await expect(page.getByLabel("Smart wallet reputation")).toContainText("Safe Actions");
   await expect(page.getByLabel("Smart wallet reputation")).toContainText("1");
 });
@@ -55,6 +64,7 @@ test("risky proposal blocks and updates reputation", async ({ page }) => {
   await expect(page.getByLabel("Blocked execution")).toContainText(
     "Policy decision blocked execution",
   );
+  await page.getByRole("button", { name: "Reports" }).click();
   await expect(page.getByLabel("Smart wallet reputation")).toContainText("Blocked Actions");
   await expect(page.getByLabel("Smart wallet reputation")).toContainText("Policy Violations");
 });

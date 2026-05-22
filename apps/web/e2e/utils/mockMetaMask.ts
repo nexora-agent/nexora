@@ -11,7 +11,26 @@ export async function mockMetaMask(
   await page.addInitScript(
     ({ walletAddress, chainId }) => {
       let activeChainId = chainId;
-      let accounts: string[] = [];
+      const stateKey = "nexora.mockWallet";
+      const readState = () => {
+        try {
+          const state = window.name ? JSON.parse(window.name) : {};
+          return state[stateKey] as { connected?: boolean } | undefined;
+        } catch {
+          return undefined;
+        }
+      };
+      const writeState = (connected: boolean) => {
+        let state: Record<string, unknown> = {};
+        try {
+          state = window.name ? JSON.parse(window.name) : {};
+        } catch {
+          state = {};
+        }
+        state[stateKey] = { connected };
+        window.name = JSON.stringify(state);
+      };
+      let accounts: string[] = readState()?.connected ? [walletAddress] : [];
       const listeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
       const emit = (event: string, ...args: unknown[]) => {
@@ -32,6 +51,7 @@ export async function mockMetaMask(
           }) => {
             if (method === "eth_requestAccounts") {
               accounts = [walletAddress];
+              writeState(true);
               emit("accountsChanged", accounts);
               return accounts;
             }

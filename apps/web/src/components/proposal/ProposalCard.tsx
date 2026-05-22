@@ -28,6 +28,22 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
           <dt>Token</dt>
           <dd>{proposal.token}</dd>
         </div>
+        {proposal.targetVault && (
+          <div>
+            <dt>Selected Vault</dt>
+            <dd>{proposal.targetVault}</dd>
+          </div>
+        )}
+        {proposal.rejectedOptions?.length ? (
+          <div>
+            <dt>Rejected Vaults</dt>
+            <dd>
+              {proposal.rejectedOptions
+                .map((option) => `${option.name}: ${option.reason}`)
+                .join(" · ")}
+            </dd>
+          </div>
+        ) : null}
         <div>
           <dt>Amount</dt>
           <dd>{proposal.amount}</dd>

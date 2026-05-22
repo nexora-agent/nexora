@@ -11,10 +11,49 @@ import type {
   PolicyProfile,
   RiskMode,
   RunnerMode,
+  SmartWalletModelConfig,
+  SmartWalletToolConfig,
 } from "@nexora/shared";
 
-const agentsKey = "nexora.agents";
-const nextAgentIdKey = "nexora.nextAgentId";
+let cachedAgents: AgentRecord[] = [];
+let nextCachedAgentId = 1;
+const demoChainKey = "nexora.demoChain";
+
+type DemoChainState = {
+  agents: AgentRecord[];
+  nextAgentId: number;
+};
+
+function readDemoChainState(): DemoChainState | undefined {
+  if (typeof window === "undefined" || !window.name) {
+    return undefined;
+  }
+
+  try {
+    const state = JSON.parse(window.name) as Record<string, DemoChainState>;
+    return state[demoChainKey];
+  } catch {
+    return undefined;
+  }
+}
+
+function writeDemoChainState(state: DemoChainState) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  let windowState: Record<string, DemoChainState> = {};
+  try {
+    windowState = window.name
+      ? (JSON.parse(window.name) as Record<string, DemoChainState>)
+      : {};
+  } catch {
+    windowState = {};
+  }
+
+  windowState[demoChainKey] = state;
+  window.name = JSON.stringify(windowState);
+}
 
 type CreateAgentInput = {
   id?: string;
@@ -23,6 +62,8 @@ type CreateAgentInput = {
   agentType?: AgentType;
   runtime: AgentRuntimeId;
   runnerMode?: RunnerMode;
+  modelConfig?: SmartWalletModelConfig;
+  toolsConfig?: SmartWalletToolConfig[];
   strategyType: AgentStrategyType;
   primaryPurpose?: string;
   decisionStyle?: string;
@@ -35,30 +76,19 @@ type CreateAgentInput = {
 };
 
 function readAgents(): AgentRecord[] {
-  if (typeof window === "undefined") {
-    return [];
-  }
-
-  const rawAgents = window.localStorage.getItem(agentsKey);
-  if (!rawAgents) {
-    return [];
-  }
-
-  try {
-    return JSON.parse(rawAgents) as AgentRecord[];
-  } catch {
-    return [];
-  }
+  return readDemoChainState()?.agents ?? cachedAgents;
 }
 
 function writeAgents(agents: AgentRecord[]) {
-  window.localStorage.setItem(agentsKey, JSON.stringify(agents));
+  cachedAgents = agents;
+  writeDemoChainState({
+    agents,
+    nextAgentId: nextCachedAgentId,
+  });
 }
 
 function readNextAgentId() {
-  const rawNextAgentId = window.localStorage.getItem(nextAgentIdKey);
-  const nextAgentId = rawNextAgentId ? Number(rawNextAgentId) : 1;
-  return Number.isFinite(nextAgentId) && nextAgentId > 0 ? nextAgentId : 1;
+  return readDemoChainState()?.nextAgentId ?? nextCachedAgentId;
 }
 
 export function createLocalAgent(input: CreateAgentInput): AgentRecord {
@@ -73,8 +103,11 @@ export function createLocalAgent(input: CreateAgentInput): AgentRecord {
     goal: input.description,
     description: input.description,
     agentType: input.agentType,
+    missionType: input.agentType,
     runtime: input.runtime,
     runnerMode: input.runnerMode,
+    modelConfig: input.modelConfig,
+    toolsConfig: input.toolsConfig,
     strategyType: input.strategyType,
     primaryPurpose: input.primaryPurpose,
     decisionStyle: input.decisionStyle,
@@ -92,8 +125,11 @@ export function createLocalAgent(input: CreateAgentInput): AgentRecord {
     goal: input.description,
     description: input.description,
     agentType: input.agentType,
+    missionType: input.agentType,
     runtime: input.runtime,
     runnerMode: input.runnerMode,
+    modelConfig: input.modelConfig,
+    toolsConfig: input.toolsConfig,
     strategyType: input.strategyType,
     primaryPurpose: input.primaryPurpose,
     decisionStyle: input.decisionStyle,
@@ -117,8 +153,78 @@ export function createLocalAgent(input: CreateAgentInput): AgentRecord {
     Number.isFinite(parsedId) && parsedId > 0
       ? Math.max(nextAgentId, parsedId + 1)
       : nextAgentId + 1;
-  window.localStorage.setItem(nextAgentIdKey, String(nextId));
+  nextCachedAgentId = nextId;
+  writeDemoChainState({
+    agents: readAgents(),
+    nextAgentId: nextId,
+  });
 
+  return agent;
+}
+
+export function saveLocalAgentModel(
+  agentId: string,
+  ownerAddress: `0x${string}`,
+  modelConfig: SmartWalletModelConfig,
+): AgentRecord {
+  const agents = readAgents();
+  const agent = agents.find((candidate) => candidate.id === agentId);
+
+  if (!agent) {
+    throw new Error("Smart wallet not found.");
+  }
+
+  if (agent.ownerAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+    throw new Error("Only the owner wallet can update this model.");
+  }
+
+  const updatedAgent: AgentRecord = {
+    ...agent,
+    modelConfig,
+    runnerMode: modelConfig.runnerMode,
+    metadata: {
+      ...agent.metadata,
+      modelConfig,
+      runnerMode: modelConfig.runnerMode,
+    },
+  };
+
+  return upsertCachedAgent(updatedAgent);
+}
+
+export function saveLocalAgentTools(
+  agentId: string,
+  ownerAddress: `0x${string}`,
+  toolsConfig: SmartWalletToolConfig[],
+): AgentRecord {
+  const agents = readAgents();
+  const agent = agents.find((candidate) => candidate.id === agentId);
+
+  if (!agent) {
+    throw new Error("Smart wallet not found.");
+  }
+
+  if (agent.ownerAddress.toLowerCase() !== ownerAddress.toLowerCase()) {
+    throw new Error("Only the owner wallet can update tools.");
+  }
+
+  const updatedAgent: AgentRecord = {
+    ...agent,
+    toolsConfig,
+    metadata: {
+      ...agent.metadata,
+      toolsConfig,
+    },
+  };
+
+  return upsertCachedAgent(updatedAgent);
+}
+
+export function upsertCachedAgent(agent: AgentRecord): AgentRecord {
+  writeAgents([
+    ...readAgents().filter((candidate) => candidate.id !== agent.id),
+    agent,
+  ]);
   return agent;
 }
 
@@ -160,6 +266,32 @@ export function createLocalAgentWallet(
     ...agent,
     walletAddress: walletAddress ?? localWalletAddressForAgent(agent.id),
     walletTransactionHash,
+  };
+
+  writeAgents(
+    agents.map((candidate) =>
+      candidate.id === agent.id ? updatedAgent : candidate,
+    ),
+  );
+
+  return updatedAgent;
+}
+
+export function markLocalAgentWalletFunded(
+  agentId: string,
+  walletFundingTransactionHash?: `0x${string}`,
+): AgentRecord {
+  const agents = readAgents();
+  const agent = agents.find((candidate) => candidate.id === agentId);
+
+  if (!agent) {
+    throw new Error("Smart wallet not found.");
+  }
+
+  const updatedAgent: AgentRecord = {
+    ...agent,
+    walletFundingTransactionHash,
+    walletFundedAt: new Date().toISOString(),
   };
 
   writeAgents(

@@ -8,6 +8,7 @@ import type {
   RiskReport,
   TransactionIntent,
 } from "@nexora/shared";
+import { mantleSepoliaContracts } from "@/lib/contracts/deployments";
 
 const verifiedTargets = new Set([
   "0x0000000000000000000000000000000000000003",
@@ -38,6 +39,50 @@ function flagsForIntent(
     });
   }
 
+  if (intent.kind === "mnt_vault_deposit" || intent.kind === "mnt_vault_withdraw") {
+    flags.push({
+      code: intent.kind === "mnt_vault_deposit" ? "MNT_VAULT_DEPOSIT" : "MNT_VAULT_WITHDRAW",
+      label: intent.kind === "mnt_vault_deposit" ? "MNT vault deposit" : "MNT vault withdraw",
+      scoreImpact: 6,
+      severity: "low",
+    });
+
+    const vault = benchmarkVaults.get(intent.target.toLowerCase());
+    if (!vault) {
+      flags.push({
+        code: "UNKNOWN_PAYABLE_TARGET",
+        label: "Unknown payable target",
+        scoreImpact: 60,
+        severity: "high",
+      });
+    } else {
+      flags.push({
+        code: "VERIFIED_BENCHMARK_VAULT",
+        label: "Verified Nexora benchmark vault",
+        scoreImpact: 0,
+        severity: "low",
+      });
+
+      if (vault.risk === "medium") {
+        flags.push({
+          code: "VOLATILE_BENCHMARK_VAULT",
+          label: "Volatile benchmark vault",
+          scoreImpact: 32,
+          severity: "medium",
+        });
+      }
+
+      if (vault.risk === "high") {
+        flags.push({
+          code: "RISKY_BENCHMARK_VAULT",
+          label: "Risky benchmark vault",
+          scoreImpact: 76,
+          severity: "high",
+        });
+      }
+    }
+  }
+
   if (intent.kind === "erc20_approval") {
     flags.push({
       code: "APPROVAL",
@@ -66,7 +111,11 @@ function flagsForIntent(
     }
   }
 
-  if (!verifiedTargets.has(intent.target.toLowerCase())) {
+  if (
+    intent.kind !== "mnt_vault_deposit" &&
+    intent.kind !== "mnt_vault_withdraw" &&
+    !verifiedTargets.has(intent.target.toLowerCase())
+  ) {
     flags.push({
       code: "UNVERIFIED_TARGET",
       label: "Target contract is not in the verified registry",
@@ -77,7 +126,7 @@ function flagsForIntent(
 
   if (Number(intent.amount) > policy.maxTransactionSizeUsd) {
     flags.push({
-      code: "LARGE_TRANSACTION",
+      code: intent.tokenSymbol === "MNT" ? "AMOUNT_EXCEEDS_POLICY" : "LARGE_TRANSACTION",
       label: "Amount exceeds policy transaction size",
       scoreImpact: 24,
       severity: "medium",
@@ -140,3 +189,8 @@ export function analyzeRiskLocally(
     walletAddress,
   };
 }
+const benchmarkVaults = new Map<string, { name: string; risk: "low" | "medium" | "high" }>([
+  [mantleSepoliaContracts.safeVault.toLowerCase(), { name: "NexoraSafeVault", risk: "low" }],
+  [mantleSepoliaContracts.volatileVault.toLowerCase(), { name: "NexoraVolatileVault", risk: "medium" }],
+  [mantleSepoliaContracts.riskyVault.toLowerCase(), { name: "NexoraRiskyVault", risk: "high" }],
+]);
