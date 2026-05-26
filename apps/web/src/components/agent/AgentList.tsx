@@ -3,6 +3,7 @@
 import type { AgentRecord } from "@nexora/shared";
 import Link from "next/link";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { getExternalDefiEligibility } from "@/lib/byreal/externalDefiEligibility";
 import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
 import {
   enabledToolsCount,
@@ -40,6 +41,7 @@ function AgentTableRow({
   const isFunded = Boolean(agent.walletAddress && (agent.walletFundedAt || (!isLoading && !isZeroBalance)));
   const status = getAgentStatus(agent, isFunded);
   const nextAction = getAgentNextAction(status);
+  const externalDefi = getExternalDefiEligibility(agent, isFunded);
 
   return (
     <tr>
@@ -58,6 +60,11 @@ function AgentTableRow({
       <td>{agent.objectiveRuns?.[0]?.benchmarkScore?.finalScore ?? "—"}</td>
       <td>
         <AgentStatusBadge status={status} />
+      </td>
+      <td>
+        <span className={`status-pill ${externalDefi.status === "dry-run" ? "status-ready" : "status-disconnected"}`}>
+          {externalDefi.status === "dry-run" ? "Dry-run enabled" : "Locked"}
+        </span>
       </td>
       <td>
         <div className="table-action-group">
@@ -126,6 +133,7 @@ export function AgentList({
               <th>Balance</th>
               <th>Benchmark</th>
               <th>Status</th>
+              <th>External DeFi</th>
               <th>Next Action</th>
             </tr>
           </thead>

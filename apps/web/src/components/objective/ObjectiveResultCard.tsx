@@ -1,17 +1,21 @@
-import type { AgentRecord, ObjectiveRun, PolicyProfile } from "@nexora/shared";
+import {
+  buildReportEnvelope,
+  type AgentRecord,
+  type ObjectiveRun,
+  type PolicyProfile,
+} from "@nexora/shared";
 import { BenchmarkScoreCard } from "../benchmark/BenchmarkScoreCard";
+import { ModelDecisionPanel } from "../benchmark/ModelDecisionPanel";
 import { ByrealActionProposal } from "../byreal/ByrealActionProposal";
 import { ByrealPoolCard } from "../byreal/ByrealPoolCard";
 import { TransactionIntentCard } from "../intent/TransactionIntentCard";
 import { inspectByrealPool } from "@/lib/byreal/byrealAdapter";
-import { BlockedExecutionCard } from "../execution/BlockedExecutionCard";
-import { ExecuteProposalButton } from "../execution/ExecuteProposalButton";
-import { ExecutionStatusCard } from "../execution/ExecutionStatusCard";
 import { ProposalCard } from "../proposal/ProposalCard";
 import { ProposalRiskPanel } from "../proposal/ProposalRiskPanel";
 import { ToolTracePanel } from "../proposal/ToolTracePanel";
 import { buildRegistryRecord } from "@/lib/registry/buildRegistryRecord";
 import { OnchainReportCard } from "../risk/OnchainReportCard";
+import { ReportEnvelopeCard } from "../risk/ReportEnvelopeCard";
 import { RiskReportPanel } from "../risk/RiskReportPanel";
 
 type ObjectiveResultCardProps = {
@@ -22,14 +26,12 @@ type ObjectiveResultCardProps = {
 };
 
 export function ObjectiveResultCard({
-  agent,
-  policy,
   run,
-  onRunUpdated,
 }: ObjectiveResultCardProps) {
   const byrealPool =
     run.harnessId === "byreal-defi" ? inspectByrealPool(run.objective) : undefined;
   const registryRecord = buildRegistryRecord(run);
+  const reportEnvelope = run.reportEnvelope ?? buildReportEnvelope(run);
 
   return (
     <section className="objective-result-card" aria-label="Objective result">
@@ -49,6 +51,7 @@ export function ObjectiveResultCard({
       </dl>
       {byrealPool && <ByrealPoolCard pool={byrealPool} />}
       <ToolTracePanel trace={run.toolTrace} />
+      <ModelDecisionPanel intent={run.intent} />
       {run.proposal && <ProposalCard proposal={run.proposal} />}
       {run.proposal && (
         <ProposalRiskPanel proposal={run.proposal} report={run.riskReport} />
@@ -57,21 +60,8 @@ export function ObjectiveResultCard({
         <ByrealActionProposal proposal={run.proposal} />
       )}
       {run.benchmarkScore && <BenchmarkScoreCard score={run.benchmarkScore} />}
+      <ReportEnvelopeCard envelope={reportEnvelope} />
       <OnchainReportCard record={registryRecord} />
-      {!run.execution && onRunUpdated && (
-        <ExecuteProposalButton
-          agent={agent}
-          policy={policy}
-          run={run}
-          onExecution={onRunUpdated}
-        />
-      )}
-      {run.execution?.status === "executed" && (
-        <ExecutionStatusCard execution={run.execution} />
-      )}
-      {run.execution?.status === "blocked" && (
-        <BlockedExecutionCard execution={run.execution} />
-      )}
       {run.intent && <TransactionIntentCard intent={run.intent} />}
       {run.riskReport && <RiskReportPanel report={run.riskReport} />}
     </section>

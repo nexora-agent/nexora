@@ -3,11 +3,7 @@
 import type { AgentRecord, ObjectiveRun } from "@nexora/shared";
 import { useState } from "react";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
-import {
-  getAgentPolicy,
-  saveLocalObjectiveRun,
-  updateLocalObjectiveRun,
-} from "@/lib/agents/localAgentRegistry";
+import { getAgentPolicy } from "@/lib/agents/localAgentRegistry";
 import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
 import { runObjectiveLocally } from "@/lib/objectives/runObjectiveLocally";
 import { ObjectiveHistory } from "./ObjectiveHistory";
@@ -20,6 +16,18 @@ type ObjectiveRunnerProps = {
   isOwner: boolean;
   onObjectiveRunSaved: (agent: AgentRecord) => void;
 };
+
+function agentWithRun(agent: AgentRecord, run: ObjectiveRun): AgentRecord {
+  const existingRuns = agent.objectiveRuns ?? [];
+  const hasRun = existingRuns.some((candidate) => candidate.id === run.id);
+
+  return {
+    ...agent,
+    objectiveRuns: hasRun
+      ? existingRuns.map((candidate) => candidate.id === run.id ? run : candidate)
+      : [run, ...existingRuns],
+  };
+}
 
 export function ObjectiveRunner({
   agent,
@@ -60,7 +68,7 @@ export function ObjectiveRunner({
 
     try {
       const run = runObjectiveLocally(agent, objective.trim());
-      const updatedAgent = saveLocalObjectiveRun(agent.id, address, run);
+      const updatedAgent = agentWithRun(agent, run);
       setLatestRun(run);
       onObjectiveRunSaved(updatedAgent);
     } catch (caughtError) {
@@ -75,11 +83,7 @@ export function ObjectiveRunner({
   };
 
   const updateObjectiveRun = (run: ObjectiveRun) => {
-    if (!address) {
-      return;
-    }
-
-    const updatedAgent = updateLocalObjectiveRun(agent.id, address, run);
+    const updatedAgent = agentWithRun(agent, run);
     setLatestRun(run);
     onObjectiveRunSaved(updatedAgent);
   };

@@ -205,9 +205,21 @@ export const harnessTemplates: HarnessTemplate[] = [
     summary: "Prepare sponsor-aligned DeFi proposals through Byreal-style tools.",
     tools: [
       {
+        id: "get_byreal_status",
+        name: "get_byreal_status",
+        description: "Check the Byreal / RealClaw adapter mode and execution availability.",
+        sponsorSurface: "byreal",
+      },
+      {
+        id: "list_byreal_pools",
+        name: "list_byreal_pools",
+        description: "List demo Byreal / RealClaw pool opportunities.",
+        sponsorSurface: "byreal",
+      },
+      {
         id: "get_byreal_pools",
         name: "get_byreal_pools",
-        description: "List supported Byreal-style pool opportunities.",
+        description: "Compatibility alias for Byreal pool listing.",
         sponsorSurface: "byreal",
       },
       {
@@ -217,9 +229,15 @@ export const harnessTemplates: HarnessTemplate[] = [
         sponsorSurface: "byreal",
       },
       {
-        id: "create_byreal_swap_intent",
-        name: "create_byreal_swap_intent",
-        description: "Create a bounded Byreal-style swap intent.",
+        id: "compare_byreal_opportunities",
+        name: "compare_byreal_opportunities",
+        description: "Compare opportunities by risk-adjusted yield.",
+        sponsorSurface: "byreal",
+      },
+      {
+        id: "create_byreal_action_intent",
+        name: "create_byreal_action_intent",
+        description: "Create a dry-run Byreal / RealClaw action proposal.",
         sponsorSurface: "byreal",
       },
       {

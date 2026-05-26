@@ -10,8 +10,15 @@ export type AgentProposal = {
   token: string;
   amount: string;
   asset?: string;
+  executionMode?: string;
+  expectedYield?: string;
+  liveExecutionEnabled?: boolean;
+  mode?: string;
+  poolName?: string;
+  protocol?: string;
   reasoning: string;
   rejectedOptions?: Array<{ name: string; reason: string }>;
+  riskHints?: string[];
   targetVault?: string;
   intentHash: `0x${string}`;
   intent: TransactionIntent;

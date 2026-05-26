@@ -14,6 +14,18 @@ export function ByrealActionProposal({ proposal }: ByrealActionProposalProps) {
           <dd>{proposal.actionType}</dd>
         </div>
         <div>
+          <dt>Pool</dt>
+          <dd>{proposal.poolName ?? "Byreal / RealClaw dry-run"}</dd>
+        </div>
+        <div>
+          <dt>Mode</dt>
+          <dd>{proposal.mode ?? "demo"} · {proposal.executionMode ?? "dry_run"}</dd>
+        </div>
+        <div>
+          <dt>Live Execution</dt>
+          <dd>{proposal.liveExecutionEnabled ? "Enabled" : "Disabled"}</dd>
+        </div>
+        <div>
           <dt>Intent Hash</dt>
           <dd>{proposal.intentHash}</dd>
         </div>

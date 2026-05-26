@@ -17,7 +17,6 @@ import {
   createLocalAgent,
   createLocalAgentWallet,
   listLocalAgents,
-  upsertCachedAgent,
 } from "@/lib/agents/localAgentRegistry";
 import { mantleSepolia } from "@/lib/chains/mantle";
 import { nexoraSmartWalletRegistryAbi } from "@/lib/contracts/abis";
@@ -108,21 +107,16 @@ function dateFromChainTimestamp(timestamp: bigint | number) {
   return new Date(numericTimestamp * 1000).toISOString();
 }
 
-function mergeCachedOverlay(agent: AgentRecord) {
-  const cached = listLocalAgents().find((candidate) => candidate.id === agent.id);
-  if (!cached) {
-    return agent;
+function isSmartWalletNotFoundError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return false;
   }
 
-  return {
-    ...agent,
-    modelConfig: cached.modelConfig ?? agent.modelConfig,
-    objectiveRuns: cached.objectiveRuns,
-    policy: cached.policy,
-    toolsConfig: cached.toolsConfig ?? agent.toolsConfig,
-    walletFundedAt: cached.walletFundedAt,
-    walletFundingTransactionHash: cached.walletFundingTransactionHash,
-  };
+  return (
+    error.message.includes("SmartWalletNotFound") ||
+    error.message.includes("0xd7624a57") ||
+    error.message.includes("execution reverted")
+  );
 }
 
 function smartWalletRecordFromChain(
@@ -138,7 +132,7 @@ function smartWalletRecordFromChain(
   const name = metadata?.name ?? `Smart Wallet ${id.toString()}`;
   const description = metadata?.description ?? metadata?.goal ?? "On-chain smart wallet";
 
-  return mergeCachedOverlay({
+  return {
     id: id.toString(),
     name,
     goal: description,
@@ -181,7 +175,7 @@ function smartWalletRecordFromChain(
     },
     metadataUri: smartWallet.metadataURI,
     createdAt,
-  });
+  };
 }
 
 export async function createSmartWalletProfileOnchain(
@@ -295,15 +289,23 @@ export async function getSmartWalletProfileOnchain(
     return listLocalAgents().find((agent) => agent.id === smartWalletId);
   }
 
-  const smartWallet = await readContract(wagmiConfig, {
-    address: mantleSepoliaContracts.smartWalletRegistry,
-    abi: nexoraSmartWalletRegistryAbi,
-    functionName: "getSmartWallet",
-    args: [BigInt(smartWalletId)],
-    chainId: mantleSepolia.id,
-  });
+  try {
+    const smartWallet = await readContract(wagmiConfig, {
+      address: mantleSepoliaContracts.smartWalletRegistry,
+      abi: nexoraSmartWalletRegistryAbi,
+      functionName: "getSmartWallet",
+      args: [BigInt(smartWalletId)],
+      chainId: mantleSepolia.id,
+    });
 
-  return smartWalletRecordFromChain(BigInt(smartWalletId), smartWallet, transactionHash);
+    return smartWalletRecordFromChain(BigInt(smartWalletId), smartWallet, transactionHash);
+  } catch (error) {
+    if (isSmartWalletNotFoundError(error)) {
+      return undefined;
+    }
+
+    throw error;
+  }
 }
 
 export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}`) {
@@ -326,14 +328,14 @@ export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}
   });
 
   const smartWallets = await Promise.all(
-    smartWalletIds.map((smartWalletId) =>
-      getSmartWalletProfileOnchain(smartWalletId.toString()),
-    ),
+    smartWalletIds.map(async (smartWalletId) => {
+      try {
+        return await getSmartWalletProfileOnchain(smartWalletId.toString());
+      } catch {
+        return undefined;
+      }
+    }),
   );
 
   return smartWallets.filter((agent): agent is AgentRecord => Boolean(agent));
-}
-
-export function cacheSmartWalletOverlay(agent: AgentRecord) {
-  return upsertCachedAgent(agent);
 }

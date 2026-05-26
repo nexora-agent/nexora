@@ -910,6 +910,21 @@ h1 {
   justify-content: space-between;
 }
 
+.setup-detail-card pre {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.78rem;
+  line-height: 1.5;
+  margin: 0;
+  max-height: 260px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .mini-segmented-control {
   background: var(--surface-strong);
   border: 1px solid var(--line);
@@ -1247,6 +1262,161 @@ h1 {
   gap: 18px;
 }
 
+.benchmark-tab-shell {
+  display: grid;
+  margin: 0 auto;
+  max-width: 1040px;
+  width: 100%;
+}
+
+.benchmark-lab-shell {
+  display: grid;
+  gap: 18px;
+}
+
+.benchmark-lab-hero {
+  align-items: center;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 42%),
+    var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 20px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 24px;
+}
+
+.benchmark-lab-hero h3 {
+  font-size: clamp(1.35rem, 2vw, 2rem);
+  margin: 10px 0 8px;
+}
+
+.benchmark-lab-hero p {
+  color: var(--muted);
+  font-size: 1rem;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 620px;
+}
+
+.benchmark-model-label {
+  color: var(--muted);
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 700;
+  margin-top: 12px;
+}
+
+.benchmark-run-button {
+  min-height: 52px;
+  min-width: 210px;
+}
+
+.benchmark-check-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.benchmark-check-grid article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+}
+
+.benchmark-check-grid strong {
+  color: var(--ink);
+}
+
+.benchmark-check-grid span {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.benchmark-result-summary {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 20px;
+}
+
+.benchmark-score-orb {
+  align-items: center;
+  aspect-ratio: 1;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface-soft));
+  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--line));
+  border-radius: 999px;
+  display: grid;
+  height: 104px;
+  justify-items: center;
+}
+
+.benchmark-score-orb span {
+  color: var(--ink);
+  font-size: 2rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.benchmark-score-orb small {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.benchmark-result-summary dl {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+}
+
+.benchmark-result-summary div {
+  display: grid;
+  gap: 4px;
+}
+
+.benchmark-result-summary dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.benchmark-result-summary dd {
+  color: var(--ink);
+  font-weight: 850;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.benchmark-technical-details {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px;
+}
+
+.benchmark-technical-details summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.benchmark-technical-details[open] {
+  display: grid;
+  gap: 14px;
+}
+
 .objective-input {
   display: grid;
   gap: 8px;
@@ -1581,6 +1751,10 @@ h1 {
 }
 
 .form-grid input[type="text"],
+.form-grid input[type="url"],
+.form-grid input[type="password"],
+.form-grid input[type="number"],
+.form-grid select,
 .form-grid textarea,
 .policy-editor-fields input[type="number"],
 .intent-input-grid input,
@@ -1600,6 +1774,136 @@ h1 {
   padding: 12px 14px;
   resize: vertical;
   width: 100%;
+}
+
+.model-test-result {
+  display: grid;
+  gap: 8px;
+}
+
+.model-test-result pre {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.model-decision-card {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.model-decision-card dl {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.model-decision-card dt {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
+.model-decision-card dd {
+  color: var(--ink);
+  font-weight: 850;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.model-warning-list {
+  display: grid;
+  gap: 8px;
+}
+
+.model-warning-list p {
+  background: color-mix(in srgb, var(--warning) 12%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--warning) 32%, var(--line));
+  border-radius: 8px;
+  color: var(--ink);
+  margin: 0;
+  padding: 10px 12px;
+}
+
+.model-decision-card details {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.model-decision-card summary {
+  color: var(--muted);
+  cursor: pointer;
+  font-weight: 850;
+}
+
+.model-decision-card pre {
+  color: var(--ink);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  margin: 12px 0 0;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.local-harness-panel label {
+  display: grid;
+  gap: 8px;
+}
+
+.local-harness-panel input,
+.local-harness-panel textarea {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  padding: 11px 12px;
+  width: 100%;
+}
+
+.local-harness-panel textarea {
+  min-height: 92px;
+  resize: vertical;
+}
+
+.local-harness-history {
+  display: grid;
+  gap: 8px;
+}
+
+.local-harness-history div {
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 90px 1fr 80px 1.5fr;
+  padding: 10px 12px;
+}
+
+.local-harness-history span {
+  color: var(--muted);
+  font-size: 0.86rem;
 }
 
 .segmented-control {
@@ -2242,6 +2546,22 @@ dd {
 
   .wallet-primary-cta {
     justify-self: stretch;
+  }
+
+  .benchmark-lab-hero,
+  .benchmark-check-grid,
+  .benchmark-result-summary,
+  .benchmark-result-summary dl {
+    grid-template-columns: 1fr;
+  }
+
+  .benchmark-run-button {
+    justify-self: stretch;
+    min-width: 0;
+  }
+
+  .benchmark-score-orb {
+    height: 90px;
   }
 
   .dashboard-hero-actions {

@@ -69,6 +69,13 @@ export function selectMntVault(agent: AgentRecord) {
   return nexoraMntVaults[0];
 }
 
+export function getMntVaultByName(name?: string) {
+  const normalizedName = name?.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return nexoraMntVaults.find(
+    (vault) => vault.name.toLowerCase().replace(/[^a-z0-9]/g, "") === normalizedName,
+  );
+}
+
 export function rejectedMntVaults(selectedVault: NexoraMntVault) {
   return nexoraMntVaults
     .filter((vault) => vault.name !== selectedVault.name)
@@ -85,6 +92,20 @@ export function createMntVaultDepositIntent(input: {
   agent: AgentRecord;
   amount: string;
   benchmarkName: string;
+  modelDecision?: {
+    failure?: boolean;
+    graderWarnings?: string[];
+    hallucination?: boolean;
+    inconsistent?: boolean;
+    latencyMs?: number;
+    prompt?: string;
+    rawResponse?: string;
+    reasoning?: string;
+    rejectedVaults?: string[];
+    selectedVault?: string;
+    source: "demo" | "llm";
+    modelName?: string;
+  };
   selectedVault: NexoraMntVault;
 }): TransactionIntent {
   const amountBaseUnits = parseEther(input.amount);
@@ -104,6 +125,18 @@ export function createMntVaultDepositIntent(input: {
       asset: "MNT",
       benchmarkName: input.benchmarkName,
       expectedYieldBps: input.selectedVault.expectedYieldBps,
+      modelDecisionSource: input.modelDecision?.source,
+      modelFailure: input.modelDecision?.failure,
+      modelGraderWarnings: input.modelDecision?.graderWarnings,
+      modelHallucination: input.modelDecision?.hallucination,
+      modelInconsistent: input.modelDecision?.inconsistent,
+      modelLatencyMs: input.modelDecision?.latencyMs,
+      modelName: input.modelDecision?.modelName,
+      modelPrompt: input.modelDecision?.prompt,
+      modelRawResponse: input.modelDecision?.rawResponse,
+      modelReasoning: input.modelDecision?.reasoning,
+      modelRejectedVaults: input.modelDecision?.rejectedVaults,
+      modelSelectedVault: input.modelDecision?.selectedVault,
       rejectedOptions: rejectedMntVaults(input.selectedVault),
       targetVault: input.selectedVault.name,
       vaultRiskProfile: input.selectedVault.riskProfile,

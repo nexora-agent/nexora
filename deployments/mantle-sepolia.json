@@ -3,14 +3,14 @@
   "rpcUrl": "https://rpc.sepolia.mantle.xyz",
   "deployer": "0x25D40008ffC27D95D506224a246916d7E7ac0f36",
   "contracts": {
-    "NexoraAgentIdentity": "0x5496C05Dc61b1c018C142371De1AC341c1C655a6",
-    "NexoraFactory": "0x53F86428401684BFE50D780353E175AE4E18066b",
-    "NexoraPolicy": "0x5bc5A6E3dD358b67A752C9Dd58df49E863eA95F2",
-    "NexoraRiskRegistry": "0x9C854c49954EC1C494132C75115E9f82477A335F",
-    "NexoraReputation": "0xbd97187c141F6AfE0c759C9dAc2bec011439ae82",
-    "NexoraSmartWalletRegistry": "0xa130be40BDb5beE8bA76F1F5C524b53148f09ED5",
-    "NexoraSafeVault": "0x0000000000000000000000000000000000000101",
-    "NexoraRiskyVault": "0x0000000000000000000000000000000000000102",
-    "NexoraVolatileVault": "0x0000000000000000000000000000000000000103"
+    "NexoraAgentIdentity": "0x16EFfc8b463a24186867A51653a7D24405bf4549",
+    "NexoraFactory": "0x64A660a6974C1581E9Ebe201Ac2c87E672784B4C",
+    "NexoraPolicy": "0x4D27a7fb3EAF013260BAbcfaD7fA7F923010ceE2",
+    "NexoraRiskRegistry": "0x16Ad8dfa7Cd6cddeec0071Ee584FBCdbC529E6A9",
+    "NexoraReputation": "0xbaf7966E5D428bB78D9D41e489F2e2FF2151C4ce",
+    "NexoraSmartWalletRegistry": "0x87Ac6250e2c487326Be346a858D0DEF48138b18C",
+    "NexoraSafeVault": "0xeD3815Ac56C92eB022aEFb484a0e9754Cf69661f",
+    "NexoraRiskyVault": "0xF3AE7017Fd60bB19259243202374f78Efa434083",
+    "NexoraVolatileVault": "0xFD0CeDeB9e6534b73A6b802345878Dfc348D1ef7"
   }
 }

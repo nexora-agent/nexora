@@ -20,7 +20,16 @@ export type RiskFlag = {
     | "VOLATILE_BENCHMARK_VAULT"
     | "AMOUNT_EXCEEDS_BALANCE"
     | "AMOUNT_EXCEEDS_POLICY"
-    | "UNKNOWN_PAYABLE_TARGET";
+    | "UNKNOWN_PAYABLE_TARGET"
+    | "HIGH_APR_WARNING"
+    | "LOW_TVL_WARNING"
+    | "HIGH_VOLATILITY_WARNING"
+    | "SLIPPAGE_WARNING"
+    | "APPROVAL_REQUIRED"
+    | "BOUNDED_ACTION"
+    | "DRY_RUN_ONLY"
+    | "LIVE_EXECUTION_DISABLED"
+    | "EXTERNAL_DEFI_TARGET";
   label: string;
   severity: RiskLevel;
   scoreImpact: number;

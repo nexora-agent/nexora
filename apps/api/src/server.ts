@@ -3,7 +3,9 @@ import Fastify from "fastify";
 import { analyzeIntentRoute } from "./routes/analyzeIntent.route";
 import { analyzeRiskRoute } from "./routes/analyzeRisk.route";
 import { analyzeTaskRoute } from "./routes/analyzeTask.route";
+import { byrealStatusRoute } from "./routes/byrealStatus.route";
 import { healthRoute } from "./routes/health.route";
+import { localHarnessRoute } from "./routes/localHarness.route";
 import { nexoraMcpServer } from "./mcp/nexoraMcpServer";
 import { runObjectiveRoute } from "./routes/runObjective.route";
 
@@ -19,6 +21,8 @@ await app.register(healthRoute);
 await app.register(analyzeTaskRoute);
 await app.register(analyzeIntentRoute);
 await app.register(analyzeRiskRoute);
+await app.register(byrealStatusRoute);
+await app.register(localHarnessRoute);
 await app.register(nexoraMcpServer);
 await app.register(runObjectiveRoute);
 

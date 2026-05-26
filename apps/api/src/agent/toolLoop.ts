@@ -10,7 +10,7 @@ function actionToolForTask(task: string) {
     : "create_transfer_intent";
 }
 
-export function runToolLoop(context: ToolContext, input: ToolInput) {
+export async function runToolLoop(context: ToolContext, input: ToolInput) {
   const state: ToolExecutionState = {};
   const toolTrace: ToolTraceEntry[] = [];
   const toolNames =
@@ -18,9 +18,11 @@ export function runToolLoop(context: ToolContext, input: ToolInput) {
       ? [
           "get_agent_profile",
           "get_harness_config",
-          "get_byreal_pools",
+          "get_byreal_status",
+          "list_byreal_pools",
           "inspect_byreal_pool",
-          "create_byreal_swap_intent",
+          "compare_byreal_opportunities",
+          "create_byreal_action_intent",
           "analyze_byreal_action_risk",
         ]
       : [
@@ -46,13 +48,13 @@ export function runToolLoop(context: ToolContext, input: ToolInput) {
     }
 
     try {
-      const result = tool.execute(context, input, state);
+      const result = await tool.execute(context, input, state);
       if (
         (toolName === "analyze_risk" ||
           toolName === "analyze_byreal_action_risk") &&
         result.data
       ) {
-        report = result.data as RiskReport;
+        report = ((result.data as { report?: RiskReport }).report ?? result.data) as RiskReport;
       }
 
       toolTrace.push({

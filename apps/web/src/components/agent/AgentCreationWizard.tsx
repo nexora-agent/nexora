@@ -6,6 +6,7 @@ import type {
   HarnessId,
   RiskMode,
   RunnerMode,
+  SmartWalletModelConnectionType,
   SmartWalletModelConfig,
   SmartWalletToolConfig,
 } from "@nexora/shared";
@@ -60,6 +61,16 @@ const runnerModes: Array<{
   { label: "Demo Runner", value: "demo" },
   { label: "Local Runner", value: "local" },
   { disabled: true, label: "Hosted Runner", value: "hosted" },
+];
+
+const connectionTypes: Array<{
+  label: string;
+  value: SmartWalletModelConnectionType;
+}> = [
+  { label: "Demo Model", value: "demo" },
+  { label: "OpenAI-compatible", value: "openai-compatible" },
+  { label: "Ollama-compatible", value: "ollama-compatible" },
+  { label: "Custom HTTP", value: "custom-http" },
 ];
 
 function formatValue(value: string) {
@@ -345,6 +356,25 @@ export function AgentCreationWizard() {
             <label>
               <span>Provider</span>
               <input aria-label="Model provider" readOnly type="text" value={modelConfig.provider} />
+            </label>
+            <label>
+              <span>Connection Type</span>
+              <select
+                aria-label="Model connection type"
+                onChange={(event) =>
+                  setModelConfig((current) => ({
+                    ...current,
+                    connectionType: event.target.value as SmartWalletModelConnectionType,
+                  }))
+                }
+                value={modelConfig.connectionType ?? "demo"}
+              >
+                {connectionTypes.map((type) => (
+                  <option key={type.value} value={type.value}>
+                    {type.label}
+                  </option>
+                ))}
+              </select>
             </label>
             <label>
               <span>Model Name</span>

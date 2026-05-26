@@ -1,4 +1,5 @@
 import type { ObjectiveRun, PolicyProfile } from "@nexora/shared";
+import { attachReportEnvelope } from "@nexora/shared";
 import { getHarnessTemplate } from "../harness/harnessTemplates";
 import { runAgent } from "./agentRunner";
 import { scoreBenchmarkRun } from "../harness/scoring/scoreBenchmarkRun";
@@ -16,10 +17,10 @@ export type ObjectiveRunnerInput = {
   walletAddress?: `0x${string}`;
 };
 
-export function runObjective(input: ObjectiveRunnerInput): ObjectiveRun {
+export async function runObjective(input: ObjectiveRunnerInput): Promise<ObjectiveRun> {
   const harness = getHarnessTemplate(input.harnessId);
   const prompt = buildObjectivePrompt(input.objective, harness?.name ?? input.harnessId);
-  const result = runAgent({
+  const result = await runAgent({
     agentId: input.agentId,
     agentName: input.agentName,
     harnessId: input.harnessId,
@@ -45,7 +46,7 @@ export function runObjective(input: ObjectiveRunnerInput): ObjectiveRun {
     toolTrace: result.toolTrace,
   });
 
-  return {
+  return attachReportEnvelope({
     id: `objective-${Date.now()}`,
     agentId: input.agentId,
     harnessId: input.harnessId,
@@ -60,5 +61,5 @@ export function runObjective(input: ObjectiveRunnerInput): ObjectiveRun {
     summary: result.intent
       ? `${result.intent.summary} Generated inside ${harness?.name ?? input.harnessId}. Proposal risk link ${proposalMatchesRisk ? "verified" : "missing"}.`
       : `Could not produce an intent from prompt: ${prompt}`,
-  };
+  });
 }

@@ -30,10 +30,8 @@ async function runSafeObjective(page: Page) {
   await expect(modal.getByText("Smart wallet created.")).toBeVisible();
   await modal.getByRole("button", { name: "Close" }).click();
   await page.getByRole("button", { name: "Test Lab" }).click();
-  await page
-    .getByLabel("Objective runner")
-    .getByRole("button", { name: "Run Objective" })
-    .click();
+  await page.getByRole("button", { name: "Run Wallet Benchmark" }).click();
+  await page.getByText("Technical report").click();
 }
 
 test("objective run shows benchmark breakdown and registry-ready report", async ({
@@ -46,6 +44,11 @@ test("objective run shows benchmark breakdown and registry-ready report", async 
   await expect(benchmark).toContainText("Tool Use");
   await expect(benchmark).toContainText("Outcome");
 
+  const envelope = page.getByLabel("Audit envelope");
+  await expect(envelope).toContainText("Report Hash");
+  await expect(envelope).toContainText("Tool Trace Hash");
+  await expect(envelope).toContainText("Canonical");
+
   const report = page.getByLabel("On-chain report");
   await expect(report).toContainText("Wallet ID");
   await expect(report).toContainText("Harness ID");
@@ -56,7 +59,7 @@ test("objective run shows benchmark breakdown and registry-ready report", async 
     report.getByRole("link", { name: "Open Registry Explorer" }),
   ).toHaveAttribute(
     "href",
-    "https://explorer.sepolia.mantle.xyz/address/0x9C854c49954EC1C494132C75115E9f82477A335F",
+    "https://explorer.sepolia.mantle.xyz/address/0x16Ad8dfa7Cd6cddeec0071Ee584FBCdbC529E6A9",
   );
 
   await page.goto("/dashboard");

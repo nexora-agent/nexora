@@ -1,9 +1,5 @@
-import { createHash } from "node:crypto";
 import type { ObjectiveRun, OnchainReportRecord } from "@nexora/shared";
-
-function hashReportPayload(payload: unknown): `0x${string}` {
-  return `0x${createHash("sha256").update(JSON.stringify(payload)).digest("hex")}`;
-}
+import { buildReportEnvelope } from "@nexora/shared";
 
 export function buildRegistryRecord(run: ObjectiveRun): OnchainReportRecord | undefined {
   if (!run.intent || !run.riskReport || !run.benchmarkScore) {
@@ -20,8 +16,10 @@ export function buildRegistryRecord(run: ObjectiveRun): OnchainReportRecord | un
     benchmarkScore: run.benchmarkScore.finalScore,
   };
 
+  const reportHash = run.reportEnvelope?.reportHash ?? buildReportEnvelope(run).reportHash;
+
   return {
     ...record,
-    reportHash: hashReportPayload(record),
+    reportHash,
   };
 }

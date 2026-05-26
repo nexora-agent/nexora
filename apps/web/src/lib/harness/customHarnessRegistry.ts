@@ -8,6 +8,8 @@ export type CreateCustomHarnessInput = {
   name: string;
   summary: string;
   instructions: string;
+  localRuntimeSecret?: string;
+  localRuntimeUrl?: string;
   ownerAddress?: `0x${string}`;
   tools: HarnessTool[];
   allowedActionTypes: string[];
@@ -80,6 +82,8 @@ export function createCustomHarness(
     name: input.name.trim(),
     summary: input.summary.trim(),
     instructions: input.instructions.trim(),
+    localRuntimeSecret: input.localRuntimeSecret?.trim() || undefined,
+    localRuntimeUrl: input.localRuntimeUrl?.trim() || undefined,
     ownerAddress: input.ownerAddress,
     createdAt,
     source: "custom",

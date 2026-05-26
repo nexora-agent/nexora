@@ -11,4 +11,5 @@ export type McpToolDefinition = {
   name: string;
   description: string;
   harnessIds: string[];
+  inputSchema?: Record<string, unknown>;
 };

@@ -48,7 +48,8 @@ test("agent uses Byreal Safe DeFi Harness tools for a bounded proposal", async (
   await selector.getByRole("button", { name: "Save Harness" }).click();
   await page.getByRole("button", { name: "Close" }).click();
 
-  await page.getByRole("button", { name: "Test Lab" }).click();
+  await page.getByRole("button", { name: "Controls" }).click();
+  await page.getByText("Advanced Test Runner").click();
   const runner = page.getByLabel("Objective runner");
   await expect(runner.getByText("Byreal Safe DeFi Harness")).toBeVisible();
   await runner
@@ -58,12 +59,16 @@ test("agent uses Byreal Safe DeFi Harness tools for a bounded proposal", async (
 
   const result = page.getByLabel("Objective result");
   await expect(result.getByLabel("Byreal pool")).toContainText("Byreal");
-  await expect(result.getByLabel("Tool trace")).toContainText("get_byreal_pools");
+  await expect(result.getByLabel("Tool trace")).toContainText("get_byreal_status");
+  await expect(result.getByLabel("Tool trace")).toContainText("list_byreal_pools");
   await expect(result.getByLabel("Tool trace")).toContainText(
     "inspect_byreal_pool",
   );
   await expect(result.getByLabel("Tool trace")).toContainText(
-    "create_byreal_swap_intent",
+    "compare_byreal_opportunities",
+  );
+  await expect(result.getByLabel("Tool trace")).toContainText(
+    "create_byreal_action_intent",
   );
   await expect(result.getByLabel("Tool trace")).toContainText(
     "analyze_byreal_action_risk",
@@ -72,4 +77,21 @@ test("agent uses Byreal Safe DeFi Harness tools for a bounded proposal", async (
     "Intent Hash",
   );
   await expect(result.getByLabel("Proposal risk")).toContainText("Verified");
+});
+
+test("RealClaw / Byreal status card shows adapter and safety mode", async ({
+  page,
+}) => {
+  await createAgentWallet(page);
+
+  await page.getByRole("button", { name: "Reports" }).click();
+  const reports = page.getByLabel("Reports tab");
+  await expect(reports).toContainText("RealClaw / Byreal Status");
+  await expect(reports).toContainText("Live Execution");
+  await expect(reports).toContainText("Disabled");
+
+  await page.getByRole("button", { name: "Controls" }).click();
+  const controls = page.getByLabel("Controls tab");
+  await expect(controls).toContainText("Execution");
+  await expect(controls).toContainText(/Demo adapter|read-only|dry-run/i);
 });

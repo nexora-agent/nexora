@@ -10,6 +10,11 @@ export type AgentType =
   | "trading"
   | "custom";
 export type RunnerMode = "demo" | "local" | "hosted";
+export type SmartWalletModelConnectionType =
+  | "demo"
+  | "openai-compatible"
+  | "ollama-compatible"
+  | "custom-http";
 export type SmartWalletMissionType =
   | "wallet-defense"
   | "safe-yield"
@@ -19,6 +24,7 @@ export type SmartWalletExecutionMode = "simulation" | "policy-gated" | "live-dis
 export type SmartWalletModelConfig = {
   runnerMode: RunnerMode;
   provider: "demo" | "local" | "hosted";
+  connectionType?: SmartWalletModelConnectionType;
   modelName: string;
   endpointUrl?: string;
   temperature: number;

@@ -25,6 +25,14 @@ export function ByrealPoolCard({ pool }: ByrealPoolCardProps) {
           <dd>${pool.tvlUsd.toLocaleString()}</dd>
         </div>
         <div>
+          <dt>APR</dt>
+          <dd>{(pool.aprBps / 100).toFixed(2)}%</dd>
+        </div>
+        <div>
+          <dt>Volatility</dt>
+          <dd>{pool.volatility}</dd>
+        </div>
+        <div>
           <dt>Risk Note</dt>
           <dd>{pool.riskNote}</dd>
         </div>

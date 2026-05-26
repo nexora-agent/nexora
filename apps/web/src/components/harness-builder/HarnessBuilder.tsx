@@ -36,6 +36,10 @@ export function HarnessBuilder() {
   const [instructions, setInstructions] = useState(
     "Use bounded intents only. Inspect contracts before proposing write actions.",
   );
+  const [localRuntimeUrl, setLocalRuntimeUrl] = useState(
+    "http://127.0.0.1:8787/nexora/run",
+  );
+  const [localRuntimeSecret, setLocalRuntimeSecret] = useState("");
   const [allowedActionTypes, setAllowedActionTypes] = useState(
     "erc20_transfer, erc20_approval",
   );
@@ -113,6 +117,8 @@ export function HarnessBuilder() {
       name,
       summary,
       instructions,
+      localRuntimeSecret,
+      localRuntimeUrl,
       ownerAddress: address,
       tools,
       allowedActionTypes: splitLines(allowedActionTypes),
@@ -153,6 +159,27 @@ export function HarnessBuilder() {
             aria-label="Runtime Instructions"
             onChange={(event) => setInstructions(event.target.value)}
             value={instructions}
+          />
+        </label>
+
+        <label>
+          <span>Local Runtime URL</span>
+          <input
+            aria-label="Local Runtime URL"
+            onChange={(event) => setLocalRuntimeUrl(event.target.value)}
+            type="url"
+            value={localRuntimeUrl}
+          />
+        </label>
+
+        <label>
+          <span>Local Runtime Secret</span>
+          <input
+            aria-label="Local Runtime Secret"
+            onChange={(event) => setLocalRuntimeSecret(event.target.value)}
+            placeholder="Optional shared secret"
+            type="password"
+            value={localRuntimeSecret}
           />
         </label>
 

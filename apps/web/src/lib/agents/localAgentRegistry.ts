@@ -166,9 +166,12 @@ export function saveLocalAgentModel(
   agentId: string,
   ownerAddress: `0x${string}`,
   modelConfig: SmartWalletModelConfig,
+  fallbackAgent?: AgentRecord,
 ): AgentRecord {
   const agents = readAgents();
-  const agent = agents.find((candidate) => candidate.id === agentId);
+  const agent =
+    agents.find((candidate) => candidate.id === agentId) ??
+    (fallbackAgent?.id === agentId ? fallbackAgent : undefined);
 
   if (!agent) {
     throw new Error("Smart wallet not found.");
@@ -196,9 +199,12 @@ export function saveLocalAgentTools(
   agentId: string,
   ownerAddress: `0x${string}`,
   toolsConfig: SmartWalletToolConfig[],
+  fallbackAgent?: AgentRecord,
 ): AgentRecord {
   const agents = readAgents();
-  const agent = agents.find((candidate) => candidate.id === agentId);
+  const agent =
+    agents.find((candidate) => candidate.id === agentId) ??
+    (fallbackAgent?.id === agentId ? fallbackAgent : undefined);
 
   if (!agent) {
     throw new Error("Smart wallet not found.");

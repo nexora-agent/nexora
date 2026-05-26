@@ -35,7 +35,7 @@ export function ExecuteProposalButton({
     try {
       let execution = gateExecution(run, policy);
 
-      if (execution.status === "executed" && agent.identityTransactionHash) {
+      if (execution.status === "executed" && agent.walletAddress) {
         try {
           const transactionHash = await executeRunOnchain(agent, run, policy);
           execution = {
@@ -50,7 +50,7 @@ export function ExecuteProposalButton({
         }
       }
 
-      if (agent.identityTransactionHash) {
+      if (agent.walletAddress) {
         try {
           const reputationTransactionHash = await recordReputationRunOnchain(
             run,

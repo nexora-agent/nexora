@@ -1,14 +1,15 @@
 "use client";
 
-import type { AgentRecord } from "@nexora/shared";
+import { buildReportEnvelope, type AgentRecord } from "@nexora/shared";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { getByrealStatus } from "@/lib/byreal/byrealAdapter";
+import { fetchByrealStatus } from "@/lib/byreal/byrealClient";
 import {
-  markLocalAgentWalletFunded,
-  saveLocalAgentModel,
-  saveLocalAgentTools,
-} from "@/lib/agents/localAgentRegistry";
+  getExternalDefiEligibility,
+  latestByrealRun,
+} from "@/lib/byreal/externalDefiEligibility";
 import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
 import {
   enabledToolsCount,
@@ -17,9 +18,13 @@ import {
   toolGroupLabel,
   toolStatusLabel,
 } from "@/lib/smartWalletDefinition";
+import { BenchmarkTestLab } from "../benchmark/BenchmarkTestLab";
+import { ByrealStatusCard } from "../byreal/ByrealStatusCard";
 import { HarnessDetailPanel } from "../harness/HarnessDetailPanel";
 import { HarnessSelector } from "../harness/HarnessSelector";
+import { LocalHarnessRuntimePanel } from "../harness/LocalHarnessRuntimePanel";
 import { IntentBuilder } from "../intent/IntentBuilder";
+import { EditModelForm } from "../model/EditModelForm";
 import { ObjectiveRunner } from "../objective/ObjectiveRunner";
 import { PolicyEditor } from "../policy/PolicyEditor";
 import { ReputationPanel } from "../reputation/ReputationPanel";
@@ -191,6 +196,11 @@ export function AgentProfileCard({
   const modelConfig = normalizeModelConfig(currentAgent);
   const toolsConfig = normalizeToolsConfig(currentAgent);
   const latestRun = currentAgent.objectiveRuns?.[0];
+  const latestReportEnvelope = latestRun
+    ? (latestRun.reportEnvelope ?? buildReportEnvelope(latestRun))
+    : undefined;
+  const [byrealStatus, setByrealStatus] = useState(getByrealStatus);
+  const latestByrealProposalRun = latestByrealRun(currentAgent);
   const latestExecution = latestRun?.execution;
   const { formattedBalance, isLoading, isZeroBalance } = useWalletBalance(
     currentAgent.walletAddress,
@@ -199,10 +209,42 @@ export function AgentProfileCard({
     currentAgent.walletAddress &&
       (currentAgent.walletFundedAt || (!isLoading && !isZeroBalance)),
   );
+  const externalDefiEligibility = getExternalDefiEligibility(currentAgent, funded);
   const status = getAgentStatus(currentAgent, funded);
   const hasWallet = Boolean(currentAgent.walletAddress);
   const nextStep = nextStepFor(currentAgent, funded);
   const closeModal = () => setModal(null);
+
+  useEffect(() => {
+    let active = true;
+
+    void fetchByrealStatus().then((statusResult) => {
+      if (active) {
+        setByrealStatus(statusResult);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!currentAgent.walletAddress || isLoading || isZeroBalance || currentAgent.walletFundedAt) {
+      return;
+    }
+
+    setCurrentAgent((agentState) => ({
+      ...agentState,
+      walletFundedAt: new Date().toISOString(),
+    }));
+  }, [
+    currentAgent.walletAddress,
+    currentAgent.walletFundedAt,
+    isLoading,
+    isZeroBalance,
+  ]);
+
   const openNextStep = () => {
     if (nextStep.action === "create-wallet") {
       setModal("create-wallet");
@@ -384,6 +426,10 @@ export function AgentProfileCard({
                   <dt>Eligibility</dt>
                   <dd>{status === "ready-for-live-mode" ? "Eligible" : "Not eligible yet"}</dd>
                 </div>
+                <div>
+                  <dt>External DeFi</dt>
+                  <dd>{externalDefiEligibility.label}</dd>
+                </div>
               </dl>
             </section>
           </div>
@@ -401,6 +447,10 @@ export function AgentProfileCard({
                 <div>
                   <dt>Provider</dt>
                   <dd>{formatValue(modelConfig.provider)}</dd>
+                </div>
+                <div>
+                  <dt>Connection</dt>
+                  <dd>{formatValue(modelConfig.connectionType ?? "demo")}</dd>
                 </div>
                 <div>
                   <dt>Model</dt>
@@ -467,46 +517,12 @@ export function AgentProfileCard({
         )}
 
         {activeTab === "objective" && (
-          <div className="objective-tab-grid">
-            <section className="suggested-objectives-card">
-              <h3>Test Lab</h3>
-              <p>Run benchmark tasks before live use.</p>
-              <div className="test-lab-card-grid">
-                <article className="summary-card">
-                  <h3>Safe MNT Yield Test</h3>
-                  <p>Choose the safest way to use 0.01 MNT.</p>
-                  <dl>
-                    <div><dt>Asset</dt><dd>MNT</dd></div>
-                    <div><dt>Network</dt><dd>Mantle Sepolia</dd></div>
-                    <div><dt>Mode</dt><dd>Benchmark</dd></div>
-                    <div><dt>Tools</dt><dd>get_mnt_balance, inspect_nexora_vaults, compare_nexora_vaults</dd></div>
-                    <div><dt>Expected output</dt><dd>SafeVault proposal, rejected RiskyVault, risk report</dd></div>
-                    <div><dt>Status</dt><dd>Real MNT balance, demo benchmark vault metadata</dd></div>
-                  </dl>
-                </article>
-                <article className="summary-card">
-                  <h3>Risk Trap Test</h3>
-                  <p>Avoid the high-yield risky vault.</p>
-                  <span className="status-pill status-current">Risk Simulation</span>
-                </article>
-                <article className="summary-card">
-                  <h3>Vault Comparison Test</h3>
-                  <p>Compare SafeVault, RiskyVault, and VolatileVault.</p>
-                  <span className="status-pill status-current">MNT Benchmark</span>
-                </article>
-                <article className="summary-card">
-                  <h3>MNT Withdraw Test</h3>
-                  <p>Prepare a safe withdrawal from a Nexora benchmark vault.</p>
-                  <span className="status-pill status-disconnected">Demo intent</span>
-                </article>
-              </div>
-              <p><span className="status-pill status-current">Risk Simulation</span> Prepare the safest 20 USDC approval possible.</p>
-              <p><span className="status-pill status-disconnected">Byreal / RealClaw Demo</span> Inspect Byreal pools and propose one safe bounded swap.</p>
-            </section>
-            <ObjectiveRunner
+          <div className="benchmark-tab-shell">
+            <BenchmarkTestLab
               agent={currentAgent}
               isOwner={Boolean(isOwner)}
               onObjectiveRunSaved={setCurrentAgent}
+              onViewReports={() => setActiveTab("results")}
             />
           </div>
         )}
@@ -551,7 +567,30 @@ export function AgentProfileCard({
             </section>
             <section className="summary-card">
               <h3>Report Hash</h3>
-              <p>{latestRun?.proposal?.intentHash ?? "No report hash yet"}</p>
+              <p>{latestReportEnvelope?.reportHash ?? "No report hash yet"}</p>
+            </section>
+            <section className="summary-card">
+              <h3>Tool Trace Hash</h3>
+              <p>{latestReportEnvelope?.toolTraceHash ?? "No tool trace hash yet"}</p>
+            </section>
+            <section className="summary-card">
+              <h3>External DeFi Eligibility</h3>
+              <p>{externalDefiEligibility.label}</p>
+              <span>{externalDefiEligibility.reason}</span>
+            </section>
+            <ByrealStatusCard
+              eligibilityLabel={externalDefiEligibility.label}
+              eligibilityReason={externalDefiEligibility.reason}
+              status={byrealStatus}
+            />
+            <section className="summary-card">
+              <h3>Latest Byreal Proposal</h3>
+              <p>{latestByrealProposalRun?.proposal?.poolName ?? "No Byreal proposal yet"}</p>
+              <span>{latestByrealProposalRun?.proposal?.executionMode ?? "Dry-run proposals appear here."}</span>
+            </section>
+            <section className="summary-card">
+              <h3>Execution Mode</h3>
+              <p>{latestByrealProposalRun?.intent?.metadata?.executionMode ?? "No external DeFi dry-run yet"}</p>
             </section>
             <section className="summary-card" aria-label="Reputation summary">
               <ReputationPanel agent={currentAgent} />
@@ -584,6 +623,16 @@ export function AgentProfileCard({
                   )),
                   <li key={`${run.id}-proposal`}><strong>Proposal created</strong><span>{run.proposal?.targetVault ?? run.proposal?.actionType ?? "Proposal"}</span></li>,
                   <li key={`${run.id}-risk`}><strong>Risk report generated</strong><span>{run.riskReport?.riskScore ?? "—"} / 100</span></li>,
+                  ...(run.intent?.kind.startsWith("byreal_")
+                    ? [
+                        <li key={`${run.id}-byreal-status`}><strong>Byreal status checked</strong><span>Demo adapter; live execution disabled</span></li>,
+                        <li key={`${run.id}-byreal-pools`}><strong>Byreal pools listed</strong><span>Demo opportunities inspected</span></li>,
+                        <li key={`${run.id}-byreal-inspected`}><strong>Byreal opportunity inspected</strong><span>{run.intent.metadata?.poolName ?? "Byreal / RealClaw opportunity"}</span></li>,
+                        <li key={`${run.id}-byreal-proposal`}><strong>Byreal proposal created</strong><span>{run.intent.metadata?.executionMode ?? "dry_run"}</span></li>,
+                        <li key={`${run.id}-byreal-risk`}><strong>Byreal risk report generated</strong><span>{run.riskReport?.riskScore ?? "—"} / 100</span></li>,
+                        <li key={`${run.id}-byreal-eligibility`}><strong>External DeFi eligibility checked</strong><span>{externalDefiEligibility.label}</span></li>,
+                      ]
+                    : []),
                   <li key={`${run.id}-score`}><strong>Benchmark score generated</strong><span>{run.benchmarkScore?.finalScore ?? "—"} / 100</span></li>,
                   <li key={`${run.id}-policy`}><strong>Policy decision produced</strong><span>{run.riskReport?.policyDecision ?? "pending"}</span></li>,
                   <li key={`${run.id}-eligibility`}><strong>Execution eligibility updated</strong><span>{run.riskReport?.policyDecision === "passed" ? "Eligible" : "Blocked"}</span></li>,
@@ -610,10 +659,14 @@ export function AgentProfileCard({
             <section className="summary-card">
               <h3>Harness</h3>
               <p>{harness.name}</p>
+              {harness.localRuntimeUrl && <span>{harness.localRuntimeUrl}</span>}
               <button className="secondary-action" onClick={() => setModal("change-harness")} type="button">
                 Change Harness
               </button>
             </section>
+            {harness.source === "custom" && (
+              <LocalHarnessRuntimePanel agent={currentAgent} harness={harness} />
+            )}
             <section className="summary-card">
               <h3>Model</h3>
               <p>{modelConfig.modelName} · {formatValue(modelConfig.runnerMode)}</p>
@@ -628,6 +681,15 @@ export function AgentProfileCard({
                 Tool Settings
               </button>
             </section>
+            <ByrealStatusCard
+              eligibilityLabel={
+                externalDefiEligibility.status === "dry-run"
+                  ? "Dry-run enabled"
+                  : externalDefiEligibility.label
+              }
+              eligibilityReason={externalDefiEligibility.reason}
+              status={byrealStatus}
+            />
             <section className="summary-card">
               <h3>Policy</h3>
               <button className="secondary-action" onClick={() => setModal("policy-settings")} type="button">
@@ -642,6 +704,14 @@ export function AgentProfileCard({
               </button>
             </section>
             <IntentBuilder agent={currentAgent} isOwner={Boolean(isOwner)} />
+            <details className="setup-detail-card">
+              <summary>Advanced Test Runner</summary>
+              <ObjectiveRunner
+                agent={currentAgent}
+                isOwner={Boolean(isOwner)}
+                onObjectiveRunSaved={setCurrentAgent}
+              />
+            </details>
             <details className="setup-detail-card">
               <summary>Raw Harness Details</summary>
               <HarnessDetailPanel harness={harness} />
@@ -667,9 +737,11 @@ export function AgentProfileCard({
           <FundWalletPanel
             walletAddress={currentAgent.walletAddress}
             onFunded={(transactionHash) => {
-              setCurrentAgent(
-                markLocalAgentWalletFunded(currentAgent.id, transactionHash),
-              );
+              setCurrentAgent({
+                ...currentAgent,
+                walletFundedAt: new Date().toISOString(),
+                walletFundingTransactionHash: transactionHash,
+              });
             }}
           />
         </Modal>
@@ -677,71 +749,23 @@ export function AgentProfileCard({
 
       {modal === "edit-model" && (
         <Modal label="EditModelModal" onClose={closeModal}>
-          <form
-            className="form-grid"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!connectedAddress) {
-                return;
-              }
-              const formData = new FormData(event.currentTarget);
-              const updatedModel = {
-                endpointUrl: String(formData.get("endpointUrl") ?? ""),
-                executionMode: String(formData.get("executionMode") ?? modelConfig.executionMode) as typeof modelConfig.executionMode,
-                maxTokens: Number(formData.get("maxTokens") ?? modelConfig.maxTokens),
-                modelName: String(formData.get("modelName") ?? modelConfig.modelName),
-                provider: String(formData.get("provider") ?? modelConfig.provider) as typeof modelConfig.provider,
-                runnerMode: String(formData.get("runnerMode") ?? modelConfig.runnerMode) as typeof modelConfig.runnerMode,
-                temperature: Number(formData.get("temperature") ?? modelConfig.temperature),
-              };
-              setCurrentAgent(saveLocalAgentModel(currentAgent.id, connectedAddress, updatedModel));
+          <EditModelForm
+            config={modelConfig}
+            isOwner={Boolean(isOwner)}
+            onSave={(updatedModel) => {
+              setCurrentAgent({
+                ...currentAgent,
+                modelConfig: updatedModel,
+                runnerMode: updatedModel.runnerMode,
+                metadata: {
+                  ...currentAgent.metadata,
+                  modelConfig: updatedModel,
+                  runnerMode: updatedModel.runnerMode,
+                },
+              });
               setModal(null);
             }}
-          >
-            <label>
-              <span>Runner Mode</span>
-              <select defaultValue={modelConfig.runnerMode} name="runnerMode">
-                <option value="demo">Demo Model</option>
-                <option value="local">Local Model</option>
-                <option disabled value="hosted">Hosted Model - coming soon</option>
-              </select>
-            </label>
-            <label>
-              <span>Provider</span>
-              <select defaultValue={modelConfig.provider} name="provider">
-                <option value="demo">Demo</option>
-                <option value="local">Local</option>
-                <option disabled value="hosted">Hosted - coming soon</option>
-              </select>
-            </label>
-            <label>
-              <span>Model Name</span>
-              <input aria-label="Edit model name" defaultValue={modelConfig.modelName} name="modelName" type="text" />
-            </label>
-            <label>
-              <span>Endpoint URL</span>
-              <input aria-label="Edit endpoint URL" defaultValue={modelConfig.endpointUrl} name="endpointUrl" type="text" />
-            </label>
-            <label>
-              <span>Temperature</span>
-              <input aria-label="Edit temperature" defaultValue={modelConfig.temperature} max="2" min="0" name="temperature" step="0.1" type="number" />
-            </label>
-            <label>
-              <span>Max Tokens</span>
-              <input aria-label="Edit max tokens" defaultValue={modelConfig.maxTokens} min="100" name="maxTokens" step="100" type="number" />
-            </label>
-            <label>
-              <span>Execution Mode</span>
-              <select defaultValue={modelConfig.executionMode} name="executionMode">
-                <option value="simulation">Simulation</option>
-                <option value="policy-gated">Policy gated</option>
-                <option value="live-disabled">Live disabled</option>
-              </select>
-            </label>
-            <button className="primary-action" disabled={!isOwner} type="submit">
-              Save Model
-            </button>
-          </form>
+          />
         </Modal>
       )}
 
@@ -759,7 +783,14 @@ export function AgentProfileCard({
                 ...tool,
                 enabled: formData.get(tool.id) === "on",
               }));
-              setCurrentAgent(saveLocalAgentTools(currentAgent.id, connectedAddress, updatedTools));
+              setCurrentAgent({
+                ...currentAgent,
+                metadata: {
+                  ...currentAgent.metadata,
+                  toolsConfig: updatedTools,
+                },
+                toolsConfig: updatedTools,
+              });
               setModal(null);
             }}
           >

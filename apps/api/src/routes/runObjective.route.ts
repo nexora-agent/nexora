@@ -16,7 +16,7 @@ export async function runObjectiveRoute(app: FastifyInstance) {
   app.post<{ Body: RunObjectiveBody }>("/run-objective", async (request, reply) => {
     try {
       return {
-        run: runObjective(request.body),
+        run: await runObjective(request.body),
       };
     } catch (error) {
       return reply.code(400).send({

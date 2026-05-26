@@ -35,17 +35,15 @@ async function createAgentWallet(page: Page) {
 test("safe proposal executes and updates reputation", async ({ page }) => {
   await createAgentWallet(page);
 
-  await page
-    .getByLabel("Objective runner")
-    .getByRole("button", { name: "Run Objective" })
-    .click();
+  await page.getByRole("button", { name: "Run Wallet Benchmark" }).click();
+  await page.getByText("Technical report").click();
   await page.getByRole("button", { name: "Execute Proposal" }).click();
 
   await expect(page.getByLabel("Execution status")).toContainText("Executed");
   await expect(page.getByLabel("Execution status")).toContainText(
     "Policy report verified",
   );
-  await page.getByRole("button", { name: "Reports" }).click();
+  await page.getByRole("button", { name: "Reports", exact: true }).click();
   await expect(page.getByLabel("Smart wallet reputation")).toContainText("Safe Actions");
   await expect(page.getByLabel("Smart wallet reputation")).toContainText("1");
 });
@@ -53,6 +51,8 @@ test("safe proposal executes and updates reputation", async ({ page }) => {
 test("risky proposal blocks and updates reputation", async ({ page }) => {
   await createAgentWallet(page);
 
+  await page.getByRole("button", { name: "Controls" }).click();
+  await page.getByText("Advanced Test Runner").click();
   const runner = page.getByLabel("Objective runner");
   await runner
     .getByRole("textbox", { name: "Objective" })
@@ -64,7 +64,7 @@ test("risky proposal blocks and updates reputation", async ({ page }) => {
   await expect(page.getByLabel("Blocked execution")).toContainText(
     "Policy decision blocked execution",
   );
-  await page.getByRole("button", { name: "Reports" }).click();
+  await page.getByRole("button", { name: "Reports", exact: true }).click();
   await expect(page.getByLabel("Smart wallet reputation")).toContainText("Blocked Actions");
   await expect(page.getByLabel("Smart wallet reputation")).toContainText("Policy Violations");
 });

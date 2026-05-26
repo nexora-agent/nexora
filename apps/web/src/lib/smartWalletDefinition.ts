@@ -9,6 +9,7 @@ import type {
 import { getHarnessTemplate } from "./harness/harnessTemplates";
 
 export const defaultModelConfig: SmartWalletModelConfig = {
+  connectionType: "demo",
   endpointUrl: "",
   executionMode: "simulation",
   maxTokens: 1200,
@@ -42,6 +43,7 @@ export function toolStatusLabel(status: SmartWalletToolStatus) {
 export function modelConfigForRunner(runnerMode: RunnerMode): SmartWalletModelConfig {
   if (runnerMode === "local") {
     return {
+      connectionType: "openai-compatible",
       endpointUrl: "http://localhost:11434/v1",
       executionMode: "policy-gated",
       maxTokens: 1600,
@@ -54,6 +56,7 @@ export function modelConfigForRunner(runnerMode: RunnerMode): SmartWalletModelCo
 
   if (runnerMode === "hosted") {
     return {
+      connectionType: "custom-http",
       endpointUrl: "",
       executionMode: "live-disabled",
       maxTokens: 1600,

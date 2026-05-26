@@ -16,9 +16,15 @@ export type ToolContext = {
 export type ToolExecutionState = {
   intent?: TransactionIntent;
   byrealPoolId?: string;
+  byrealProposal?: unknown;
+  selectedMntVault?: string;
 };
 
 export type ToolInput = {
+  amount?: string;
+  intent?: TransactionIntent;
+  poolId?: string;
+  selectedVault?: string;
   task?: string;
   tokenAddress?: `0x${string}`;
   tokenSymbol?: string;
@@ -35,7 +41,7 @@ export type NexoraTool = McpToolDefinition & {
     context: ToolContext,
     input: ToolInput,
     state: ToolExecutionState,
-  ) => ToolResult;
+  ) => ToolResult | Promise<ToolResult>;
 };
 
 export type ToolLoopResult = {

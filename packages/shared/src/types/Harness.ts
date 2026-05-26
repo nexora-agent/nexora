@@ -14,6 +14,8 @@ export type HarnessTemplate = {
   name: string;
   summary: string;
   instructions?: string;
+  localRuntimeUrl?: string;
+  localRuntimeSecret?: string;
   ownerAddress?: `0x${string}`;
   createdAt?: string;
   source?: "preset" | "custom";

@@ -13,7 +13,6 @@ import { FundWalletPanel } from "@/components/wallet/FundWalletPanel";
 import { HarnessBuilder } from "@/components/harness-builder/HarnessBuilder";
 import { useAgents } from "@/hooks/useAgents";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
-import { markLocalAgentWalletFunded } from "@/lib/agents/localAgentRegistry";
 import type { AgentRecord } from "@nexora/shared";
 import type { AgentStatus } from "@/components/agent/AgentStatusBadge";
 
@@ -208,10 +207,11 @@ export default function DashboardPage() {
           <FundWalletPanel
             walletAddress={selectedAgent.walletAddress}
             onFunded={(transactionHash) => {
-              const updatedAgent = markLocalAgentWalletFunded(
-                selectedAgent.id,
-                transactionHash,
-              );
+              const updatedAgent = {
+                ...selectedAgent,
+                walletFundedAt: new Date().toISOString(),
+                walletFundingTransactionHash: transactionHash,
+              };
               setSelectedAgent(updatedAgent);
               void refreshAgents();
             }}

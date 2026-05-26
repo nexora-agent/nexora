@@ -34,6 +34,26 @@ export const nexoraFactoryAbi = [
 
 export const nexoraSmartWalletRegistryAbi = [
   {
+    inputs: [],
+    name: "EmptyMetadataURI",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "InvalidMode",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "NotSmartWalletOwner",
+    type: "error",
+  },
+  {
+    inputs: [],
+    name: "SmartWalletNotFound",
+    type: "error",
+  },
+  {
     inputs: [
       { internalType: "string", name: "metadataURI", type: "string" },
       { internalType: "bytes32", name: "harnessId", type: "bytes32" },

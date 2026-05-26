@@ -4,6 +4,7 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 CONTRACTS_DIR="$ROOT_DIR/contracts"
 DEPLOYMENTS_DIR="$ROOT_DIR/deployments"
+WEB_DEPLOYMENTS_FILE="$ROOT_DIR/apps/web/src/lib/contracts/deployments.ts"
 
 if [[ -f "$ROOT_DIR/.env" ]]; then
   set -a
@@ -61,9 +62,15 @@ try:
 except Exception:
     pass
 
+for pattern in (r"Deployed to:\s*(0x[a-fA-F0-9]{40})", r"deployedTo[\"':\s]+(0x[a-fA-F0-9]{40})"):
+    match = re.search(pattern, payload)
+    if match:
+        print(match.group(1))
+        raise SystemExit(0)
+
 matches = re.findall(r"0x[a-fA-F0-9]{40}", payload)
 if matches:
-    print(matches[-1])
+    print(matches[0])
 PY
 }
 
@@ -72,59 +79,71 @@ deploy_contract() {
   local contract_path="$2"
   shift 2
 
-  local tmp_out
-  local tmp_err
-  tmp_out="$(mktemp)"
-  tmp_err="$(mktemp)"
+  for attempt in 1 2 3; do
+    local tmp_out
+    local tmp_err
+    local nonce
+    tmp_out="$(mktemp)"
+    tmp_err="$(mktemp)"
+    nonce="$(cast nonce --rpc-url "$RPC_URL" "$deployer")"
 
-  echo "" >&2
-  echo "Deploying $label..." >&2
-  echo "Contract path: $contract_path" >&2
-
-  if forge create \
-    --root "$CONTRACTS_DIR" \
-    --rpc-url "$RPC_URL" \
-    --private-key "$DEPLOYER_KEY" \
-    --broadcast \
-    "$contract_path" \
-    "$@" \
-    --json >"$tmp_out" 2>"$tmp_err"; then
-
-    echo "Raw stdout for $label:" >&2
-    cat "$tmp_out" >&2
     echo "" >&2
+    echo "Deploying $label... attempt $attempt/3" >&2
+    echo "Contract path: $contract_path" >&2
+    echo "Nonce: $nonce" >&2
 
-    if [[ -s "$tmp_err" ]]; then
-      echo "Raw stderr for $label:" >&2
-      cat "$tmp_err" >&2
-      echo "" >&2
-    fi
+    if forge create \
+      --root "$CONTRACTS_DIR" \
+      --rpc-url "$RPC_URL" \
+      --private-key "$DEPLOYER_KEY" \
+      --nonce "$nonce" \
+      --broadcast \
+      "$contract_path" \
+      "$@" \
+      --json >"$tmp_out" 2>"$tmp_err"; then
 
-    local address
-    address="$(extract_address_from_file "$tmp_out")"
-
-    if [[ -z "$address" ]]; then
-      echo "ERROR: Could not parse deployed address for $label." >&2
-      echo "Full stdout:" >&2
+      echo "Raw stdout for $label:" >&2
       cat "$tmp_out" >&2
-      echo "Full stderr:" >&2
-      cat "$tmp_err" >&2
+      echo "" >&2
+
+      if [[ -s "$tmp_err" ]]; then
+        echo "Raw stderr for $label:" >&2
+        cat "$tmp_err" >&2
+        echo "" >&2
+      fi
+
+      local address
+      address="$(extract_address_from_file "$tmp_out")"
+
+      if [[ -z "$address" ]]; then
+        echo "ERROR: Could not parse deployed address for $label." >&2
+        echo "Full stdout:" >&2
+        cat "$tmp_out" >&2
+        echo "Full stderr:" >&2
+        cat "$tmp_err" >&2
+        rm -f "$tmp_out" "$tmp_err"
+        exit 1
+      fi
+
+      echo "$label deployed at: $address" >&2
       rm -f "$tmp_out" "$tmp_err"
-      exit 1
+      printf "%s" "$address"
+      return 0
     fi
 
-    echo "$label deployed at: $address" >&2
-    rm -f "$tmp_out" "$tmp_err"
-    printf "%s" "$address"
-  else
-    echo "ERROR: forge create failed for $label." >&2
-    echo "Full stdout:" >&2
+    echo "Attempt $attempt failed for $label." >&2
     cat "$tmp_out" >&2
-    echo "Full stderr:" >&2
     cat "$tmp_err" >&2
     rm -f "$tmp_out" "$tmp_err"
-    exit 1
-  fi
+
+    if [[ "$attempt" != "3" ]]; then
+      echo "Retrying after nonce refresh..." >&2
+      sleep 3
+    fi
+  done
+
+  echo "ERROR: forge create failed for $label after 3 attempts." >&2
+  exit 1
 }
 
 identity_address="$(deploy_contract "NexoraAgentIdentity" "src/NexoraAgentIdentity.sol:NexoraAgentIdentity")"
@@ -173,5 +192,39 @@ cat > "$DEPLOYMENTS_DIR/$NETWORK_NAME.json" <<JSON
 }
 JSON
 
+python3 - "$WEB_DEPLOYMENTS_FILE" \
+  "$identity_address" \
+  "$factory_address" \
+  "$policy_address" \
+  "$risk_registry_address" \
+  "$reputation_address" \
+  "$smart_wallet_registry_address" \
+  "$safe_vault_address" \
+  "$risky_vault_address" \
+  "$volatile_vault_address" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+web_file = Path(sys.argv[1])
+values = {
+    "agentIdentity": sys.argv[2],
+    "factory": sys.argv[3],
+    "policy": sys.argv[4],
+    "riskRegistry": sys.argv[5],
+    "reputation": sys.argv[6],
+    "smartWalletRegistry": sys.argv[7],
+    "safeVault": sys.argv[8],
+    "riskyVault": sys.argv[9],
+    "volatileVault": sys.argv[10],
+}
+
+source = web_file.read_text()
+for key, address in values.items():
+    source = re.sub(rf'({key}:\s*")[^"]+(")', rf'\g<1>{address}\2', source)
+web_file.write_text(source)
+PY
+
 echo ""
 echo "Deployment written to deployments/$NETWORK_NAME.json"
+echo "Frontend contract constants updated in $WEB_DEPLOYMENTS_FILE"

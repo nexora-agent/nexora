@@ -15,6 +15,10 @@ const verifiedTargets = new Set([
   "0x0000000000000000000000000000000000000004",
 ]);
 
+function isByrealIntent(intent: TransactionIntent) {
+  return intent.kind.startsWith("byreal_");
+}
+
 const maxUint256 =
   "115792089237316195423570985008687907853269984665640564039457584007913129639935";
 
@@ -111,9 +115,66 @@ function flagsForIntent(
     }
   }
 
+  if (isByrealIntent(intent)) {
+    flags.push(
+      {
+        code: "EXTERNAL_DEFI_TARGET",
+        label: "External DeFi target",
+        scoreImpact: 12,
+        severity: "medium",
+      },
+      {
+        code: "BOUNDED_ACTION",
+        label: "Bounded action amount",
+        scoreImpact: 0,
+        severity: "low",
+      },
+      {
+        code: "DRY_RUN_ONLY",
+        label: "Dry-run only",
+        scoreImpact: 0,
+        severity: "low",
+      },
+      {
+        code: "LIVE_EXECUTION_DISABLED",
+        label: "Live execution disabled",
+        scoreImpact: 0,
+        severity: "low",
+      },
+    );
+
+    if (intent.metadata?.expectedYield === "high") {
+      flags.push({
+        code: "HIGH_APR_WARNING",
+        label: "High APR requires extra review",
+        scoreImpact: 22,
+        severity: "medium",
+      });
+    }
+
+    if (intent.metadata?.riskHints?.some((hint) => hint.includes("low TVL"))) {
+      flags.push({
+        code: "LOW_TVL_WARNING",
+        label: "Low TVL opportunity",
+        scoreImpact: 18,
+        severity: "medium",
+      });
+    }
+
+    if (intent.metadata?.riskHints?.some((hint) => hint.includes("volatility"))) {
+      flags.push({
+        code: "HIGH_VOLATILITY_WARNING",
+        label: "High volatility opportunity",
+        scoreImpact: 22,
+        severity: "medium",
+      });
+    }
+  }
+
   if (
     intent.kind !== "mnt_vault_deposit" &&
     intent.kind !== "mnt_vault_withdraw" &&
+    !isByrealIntent(intent) &&
     !verifiedTargets.has(intent.target.toLowerCase())
   ) {
     flags.push({

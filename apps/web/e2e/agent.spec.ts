@@ -137,9 +137,25 @@ test("mission model tools reports timeline and controls tabs work", async ({ pag
   await expect(page.getByLabel("Model tab")).toContainText("Nexora Demo Model");
   await page.getByRole("button", { name: "Edit Model" }).click();
   await expect(page.getByRole("dialog", { name: "EditModelModal" })).toBeVisible();
+  await page.route("http://model.local/v1/chat/completions", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        choices: [{ message: { content: '{"status":"ok"}' } }],
+        status: "ok",
+      }),
+    });
+  });
+  await page.getByLabel("Connection Type").selectOption("openai-compatible");
   await page.getByLabel("Edit model name").fill("Local Policy Model");
+  await page.getByLabel("Edit endpoint URL").fill("http://model.local/v1");
+  await page.getByLabel("Session API key").fill("temporary-session-key");
+  await page.getByRole("button", { name: "Test Model" }).click();
+  await expect(page.getByLabel("Model connection test")).toContainText("Connected");
+  await expect(page.getByLabel("Model connection test")).toContainText('"status": "ok"');
   await page.getByRole("button", { name: "Save Model" }).click();
   await expect(page.getByLabel("Model tab")).toContainText("Local Policy Model");
+  await expect(page.getByLabel("Model tab")).toContainText("Openai Compatible");
 
   await page.getByRole("button", { name: "Tools", exact: true }).click();
   await expect(page.getByLabel("Tools tab")).toContainText("Wallet Tools");

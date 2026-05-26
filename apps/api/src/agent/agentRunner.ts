@@ -11,7 +11,7 @@ export type AgentRunnerInput = {
   walletAddress?: `0x${string}`;
 };
 
-export function runAgent(input: AgentRunnerInput) {
+export async function runAgent(input: AgentRunnerInput) {
   return runToolLoop(
     {
       agentId: input.agentId,

@@ -37,13 +37,17 @@ export function AgentWalletCard({
       return;
     }
 
-    const updatedAgent = await createAgentWallet(agent, address);
-    setNotice(
-      updatedAgent.walletAddress === agent.walletAddress
-        ? "Existing wallet linked."
-        : "Smart wallet created.",
-    );
-    onWalletCreated(updatedAgent);
+    try {
+      const updatedAgent = await createAgentWallet(agent, address);
+      setNotice(
+        updatedAgent.walletAddress === agent.walletAddress
+          ? "Existing wallet linked."
+          : "Smart wallet created.",
+      );
+      onWalletCreated(updatedAgent);
+    } catch {
+      setNotice("");
+    }
   };
 
   return (
