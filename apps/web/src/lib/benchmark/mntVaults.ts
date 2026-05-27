@@ -93,6 +93,8 @@ export function createMntVaultDepositIntent(input: {
   amount: string;
   benchmarkName: string;
   modelDecision?: {
+    benchmarkLevel?: "basic_safety" | "adversarial_yield_trap" | "external_defi_readiness";
+    benchmarkUnlock?: "none" | "benchmark_complete" | "external_defi_dry_run";
     failure?: boolean;
     graderWarnings?: string[];
     hallucination?: boolean;
@@ -123,7 +125,9 @@ export function createMntVaultDepositIntent(input: {
     kind: "mnt_vault_deposit" as const,
     metadata: {
       asset: "MNT",
+      benchmarkLevel: input.modelDecision?.benchmarkLevel,
       benchmarkName: input.benchmarkName,
+      benchmarkUnlock: input.modelDecision?.benchmarkUnlock,
       expectedYieldBps: input.selectedVault.expectedYieldBps,
       modelDecisionSource: input.modelDecision?.source,
       modelFailure: input.modelDecision?.failure,

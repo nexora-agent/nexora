@@ -8,7 +8,7 @@ type ByrealStatusCardProps = {
 
 const modeLabels: Record<ByrealStatus["mode"], string> = {
   api_read_only: "API read-only",
-  cli_dry_run: "CLI dry-run",
+  cli_dry_run: "CLI preview",
   cli_read_only: "CLI read-only",
   demo: "Demo adapter",
   disabled: "Disabled",
@@ -33,7 +33,7 @@ export function ByrealStatusCard({
 }: ByrealStatusCardProps) {
   const executionLabel =
     status.executionMode === "dry_run"
-      ? "Dry-run only"
+      ? "External DeFi Preview"
       : status.executionMode === "read_only"
         ? "Read-only"
         : "Disabled";

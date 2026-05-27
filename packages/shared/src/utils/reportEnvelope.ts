@@ -56,6 +56,17 @@ export function buildReportEnvelope(run: ObjectiveRun): ReportEnvelope {
   const benchmarkHash = run.benchmarkScore
     ? hashCanonical(run.benchmarkScore)
     : undefined;
+  const modelHash = run.intent?.metadata
+    ? hashCanonical({
+        benchmarkLevel: run.intent.metadata.benchmarkLevel,
+        benchmarkName: run.intent.metadata.benchmarkName,
+        benchmarkUnlock: run.intent.metadata.benchmarkUnlock,
+        connectionMode: run.intent.metadata.mode,
+        modelDecisionSource: run.intent.metadata.modelDecisionSource,
+        modelName: run.intent.metadata.modelName,
+        modelSelectedVault: run.intent.metadata.modelSelectedVault,
+      })
+    : undefined;
   const toolTraceHash = hashCanonical(
     run.toolTrace.map((entry) => ({
       index: entry.index,
@@ -70,6 +81,7 @@ export function buildReportEnvelope(run: ObjectiveRun): ReportEnvelope {
     createdAt: run.createdAt,
     harnessId: run.harnessId,
     intentHash: run.intent?.intentHash,
+    modelHash,
     objective: run.objective,
     proposalHash,
     riskReportHash,

@@ -27,6 +27,7 @@ import { IntentBuilder } from "../intent/IntentBuilder";
 import { EditModelForm } from "../model/EditModelForm";
 import { ObjectiveRunner } from "../objective/ObjectiveRunner";
 import { PolicyEditor } from "../policy/PolicyEditor";
+import { PreflightSettingsPanel } from "../preflight/PreflightSettingsPanel";
 import { ReputationPanel } from "../reputation/ReputationPanel";
 import { AgentWalletBalance } from "../wallet/AgentWalletBalance";
 import { AgentWalletCard } from "../wallet/AgentWalletCard";
@@ -586,11 +587,11 @@ export function AgentProfileCard({
             <section className="summary-card">
               <h3>Latest Byreal Proposal</h3>
               <p>{latestByrealProposalRun?.proposal?.poolName ?? "No Byreal proposal yet"}</p>
-              <span>{latestByrealProposalRun?.proposal?.executionMode ?? "Dry-run proposals appear here."}</span>
+              <span>{latestByrealProposalRun ? "External DeFi Preview" : "External DeFi Preview proposals appear here."}</span>
             </section>
             <section className="summary-card">
               <h3>Execution Mode</h3>
-              <p>{latestByrealProposalRun?.intent?.metadata?.executionMode ?? "No external DeFi dry-run yet"}</p>
+              <p>{latestByrealProposalRun ? "External DeFi Preview" : "No External DeFi Preview yet"}</p>
             </section>
             <section className="summary-card" aria-label="Reputation summary">
               <ReputationPanel agent={currentAgent} />
@@ -628,7 +629,7 @@ export function AgentProfileCard({
                         <li key={`${run.id}-byreal-status`}><strong>Byreal status checked</strong><span>Demo adapter; live execution disabled</span></li>,
                         <li key={`${run.id}-byreal-pools`}><strong>Byreal pools listed</strong><span>Demo opportunities inspected</span></li>,
                         <li key={`${run.id}-byreal-inspected`}><strong>Byreal opportunity inspected</strong><span>{run.intent.metadata?.poolName ?? "Byreal / RealClaw opportunity"}</span></li>,
-                        <li key={`${run.id}-byreal-proposal`}><strong>Byreal proposal created</strong><span>{run.intent.metadata?.executionMode ?? "dry_run"}</span></li>,
+                        <li key={`${run.id}-byreal-proposal`}><strong>Byreal proposal created</strong><span>External DeFi Preview</span></li>,
                         <li key={`${run.id}-byreal-risk`}><strong>Byreal risk report generated</strong><span>{run.riskReport?.riskScore ?? "—"} / 100</span></li>,
                         <li key={`${run.id}-byreal-eligibility`}><strong>External DeFi eligibility checked</strong><span>{externalDefiEligibility.label}</span></li>,
                       ]
@@ -684,7 +685,7 @@ export function AgentProfileCard({
             <ByrealStatusCard
               eligibilityLabel={
                 externalDefiEligibility.status === "dry-run"
-                  ? "Dry-run enabled"
+                  ? "External Preview enabled"
                   : externalDefiEligibility.label
               }
               eligibilityReason={externalDefiEligibility.reason}
@@ -696,6 +697,11 @@ export function AgentProfileCard({
                 Policy Settings
               </button>
             </section>
+            <PreflightSettingsPanel
+              agent={currentAgent}
+              isOwner={Boolean(isOwner)}
+              onSaved={setCurrentAgent}
+            />
             <section className="summary-card">
               <h3>Funding</h3>
               <p>{formattedBalance} · demo balance display</p>

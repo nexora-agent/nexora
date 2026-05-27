@@ -137,6 +137,104 @@ export const nexoraRiskRegistryAbi = [
   },
 ] as const;
 
+export const nexoraPreflightRegistryAbi = [
+  {
+    inputs: [
+      { internalType: "uint256", name: "walletId", type: "uint256" },
+      { internalType: "uint16", name: "basicScore", type: "uint16" },
+      { internalType: "uint16", name: "adversarialScore", type: "uint16" },
+      { internalType: "uint16", name: "externalScore", type: "uint16" },
+      { internalType: "uint16", name: "averageScore", type: "uint16" },
+      { internalType: "uint16", name: "maxRiskScore", type: "uint16" },
+      { internalType: "uint32", name: "freshnessSeconds", type: "uint32" },
+    ],
+    name: "setPreflightThresholds",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "walletId", type: "uint256" }],
+    name: "getPreflightThresholds",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint16", name: "basicScore", type: "uint16" },
+          { internalType: "uint16", name: "adversarialScore", type: "uint16" },
+          { internalType: "uint16", name: "externalScore", type: "uint16" },
+          { internalType: "uint16", name: "averageScore", type: "uint16" },
+          { internalType: "uint16", name: "maxRiskScore", type: "uint16" },
+          { internalType: "uint32", name: "freshnessSeconds", type: "uint32" },
+          { internalType: "bool", name: "exists", type: "bool" },
+        ],
+        internalType: "struct NexoraPreflightRegistry.PreflightThresholds",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "walletId", type: "uint256" },
+          { internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+          { internalType: "bytes32", name: "modelHash", type: "bytes32" },
+          { internalType: "bytes32", name: "harnessHash", type: "bytes32" },
+          { internalType: "bytes32", name: "policyHash", type: "bytes32" },
+          { internalType: "bytes32", name: "toolsHash", type: "bytes32" },
+          { internalType: "bytes32", name: "suiteHash", type: "bytes32" },
+          { internalType: "uint16", name: "basicScore", type: "uint16" },
+          { internalType: "uint16", name: "adversarialScore", type: "uint16" },
+          { internalType: "uint16", name: "externalScore", type: "uint16" },
+          { internalType: "uint16", name: "averageScore", type: "uint16" },
+          { internalType: "uint16", name: "maxRiskScore", type: "uint16" },
+          { internalType: "bool", name: "passed", type: "bool" },
+        ],
+        internalType: "struct NexoraPreflightRegistry.PreflightInput",
+        name: "input",
+        type: "tuple",
+      },
+    ],
+    name: "recordPreflight",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "bytes32", name: "actionIntentHash", type: "bytes32" }],
+    name: "getPreflight",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "walletId", type: "uint256" },
+          { internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+          { internalType: "bytes32", name: "modelHash", type: "bytes32" },
+          { internalType: "bytes32", name: "harnessHash", type: "bytes32" },
+          { internalType: "bytes32", name: "policyHash", type: "bytes32" },
+          { internalType: "bytes32", name: "toolsHash", type: "bytes32" },
+          { internalType: "bytes32", name: "suiteHash", type: "bytes32" },
+          { internalType: "uint16", name: "basicScore", type: "uint16" },
+          { internalType: "uint16", name: "adversarialScore", type: "uint16" },
+          { internalType: "uint16", name: "externalScore", type: "uint16" },
+          { internalType: "uint16", name: "averageScore", type: "uint16" },
+          { internalType: "uint16", name: "maxRiskScore", type: "uint16" },
+          { internalType: "bool", name: "passed", type: "bool" },
+          { internalType: "uint256", name: "timestamp", type: "uint256" },
+          { internalType: "address", name: "reporter", type: "address" },
+        ],
+        internalType: "struct NexoraPreflightRegistry.PreflightRecord",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
 export const nexoraAgentWalletAbi = [
   {
     inputs: [
@@ -158,6 +256,20 @@ export const nexoraAgentWalletAbi = [
       },
     ],
     name: "executeWithRiskReport",
+    outputs: [{ internalType: "bytes", name: "result", type: "bytes" }],
+    stateMutability: "payable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "preflightRegistry", type: "address" },
+      { internalType: "address", name: "target", type: "address" },
+      { internalType: "uint256", name: "value", type: "uint256" },
+      { internalType: "bytes", name: "data", type: "bytes" },
+      { internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+      { internalType: "uint16", name: "riskScore", type: "uint16" },
+    ],
+    name: "executeWithPreflight",
     outputs: [{ internalType: "bytes", name: "result", type: "bytes" }],
     stateMutability: "payable",
     type: "function",

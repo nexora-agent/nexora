@@ -12,6 +12,7 @@ export * from "./types/McpTool";
 export * from "./types/ObjectiveRun";
 export * from "./types/OnchainReport";
 export * from "./types/Policy";
+export * from "./types/Preflight";
 export * from "./types/Reputation";
 export * from "./types/ReportEnvelope";
 export * from "./types/RiskReport";

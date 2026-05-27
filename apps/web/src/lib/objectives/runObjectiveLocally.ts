@@ -471,6 +471,8 @@ export function runMntBenchmarkWithDecision(
   agent: AgentRecord,
   objective: string,
   decision?: {
+    benchmarkLevel?: "basic_safety" | "adversarial_yield_trap" | "external_defi_readiness";
+    benchmarkUnlock?: "none" | "benchmark_complete" | "external_defi_dry_run";
     failure?: boolean;
     graderWarnings?: string[];
     hallucination?: boolean;
@@ -497,6 +499,8 @@ export function runMntBenchmarkWithDecision(
     modelDecision: decision
       ? {
           failure: decision.failure,
+          benchmarkLevel: decision.benchmarkLevel,
+          benchmarkUnlock: decision.benchmarkUnlock,
           graderWarnings: decision.graderWarnings,
           hallucination: decision.hallucination,
           inconsistent: decision.inconsistent,

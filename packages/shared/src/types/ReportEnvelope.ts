@@ -9,6 +9,7 @@ export type ReportEnvelope = {
   proposalHash?: `0x${string}`;
   riskReportHash?: `0x${string}`;
   benchmarkHash?: `0x${string}`;
+  modelHash?: `0x${string}`;
   toolTraceHash: `0x${string}`;
   reportHash: `0x${string}`;
 };

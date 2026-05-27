@@ -8,6 +8,9 @@ import { BenchmarkScoreCard } from "../benchmark/BenchmarkScoreCard";
 import { ModelDecisionPanel } from "../benchmark/ModelDecisionPanel";
 import { ByrealActionProposal } from "../byreal/ByrealActionProposal";
 import { ByrealPoolCard } from "../byreal/ByrealPoolCard";
+import { BlockedExecutionCard } from "../execution/BlockedExecutionCard";
+import { ExecuteProposalButton } from "../execution/ExecuteProposalButton";
+import { ExecutionStatusCard } from "../execution/ExecutionStatusCard";
 import { TransactionIntentCard } from "../intent/TransactionIntentCard";
 import { inspectByrealPool } from "@/lib/byreal/byrealAdapter";
 import { ProposalCard } from "../proposal/ProposalCard";
@@ -26,7 +29,10 @@ type ObjectiveResultCardProps = {
 };
 
 export function ObjectiveResultCard({
+  agent,
+  policy,
   run,
+  onRunUpdated,
 }: ObjectiveResultCardProps) {
   const byrealPool =
     run.harnessId === "byreal-defi" ? inspectByrealPool(run.objective) : undefined;
@@ -62,6 +68,20 @@ export function ObjectiveResultCard({
       {run.benchmarkScore && <BenchmarkScoreCard score={run.benchmarkScore} />}
       <ReportEnvelopeCard envelope={reportEnvelope} />
       <OnchainReportCard record={registryRecord} />
+      {run.intent && run.riskReport && onRunUpdated && (
+        <ExecuteProposalButton
+          agent={agent}
+          policy={policy}
+          run={run}
+          onExecution={onRunUpdated}
+        />
+      )}
+      {run.execution?.status === "executed" && (
+        <ExecutionStatusCard execution={run.execution} />
+      )}
+      {run.execution?.status === "blocked" && (
+        <BlockedExecutionCard execution={run.execution} />
+      )}
       {run.intent && <TransactionIntentCard intent={run.intent} />}
       {run.riskReport && <RiskReportPanel report={run.riskReport} />}
     </section>

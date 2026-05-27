@@ -5,6 +5,7 @@ import type { RiskReport } from "./RiskReport";
 import type { ReportEnvelope } from "./ReportEnvelope";
 import type { ToolTraceEntry } from "./McpTool";
 import type { TransactionIntent } from "./TransactionIntent";
+import type { PreflightCredential } from "./Preflight";
 
 export type ObjectiveRun = {
   id: string;
@@ -18,6 +19,7 @@ export type ObjectiveRun = {
   benchmarkScore?: BenchmarkScore;
   riskReport?: RiskReport;
   reportEnvelope?: ReportEnvelope;
+  preflight?: PreflightCredential;
   execution?: ExecutionRecord;
   toolTrace: ToolTraceEntry[];
   summary: string;

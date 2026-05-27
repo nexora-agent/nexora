@@ -63,7 +63,7 @@ function AgentTableRow({
       </td>
       <td>
         <span className={`status-pill ${externalDefi.status === "dry-run" ? "status-ready" : "status-disconnected"}`}>
-          {externalDefi.status === "dry-run" ? "Dry-run enabled" : "Locked"}
+          {externalDefi.status === "dry-run" ? "Preview enabled" : "Locked"}
         </span>
       </td>
       <td>

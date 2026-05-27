@@ -45,7 +45,7 @@ test("user submits an objective inside the selected harness", async ({ page }) =
   await lab.getByRole("button", { name: "Run Wallet Benchmark" }).click();
 
   const summary = page.getByLabel("Benchmark result");
-  await expect(summary).toContainText("Passed");
+  await expect(summary).toContainText("Needs review");
   await expect(summary).toContainText("NexoraSafeVault");
   await expect(summary).toContainText("NexoraRiskyVault");
   await page.getByText("Technical report").click();
@@ -67,7 +67,7 @@ test("user submits an objective inside the selected harness", async ({ page }) =
 
   await page.goto("/dashboard");
   await expect(page.getByLabel("Smart wallets table")).toContainText("YieldGuard-01");
-  await expect(page.getByLabel("Smart wallets table")).toContainText("96");
+  await expect(page.getByLabel("Smart wallets table")).toContainText("58");
 });
 
 test("objective runner is hidden until the smart wallet exists", async ({ page }) => {

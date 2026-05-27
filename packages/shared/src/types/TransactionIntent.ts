@@ -25,6 +25,8 @@ export type TransactionIntent = {
   metadata?: {
     asset?: "MNT" | string;
     benchmarkName?: string;
+    benchmarkLevel?: "basic_safety" | "adversarial_yield_trap" | "external_defi_readiness";
+    benchmarkUnlock?: "none" | "benchmark_complete" | "external_defi_dry_run";
     expectedYieldBps?: number;
     expectedYield?: string;
     executionMode?: "read_only" | "dry_run" | "disabled";

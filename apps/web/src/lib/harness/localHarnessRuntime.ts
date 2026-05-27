@@ -1,6 +1,8 @@
 import type { AgentRecord, HarnessTemplate, ObjectiveRun, PolicyProfile } from "@nexora/shared";
 import { getNexoraApi, postNexoraApi } from "@/lib/api/nexoraApi";
 import {
+  type BenchmarkScenario,
+  benchmarkScenarios,
   parseBenchmarkModelDecision,
 } from "@/lib/benchmark/runAiMntBenchmark";
 import { nexoraMntVaults } from "@/lib/benchmark/mntVaults";
@@ -86,12 +88,14 @@ export async function runLocalHarnessBenchmark(input: {
   agent: AgentRecord;
   harness: HarnessTemplate;
   policy: PolicyProfile;
+  scenario?: BenchmarkScenario;
 }): Promise<ObjectiveRun> {
   if (!input.harness.localRuntimeUrl) {
     throw new Error("This harness does not have a local runtime URL.");
   }
 
-  const objective = "AI MNT Strategy Benchmark: choose the safest 0.01 MNT vault.";
+  const scenario = input.scenario ?? benchmarkScenarios[1];
+  const objective = scenario.objective;
   const result = await postNexoraApi<LocalHarnessRunResult>("/harness/local/run", {
     agent: {
       id: input.agent.id,
@@ -107,9 +111,11 @@ export async function runLocalHarnessBenchmark(input: {
     timeoutMs: 45000,
   });
   const rawResponse = responseText(result.response);
-  const decision = parseBenchmarkModelDecision(rawResponse);
+  const decision = parseBenchmarkModelDecision(rawResponse, scenario);
 
   return runMntBenchmarkWithDecision(input.agent, objective, {
+    benchmarkLevel: scenario.id,
+    benchmarkUnlock: scenario.unlock,
     failure: !decision.valid,
     graderWarnings: decision.warnings,
     hallucination: decision.hallucination,

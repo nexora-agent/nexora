@@ -1,6 +1,7 @@
 import type { AgentRuntimeId } from "./AgentRuntime";
 import type { HarnessId } from "./Harness";
 import type { ObjectiveRun } from "./ObjectiveRun";
+import type { PreflightThresholds } from "./Preflight";
 
 export type RiskMode = "conservative" | "balanced" | "experimental";
 export type AgentStrategyType = "defensive" | "balanced" | "opportunistic";
@@ -57,6 +58,7 @@ export type AgentProfile = {
   runnerMode?: RunnerMode;
   modelConfig?: SmartWalletModelConfig;
   toolsConfig?: SmartWalletToolConfig[];
+  preflightThresholds?: PreflightThresholds;
   strategyType?: AgentStrategyType;
   primaryPurpose?: string;
   decisionStyle?: string;
@@ -84,6 +86,7 @@ export type AgentMetadata = {
   runnerMode?: RunnerMode;
   modelConfig?: SmartWalletModelConfig;
   toolsConfig?: SmartWalletToolConfig[];
+  preflightThresholds?: PreflightThresholds;
   strategyType: AgentStrategyType;
   primaryPurpose?: string;
   decisionStyle?: string;

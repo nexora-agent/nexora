@@ -15,11 +15,11 @@ export function ByrealActionProposal({ proposal }: ByrealActionProposalProps) {
         </div>
         <div>
           <dt>Pool</dt>
-          <dd>{proposal.poolName ?? "Byreal / RealClaw dry-run"}</dd>
+          <dd>{proposal.poolName ?? "Byreal / RealClaw preview"}</dd>
         </div>
         <div>
           <dt>Mode</dt>
-          <dd>{proposal.mode ?? "demo"} · {proposal.executionMode ?? "dry_run"}</dd>
+          <dd>{proposal.mode ?? "demo"} · External DeFi Preview</dd>
         </div>
         <div>
           <dt>Live Execution</dt>

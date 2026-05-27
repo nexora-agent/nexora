@@ -1313,6 +1313,42 @@ h1 {
   min-width: 210px;
 }
 
+.benchmark-scenario-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.scenario-card {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  cursor: pointer;
+  display: grid;
+  gap: 8px;
+  min-height: 132px;
+  padding: 16px;
+  text-align: left;
+}
+
+.scenario-card.active {
+  border-color: color-mix(in srgb, var(--accent) 56%, var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 14%, transparent);
+}
+
+.scenario-card span,
+.scenario-card small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.scenario-card small {
+  font-size: 0.78rem;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+
 .benchmark-check-grid {
   display: grid;
   gap: 14px;
@@ -1393,6 +1429,76 @@ h1 {
 }
 
 .benchmark-result-summary dd {
+  color: var(--ink);
+  font-weight: 850;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.benchmark-suite-summary {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+}
+
+.suite-result-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.suite-result-grid article {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 5px;
+  padding: 14px;
+}
+
+.suite-result-grid span {
+  color: var(--ink);
+  font-weight: 900;
+}
+
+.suite-result-grid small,
+.benchmark-suite-summary p {
+  color: var(--muted);
+}
+
+.benchmark-suite-summary p {
+  line-height: 1.45;
+  margin: 0;
+}
+
+.preflight-proof-list {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin: 0;
+}
+
+.preflight-proof-list div {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+}
+
+.preflight-proof-list dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.preflight-proof-list dd {
   color: var(--ink);
   font-weight: 850;
   margin: 0;
@@ -2549,7 +2655,10 @@ dd {
   }
 
   .benchmark-lab-hero,
+  .benchmark-scenario-grid,
   .benchmark-check-grid,
+  .suite-result-grid,
+  .preflight-proof-list,
   .benchmark-result-summary,
   .benchmark-result-summary dl {
     grid-template-columns: 1fr;

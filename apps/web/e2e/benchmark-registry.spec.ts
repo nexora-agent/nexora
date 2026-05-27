@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import type { Page } from "@playwright/test";
+import { mantleSepoliaContracts } from "../src/lib/contracts/deployments";
 import { mockMetaMask } from "./utils/mockMetaMask";
 
 test.beforeEach(async ({ page }) => {
@@ -59,9 +60,9 @@ test("objective run shows benchmark breakdown and registry-ready report", async 
     report.getByRole("link", { name: "Open Registry Explorer" }),
   ).toHaveAttribute(
     "href",
-    "https://explorer.sepolia.mantle.xyz/address/0x16Ad8dfa7Cd6cddeec0071Ee584FBCdbC529E6A9",
+    `https://explorer.sepolia.mantle.xyz/address/${mantleSepoliaContracts.riskRegistry}`,
   );
 
   await page.goto("/dashboard");
-  await expect(page.getByLabel("Smart wallets table")).toContainText("96");
+  await expect(page.getByLabel("Smart wallets table")).toContainText("58");
 });

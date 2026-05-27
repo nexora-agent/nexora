@@ -23,6 +23,7 @@ import { nexoraSmartWalletRegistryAbi } from "@/lib/contracts/abis";
 import { mantleSepoliaContracts } from "@/lib/contracts/deployments";
 import { wagmiConfig } from "@/lib/wagmi/config";
 import { isNexoraMockWallet } from "./onchainAgents";
+import { readPreflightThresholdsOnchain } from "./onchainPreflight";
 
 type CreateSmartWalletProfileInput = {
   name: string;
@@ -119,12 +120,18 @@ function isSmartWalletNotFoundError(error: unknown) {
   );
 }
 
-function smartWalletRecordFromChain(
+async function smartWalletRecordFromChain(
   id: bigint,
   smartWallet: RegistrySmartWallet,
   transactionHash?: `0x${string}`,
-): AgentRecord {
+): Promise<AgentRecord> {
   const metadata = decodeMetadata(smartWallet.metadataURI);
+  let preflightThresholds = metadata?.preflightThresholds;
+  try {
+    preflightThresholds = await readPreflightThresholdsOnchain(id.toString());
+  } catch {
+    preflightThresholds = metadata?.preflightThresholds;
+  }
   const createdAt = dateFromChainTimestamp(smartWallet.createdAt);
   const selectedHarnessId = metadata?.selectedHarnessId ?? "safe-approval";
   const riskMode = metadata?.riskMode ?? chainToRiskMode[smartWallet.riskMode] ?? "conservative";
@@ -143,6 +150,7 @@ function smartWalletRecordFromChain(
     runnerMode,
     modelConfig: metadata?.modelConfig,
     toolsConfig: metadata?.toolsConfig,
+    preflightThresholds,
     strategyType: metadata?.strategyType ?? "defensive",
     primaryPurpose: metadata?.primaryPurpose,
     decisionStyle: metadata?.decisionStyle,
@@ -163,6 +171,7 @@ function smartWalletRecordFromChain(
       runnerMode,
       modelConfig: metadata?.modelConfig,
       toolsConfig: metadata?.toolsConfig,
+      preflightThresholds,
       strategyType: metadata?.strategyType ?? "defensive",
       primaryPurpose: metadata?.primaryPurpose,
       decisionStyle: metadata?.decisionStyle,

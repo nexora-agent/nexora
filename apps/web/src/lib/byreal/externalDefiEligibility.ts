@@ -46,9 +46,9 @@ export function getExternalDefiEligibility(
   }
 
   return {
-    label: "External DeFi: Dry-run enabled",
+    label: "External DeFi: Preview enabled",
     passedMntBenchmark: true,
-    reason: "Benchmark passed. External DeFi proposals can be inspected in dry-run mode. Live execution is disabled.",
+    reason: "Benchmark passed. External DeFi Preview can generate proposals. Live Byreal execution is not enabled in this build.",
     status: "dry-run",
   };
 }

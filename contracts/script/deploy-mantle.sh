@@ -164,6 +164,9 @@ echo "Parsed NexoraReputation: $reputation_address"
 smart_wallet_registry_address="$(deploy_contract "NexoraSmartWalletRegistry" "src/NexoraSmartWalletRegistry.sol:NexoraSmartWalletRegistry")"
 echo "Parsed NexoraSmartWalletRegistry: $smart_wallet_registry_address"
 
+preflight_registry_address="$(deploy_contract "NexoraPreflightRegistry" "src/NexoraPreflightRegistry.sol:NexoraPreflightRegistry" --constructor-args "$smart_wallet_registry_address")"
+echo "Parsed NexoraPreflightRegistry: $preflight_registry_address"
+
 safe_vault_address="$(deploy_contract "NexoraSafeVault" "src/NexoraSafeVault.sol:NexoraSafeVault")"
 echo "Parsed NexoraSafeVault: $safe_vault_address"
 
@@ -183,6 +186,7 @@ cat > "$DEPLOYMENTS_DIR/$NETWORK_NAME.json" <<JSON
     "NexoraFactory": "$factory_address",
     "NexoraPolicy": "$policy_address",
     "NexoraRiskRegistry": "$risk_registry_address",
+    "NexoraPreflightRegistry": "$preflight_registry_address",
     "NexoraReputation": "$reputation_address",
     "NexoraSmartWalletRegistry": "$smart_wallet_registry_address",
     "NexoraSafeVault": "$safe_vault_address",
@@ -197,6 +201,7 @@ python3 - "$WEB_DEPLOYMENTS_FILE" \
   "$factory_address" \
   "$policy_address" \
   "$risk_registry_address" \
+  "$preflight_registry_address" \
   "$reputation_address" \
   "$smart_wallet_registry_address" \
   "$safe_vault_address" \
@@ -212,11 +217,12 @@ values = {
     "factory": sys.argv[3],
     "policy": sys.argv[4],
     "riskRegistry": sys.argv[5],
-    "reputation": sys.argv[6],
-    "smartWalletRegistry": sys.argv[7],
-    "safeVault": sys.argv[8],
-    "riskyVault": sys.argv[9],
-    "volatileVault": sys.argv[10],
+    "preflightRegistry": sys.argv[6],
+    "reputation": sys.argv[7],
+    "smartWalletRegistry": sys.argv[8],
+    "safeVault": sys.argv[9],
+    "riskyVault": sys.argv[10],
+    "volatileVault": sys.argv[11],
 }
 
 source = web_file.read_text()
