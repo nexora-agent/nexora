@@ -48,6 +48,11 @@ function AgentTableRow({
       <td>
         <strong>{agent.name}</strong>
         <span>{formatAddress(agent.walletAddress)}</span>
+        <span>
+          {agent.identityStandard === "erc-8004"
+            ? `ERC-8004 #${agent.agentIdentityId ?? agent.id}`
+            : "Legacy"}
+        </span>
       </td>
       <td>
         <strong>{agent.primaryPurpose ?? agent.description ?? agent.goal}</strong>
@@ -60,6 +65,11 @@ function AgentTableRow({
       <td>{agent.objectiveRuns?.[0]?.benchmarkScore?.finalScore ?? "—"}</td>
       <td>
         <AgentStatusBadge status={status} />
+      </td>
+      <td>
+        <span className={`status-pill ${agent.identityStandard === "erc-8004" ? "status-ready" : "status-disconnected"}`}>
+          {agent.identityStandard === "erc-8004" ? "Local runner" : "Legacy"}
+        </span>
       </td>
       <td>
         <span className={`status-pill ${externalDefi.status === "dry-run" ? "status-ready" : "status-disconnected"}`}>
@@ -133,6 +143,7 @@ export function AgentList({
               <th>Balance</th>
               <th>Benchmark</th>
               <th>Status</th>
+              <th>Autonomy</th>
               <th>External DeFi</th>
               <th>Next Action</th>
             </tr>
@@ -141,7 +152,7 @@ export function AgentList({
             {agents.map((agent) => (
               <AgentTableRow
                 agent={agent}
-                key={agent.id}
+                key={`${agent.identityStandard ?? "legacy"}-${agent.id}-${agent.walletAddress ?? "profile"}`}
                 onOpenWallet={onOpenWallet}
                 onWalletAction={onWalletAction}
               />

@@ -25,6 +25,11 @@ async function finishAgentWizard(page: Page) {
 }
 
 async function deploySmartWallet(page: Page) {
+  const testLab = page.getByRole("button", { name: "Test Lab" });
+  if (await testLab.isVisible()) {
+    return;
+  }
+
   await page
     .getByLabel("Next step")
     .getByRole("button", { name: "Create Smart Wallet" })
@@ -52,9 +57,8 @@ test("create agent returns an agent profile", async ({ page }) => {
   await expect(page).toHaveURL(/\/wallets\/1$/);
   await expect(page.getByLabel("Smart wallet profile")).toContainText("YieldGuard-01");
   await expect(page.getByLabel("Smart wallet profile")).toContainText("Treasury risk monitor");
-  await expect(page.getByLabel("Next step")).toContainText("Create Smart Wallet");
-  await expect(page.getByLabel("Wallet setup summary")).toContainText("Safe Approval Harness");
-  await expect(page.getByRole("button", { name: "Mission" })).toHaveCount(0);
+  await expect(page.getByLabel("Next step")).toContainText("Fund Wallet");
+  await expect(page.getByRole("button", { name: "Mission" })).toBeVisible();
 });
 
 test("view agent profile route shows saved identity", async ({ page }) => {
@@ -68,7 +72,7 @@ test("view agent profile route shows saved identity", async ({ page }) => {
 
   await expect(page.getByRole("heading", { name: "TreasuryGuard-02" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Edit Setup" })).toBeVisible();
-  await expect(page.getByLabel("Next step")).toContainText("Create Smart Wallet");
+  await expect(page.getByLabel("Next step")).toContainText("Fund Wallet");
 });
 
 test("invalid name shows validation error", async ({ page }) => {

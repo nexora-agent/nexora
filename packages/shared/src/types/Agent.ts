@@ -22,6 +22,17 @@ export type SmartWalletMissionType =
   | "trading"
   | "custom";
 export type SmartWalletExecutionMode = "simulation" | "policy-gated" | "live-disabled";
+export type SmartWalletIdentityStandard = "legacy" | "erc-8004";
+export type SmartWalletAutonomyConfig = {
+  enabled: boolean;
+  executorAddress?: `0x${string}`;
+  entryPointAddress?: `0x${string}`;
+  factoryAddress?: `0x${string}`;
+  validationRegistryAddress?: `0x${string}`;
+  maxValuePerAction?: string;
+  dailyLimit?: string;
+  validUntil?: string;
+};
 export type SmartWalletModelConfig = {
   runnerMode: RunnerMode;
   provider: "demo" | "local" | "hosted";
@@ -68,6 +79,11 @@ export type AgentProfile = {
   riskMode: RiskMode;
   ownerAddress?: `0x${string}`;
   walletAddress?: `0x${string}`;
+  identityStandard?: SmartWalletIdentityStandard;
+  agentIdentityId?: string;
+  agentUri?: string;
+  autonomy?: SmartWalletAutonomyConfig;
+  walletDeploymentPending?: boolean;
   identityTransactionHash?: `0x${string}`;
   walletTransactionHash?: `0x${string}`;
   walletFundingTransactionHash?: `0x${string}`;
@@ -95,6 +111,10 @@ export type AgentMetadata = {
   selectedHarnessId?: HarnessId;
   riskMode: RiskMode;
   identityTransactionHash?: `0x${string}`;
+  identityStandard?: SmartWalletIdentityStandard;
+  agentIdentityId?: string;
+  agentUri?: string;
+  autonomy?: SmartWalletAutonomyConfig;
   createdAt: string;
 };
 

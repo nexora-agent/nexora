@@ -19,7 +19,11 @@ import {
   listLocalAgents,
 } from "@/lib/agents/localAgentRegistry";
 import { mantleSepolia } from "@/lib/chains/mantle";
-import { nexoraSmartWalletRegistryAbi } from "@/lib/contracts/abis";
+import {
+  nexora4337WalletFactoryAbi,
+  nexoraAgentIdentityRegistryAbi,
+  nexoraSmartWalletRegistryAbi,
+} from "@/lib/contracts/abis";
 import { mantleSepoliaContracts } from "@/lib/contracts/deployments";
 import { wagmiConfig } from "@/lib/wagmi/config";
 import { isNexoraMockWallet } from "./onchainAgents";
@@ -52,6 +56,13 @@ type RegistrySmartWallet = {
   runnerMode: number;
   wallet: Address;
   walletCreatedAt: bigint | number;
+};
+
+type V2IdentityAgent = {
+  agentURI: string;
+  agentWallet: Address;
+  createdAt: bigint | number;
+  owner: Address;
 };
 
 const riskModeToChain: Record<RiskMode, number> = {
@@ -106,6 +117,37 @@ function dateFromChainTimestamp(timestamp: bigint | number) {
   }
 
   return new Date(numericTimestamp * 1000).toISOString();
+}
+
+function delay(ms: number) {
+  return new Promise((resolve) => {
+    globalThis.setTimeout(resolve, ms);
+  });
+}
+
+function hasContractAddress(address: string) {
+  return address.toLowerCase() !== zeroAddress.toLowerCase();
+}
+
+function isV2SmartWalletsEnabled() {
+  return (
+    hasContractAddress(mantleSepoliaContracts.agentIdentityV2) &&
+    hasContractAddress(mantleSepoliaContracts.agent4337WalletFactory)
+  );
+}
+
+async function waitForRegistryReceipt(hash: `0x${string}`, label: string) {
+  const receipt = await waitForTransactionReceipt(wagmiConfig, {
+    hash,
+    chainId: mantleSepolia.id,
+    timeout: 120_000,
+  });
+
+  if (receipt.status === "reverted") {
+    throw new Error(`${label} reverted on Mantle.`);
+  }
+
+  return receipt;
 }
 
 function isSmartWalletNotFoundError(error: unknown) {
@@ -187,6 +229,142 @@ async function smartWalletRecordFromChain(
   };
 }
 
+async function smartWalletRecordFromV2(
+  id: bigint,
+  agent: V2IdentityAgent,
+  transactionHash?: `0x${string}`,
+): Promise<AgentRecord> {
+  const metadata = decodeMetadata(agent.agentURI);
+  let preflightThresholds = metadata?.preflightThresholds;
+  try {
+    preflightThresholds = await readPreflightThresholdsOnchain(id.toString(), {
+      useV2Validation: true,
+    });
+  } catch {
+    preflightThresholds = metadata?.preflightThresholds;
+  }
+  const createdAt = dateFromChainTimestamp(agent.createdAt);
+  const selectedHarnessId = metadata?.selectedHarnessId ?? "safe-approval";
+  const riskMode = metadata?.riskMode ?? "conservative";
+  const runnerMode = metadata?.runnerMode ?? "local";
+  const name = metadata?.name ?? `Smart Wallet ${id.toString()}`;
+  const description = metadata?.description ?? metadata?.goal ?? "Autonomous smart wallet";
+  const walletAddress = agent.agentWallet === zeroAddress ? undefined : agent.agentWallet;
+
+  return {
+    id: id.toString(),
+    name,
+    goal: description,
+    description,
+    agentType: metadata?.agentType ?? "custom",
+    missionType: metadata?.missionType ?? metadata?.agentType ?? "custom",
+    runtime: metadata?.runtime ?? "nexora-local",
+    runnerMode,
+    modelConfig: metadata?.modelConfig,
+    toolsConfig: metadata?.toolsConfig,
+    preflightThresholds,
+    strategyType: metadata?.strategyType ?? "defensive",
+    primaryPurpose: metadata?.primaryPurpose,
+    decisionStyle: metadata?.decisionStyle,
+    preferredBehavior: metadata?.preferredBehavior,
+    avoidedBehavior: metadata?.avoidedBehavior,
+    selectedHarnessId,
+    riskMode,
+    ownerAddress: agent.owner,
+    walletAddress,
+    identityStandard: "erc-8004",
+    agentIdentityId: id.toString(),
+    agentUri: agent.agentURI,
+    autonomy: {
+      enabled: true,
+      entryPointAddress: mantleSepoliaContracts.entryPoint,
+      factoryAddress: mantleSepoliaContracts.agent4337WalletFactory,
+      validationRegistryAddress: mantleSepoliaContracts.agentValidationRegistry,
+    },
+    identityTransactionHash: transactionHash,
+    walletTransactionHash: transactionHash,
+    metadata: {
+      name,
+      goal: description,
+      description,
+      agentType: metadata?.agentType ?? "custom",
+      missionType: metadata?.missionType ?? metadata?.agentType ?? "custom",
+      runtime: metadata?.runtime ?? "nexora-local",
+      runnerMode,
+      modelConfig: metadata?.modelConfig,
+      toolsConfig: metadata?.toolsConfig,
+      preflightThresholds,
+      strategyType: metadata?.strategyType ?? "defensive",
+      primaryPurpose: metadata?.primaryPurpose,
+      decisionStyle: metadata?.decisionStyle,
+      preferredBehavior: metadata?.preferredBehavior,
+      avoidedBehavior: metadata?.avoidedBehavior,
+      selectedHarnessId,
+      riskMode,
+      identityStandard: "erc-8004",
+      agentIdentityId: id.toString(),
+      agentUri: agent.agentURI,
+      autonomy: {
+        enabled: true,
+        entryPointAddress: mantleSepoliaContracts.entryPoint,
+        factoryAddress: mantleSepoliaContracts.agent4337WalletFactory,
+        validationRegistryAddress: mantleSepoliaContracts.agentValidationRegistry,
+      },
+      identityTransactionHash: transactionHash,
+      createdAt,
+    },
+    metadataUri: agent.agentURI,
+    createdAt,
+  };
+}
+
+async function findLatestSmartWalletForOwner(
+  ownerAddress: `0x${string}`,
+  transactionHash?: `0x${string}`,
+) {
+  const smartWalletIds = await readContract(wagmiConfig, {
+    address: mantleSepoliaContracts.smartWalletRegistry,
+    abi: nexoraSmartWalletRegistryAbi,
+    functionName: "smartWalletsOfOwner",
+    args: [ownerAddress],
+    chainId: mantleSepolia.id,
+  });
+
+  for (const smartWalletId of [...smartWalletIds].reverse()) {
+    const agent = await getSmartWalletProfileOnchain(
+      smartWalletId.toString(),
+      transactionHash,
+    );
+
+    if (agent) {
+      return agent;
+    }
+  }
+
+  return undefined;
+}
+
+async function waitForSmartWalletProfileOnchain({
+  ownerAddress,
+  smartWalletId,
+  transactionHash,
+}: {
+  ownerAddress: `0x${string}`;
+  smartWalletId: string;
+  transactionHash?: `0x${string}`;
+}) {
+  let agent = await getSmartWalletProfileOnchain(smartWalletId, transactionHash);
+
+  for (let attempt = 0; attempt < 10 && !agent; attempt += 1) {
+    await delay(1_200 + attempt * 300);
+    agent =
+      (await getSmartWalletProfileOnchain(smartWalletId, transactionHash)) ??
+      (await findLatestSmartWalletForOwner(ownerAddress, transactionHash));
+  }
+
+  return agent;
+}
+
 export async function createSmartWalletProfileOnchain(
   input: CreateSmartWalletProfileInput,
 ) {
@@ -217,6 +395,48 @@ export async function createSmartWalletProfileOnchain(
     });
   }
 
+  if (isV2SmartWalletsEnabled()) {
+    const nextAgentId = await readContract(wagmiConfig, {
+      address: mantleSepoliaContracts.agentIdentityV2,
+      abi: nexoraAgentIdentityRegistryAbi,
+      functionName: "nextAgentId",
+      chainId: mantleSepolia.id,
+    });
+    const salt = keccak256(
+      toBytes(`${input.ownerAddress}:${input.name}:${metadata.createdAt}`),
+    );
+    const transactionHash = await writeContract(wagmiConfig, {
+      address: mantleSepoliaContracts.agent4337WalletFactory,
+      abi: nexora4337WalletFactoryAbi,
+      functionName: "createAgentWallet",
+      args: [encodeMetadata({
+        ...metadata,
+        identityStandard: "erc-8004",
+        agentIdentityId: nextAgentId.toString(),
+      }), salt],
+      chainId: mantleSepolia.id,
+    });
+
+    if (!transactionHash) {
+      throw new Error("No transaction hash returned from V2 smart wallet factory.");
+    }
+
+    await waitForRegistryReceipt(transactionHash, "V2 smart wallet deployment");
+
+    const agent = await getV2SmartWalletProfileOnchain(
+      nextAgentId.toString(),
+      transactionHash,
+    );
+
+    if (!agent) {
+      throw new Error(
+        "V2 smart wallet was created, but Mantle has not indexed the identity yet. Refresh the dashboard in a few seconds.",
+      );
+    }
+
+    return agent;
+  }
+
   const nextSmartWalletId = await readContract(wagmiConfig, {
     address: mantleSepoliaContracts.smartWalletRegistry,
     abi: nexoraSmartWalletRegistryAbi,
@@ -241,14 +461,18 @@ export async function createSmartWalletProfileOnchain(
     throw new Error("No transaction hash returned from wallet.");
   }
 
-  await waitForTransactionReceipt(wagmiConfig, {
-    hash: transactionHash,
-    chainId: mantleSepolia.id,
+  await waitForRegistryReceipt(transactionHash, "Smart wallet profile registration");
+
+  const agent = await waitForSmartWalletProfileOnchain({
+    ownerAddress: input.ownerAddress,
+    smartWalletId: nextSmartWalletId.toString(),
+    transactionHash,
   });
 
-  const agent = await getSmartWalletProfileOnchain(nextSmartWalletId.toString(), transactionHash);
   if (!agent) {
-    throw new Error("Smart wallet was registered but could not be loaded.");
+    throw new Error(
+      "Smart wallet profile was registered on Mantle, but the registry read is still catching up. Refresh the dashboard in a few seconds.",
+    );
   }
 
   return agent;
@@ -258,6 +482,15 @@ export async function createSmartWalletOnchain(
   agent: AgentRecord,
   ownerAddress: `0x${string}`,
 ) {
+  if (agent.identityStandard === "erc-8004") {
+    if (agent.walletAddress) {
+      return agent;
+    }
+
+    const refreshed = await getV2SmartWalletProfileOnchain(agent.id, agent.walletTransactionHash);
+    return refreshed ?? agent;
+  }
+
   if (isNexoraMockWallet()) {
     return createLocalAgentWallet(agent.id, ownerAddress);
   }
@@ -274,14 +507,28 @@ export async function createSmartWalletOnchain(
     throw new Error("No transaction hash returned from wallet.");
   }
 
-  await waitForTransactionReceipt(wagmiConfig, {
-    hash: transactionHash,
-    chainId: mantleSepolia.id,
-  });
+  await waitForRegistryReceipt(transactionHash, "Smart wallet deployment");
 
-  const updatedAgent = await getSmartWalletProfileOnchain(agent.id);
-  if (!updatedAgent?.walletAddress) {
-    throw new Error("Smart wallet was created but no address was returned.");
+  let updatedAgent = await getSmartWalletProfileOnchain(agent.id);
+
+  for (let attempt = 0; attempt < 5 && !updatedAgent?.walletAddress; attempt += 1) {
+    await delay(1200);
+    updatedAgent = await getSmartWalletProfileOnchain(agent.id);
+  }
+
+  if (!updatedAgent) {
+    return {
+      ...agent,
+      walletTransactionHash: transactionHash,
+    };
+  }
+
+  if (!updatedAgent.walletAddress) {
+    return {
+      ...updatedAgent,
+      walletDeploymentPending: true,
+      walletTransactionHash: transactionHash,
+    };
   }
 
   return {
@@ -296,6 +543,11 @@ export async function getSmartWalletProfileOnchain(
 ) {
   if (isNexoraMockWallet()) {
     return listLocalAgents().find((agent) => agent.id === smartWalletId);
+  }
+
+  const v2Agent = await getV2SmartWalletProfileOnchain(smartWalletId, transactionHash);
+  if (v2Agent) {
+    return v2Agent;
   }
 
   try {
@@ -317,6 +569,29 @@ export async function getSmartWalletProfileOnchain(
   }
 }
 
+async function getV2SmartWalletProfileOnchain(
+  agentId: string,
+  transactionHash?: `0x${string}`,
+) {
+  if (!isV2SmartWalletsEnabled()) {
+    return undefined;
+  }
+
+  try {
+    const agent = await readContract(wagmiConfig, {
+      address: mantleSepoliaContracts.agentIdentityV2,
+      abi: nexoraAgentIdentityRegistryAbi,
+      functionName: "getAgent",
+      args: [BigInt(agentId)],
+      chainId: mantleSepolia.id,
+    });
+
+    return smartWalletRecordFromV2(BigInt(agentId), agent, transactionHash);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}`) {
   if (!ownerAddress) {
     return [];
@@ -327,6 +602,23 @@ export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}
       (agent) => agent.ownerAddress.toLowerCase() === ownerAddress.toLowerCase(),
     );
   }
+
+  const v2SmartWallets = isV2SmartWalletsEnabled()
+    ? await readContract(wagmiConfig, {
+        address: mantleSepoliaContracts.agentIdentityV2,
+        abi: nexoraAgentIdentityRegistryAbi,
+        functionName: "agentsOfOwner",
+        args: [ownerAddress],
+        chainId: mantleSepolia.id,
+      })
+        .then((agentIds) =>
+          Promise.all(
+            agentIds.map((agentId) => getV2SmartWalletProfileOnchain(agentId.toString())),
+          ),
+        )
+        .then((agents) => agents.filter((agent): agent is AgentRecord => Boolean(agent)))
+        .catch(() => [])
+    : [];
 
   const smartWalletIds = await readContract(wagmiConfig, {
     address: mantleSepoliaContracts.smartWalletRegistry,
@@ -346,5 +638,8 @@ export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}
     }),
   );
 
-  return smartWallets.filter((agent): agent is AgentRecord => Boolean(agent));
+  return [
+    ...v2SmartWallets,
+    ...smartWallets.filter((agent): agent is AgentRecord => Boolean(agent)),
+  ];
 }

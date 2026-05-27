@@ -12,8 +12,8 @@ export function ObjectiveHistory({ runs }: ObjectiveHistoryProps) {
         <p>No objective runs yet.</p>
       ) : (
         <ol>
-          {runs.map((run) => (
-            <li key={run.id}>
+          {runs.map((run, index) => (
+            <li key={`${run.id}-${index}`}>
               <strong>{run.objective}</strong>
               <span>{run.status}</span>
             </li>

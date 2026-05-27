@@ -18,6 +18,31 @@ type PreflightSettingsPanelProps = {
 
 const presetIds: PreflightPresetId[] = ["conservative", "balanced", "aggressive", "custom"];
 
+function clampNumber(value: number, minimum: number, maximum: number) {
+  if (!Number.isFinite(value)) {
+    return minimum;
+  }
+
+  return Math.min(maximum, Math.max(minimum, Math.round(value)));
+}
+
+function transactionNotice(error: unknown) {
+  if (!(error instanceof Error)) {
+    return "Could not save preflight settings.";
+  }
+
+  if (
+    error.message.includes("Transaction was cancelled") ||
+    error.message.includes("User denied") ||
+    error.message.includes("user rejected") ||
+    error.message.includes("4001")
+  ) {
+    return "Transaction was cancelled in MetaMask.";
+  }
+
+  return error.message;
+}
+
 export function PreflightSettingsPanel({
   agent,
   isOwner,
@@ -28,6 +53,7 @@ export function PreflightSettingsPanel({
     getPreflightThresholds(agent),
   );
   const [notice, setNotice] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const updateThreshold = <Key extends keyof PreflightThresholds>(
     key: Key,
@@ -58,7 +84,11 @@ export function PreflightSettingsPanel({
     }
 
     try {
-      await savePreflightThresholdsOnchain(agent.id, thresholds);
+      setIsSaving(true);
+      setNotice("Confirm the settings transaction in MetaMask.");
+      await savePreflightThresholdsOnchain(agent.id, thresholds, {
+        useV2Validation: agent.identityStandard === "erc-8004",
+      });
       onSaved({
         ...agent,
         metadata: {
@@ -69,11 +99,9 @@ export function PreflightSettingsPanel({
       });
       setNotice("Preflight settings saved on Mantle.");
     } catch (caughtError) {
-      setNotice(
-        caughtError instanceof Error
-          ? caughtError.message
-          : "Could not save preflight settings.",
-      );
+      setNotice(transactionNotice(caughtError));
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -91,7 +119,7 @@ export function PreflightSettingsPanel({
           <button
             aria-pressed={thresholds.preset === preset}
             className={thresholds.preset === preset ? "secondary-action active" : "secondary-action"}
-            disabled={!isOwner}
+            disabled={!isOwner || isSaving}
             key={preset}
             onClick={() => selectPreset(preset)}
             type="button"
@@ -105,11 +133,14 @@ export function PreflightSettingsPanel({
         <label>
           Basic Safety minimum
           <input
-            disabled={!isOwner}
+            disabled={!isOwner || isSaving}
             max={100}
             min={0}
             onChange={(event) =>
-              updateThreshold("basicSafetyMinScore", Number(event.target.value))
+              updateThreshold(
+                "basicSafetyMinScore",
+                clampNumber(Number(event.target.value), 0, 100),
+              )
             }
             type="number"
             value={thresholds.basicSafetyMinScore}
@@ -118,11 +149,14 @@ export function PreflightSettingsPanel({
         <label>
           Adversarial Yield Trap minimum
           <input
-            disabled={!isOwner}
+            disabled={!isOwner || isSaving}
             max={100}
             min={0}
             onChange={(event) =>
-              updateThreshold("adversarialYieldTrapMinScore", Number(event.target.value))
+              updateThreshold(
+                "adversarialYieldTrapMinScore",
+                clampNumber(Number(event.target.value), 0, 100),
+              )
             }
             type="number"
             value={thresholds.adversarialYieldTrapMinScore}
@@ -131,11 +165,14 @@ export function PreflightSettingsPanel({
         <label>
           External DeFi Readiness minimum
           <input
-            disabled={!isOwner}
+            disabled={!isOwner || isSaving}
             max={100}
             min={0}
             onChange={(event) =>
-              updateThreshold("externalDefiReadinessMinScore", Number(event.target.value))
+              updateThreshold(
+                "externalDefiReadinessMinScore",
+                clampNumber(Number(event.target.value), 0, 100),
+              )
             }
             type="number"
             value={thresholds.externalDefiReadinessMinScore}
@@ -144,11 +181,14 @@ export function PreflightSettingsPanel({
         <label>
           Suite average minimum
           <input
-            disabled={!isOwner}
+            disabled={!isOwner || isSaving}
             max={100}
             min={0}
             onChange={(event) =>
-              updateThreshold("averageMinScore", Number(event.target.value))
+              updateThreshold(
+                "averageMinScore",
+                clampNumber(Number(event.target.value), 0, 100),
+              )
             }
             type="number"
             value={thresholds.averageMinScore}
@@ -157,11 +197,11 @@ export function PreflightSettingsPanel({
         <label>
           Preflight risk ceiling
           <input
-            disabled={!isOwner}
+            disabled={!isOwner || isSaving}
             max={100}
             min={0}
             onChange={(event) =>
-              updateThreshold("maxRiskScore", Number(event.target.value))
+              updateThreshold("maxRiskScore", clampNumber(Number(event.target.value), 0, 100))
             }
             type="number"
             value={thresholds.maxRiskScore}
@@ -170,10 +210,14 @@ export function PreflightSettingsPanel({
         <label>
           Freshness window minutes
           <input
-            disabled={!isOwner}
+            disabled={!isOwner || isSaving}
+            max={1440}
             min={1}
             onChange={(event) =>
-              updateThreshold("freshnessMinutes", Number(event.target.value))
+              updateThreshold(
+                "freshnessMinutes",
+                clampNumber(Number(event.target.value), 1, 1440),
+              )
             }
             type="number"
             value={thresholds.freshnessMinutes}
@@ -181,8 +225,13 @@ export function PreflightSettingsPanel({
         </label>
       </div>
 
-      <button className="primary-action form-submit" disabled={!isOwner} onClick={() => void save()} type="button">
-        Save Preflight Settings
+      <button
+        className="primary-action form-submit"
+        disabled={!isOwner || isSaving}
+        onClick={() => void save()}
+        type="button"
+      >
+        {isSaving ? "Saving..." : "Save Preflight Settings"}
       </button>
       {notice && <p className="ownership-note">{notice}</p>}
     </section>

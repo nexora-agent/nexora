@@ -110,9 +110,9 @@ export function AgentCreationWizard() {
   const [toolsConfig, setToolsConfig] = useState<SmartWalletToolConfig[]>(
     defaultToolsForHarness("safe-approval"),
   );
-  const [createWalletNow, setCreateWalletNow] = useState(false);
   const [error, setError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [creationStatus, setCreationStatus] = useState("");
 
   const displayReadiness = isMounted ? readiness : "disconnected";
   const canCreate = Boolean(isMounted && address && isReady && !isCreating);
@@ -177,6 +177,7 @@ export function AgentCreationWizard() {
     }
 
     setIsCreating(true);
+    setCreationStatus("Registering smart wallet profile...");
 
     try {
       let agent = await createSmartWalletProfileOnchain({
@@ -197,9 +198,13 @@ export function AgentCreationWizard() {
         ownerAddress: address,
       });
 
-      if (createWalletNow) {
-        agent = await createSmartWalletOnchain(agent, address);
-      }
+      setCreationStatus("Profile confirmed. Deploying smart wallet...");
+      agent = await createSmartWalletOnchain(agent, address);
+      setCreationStatus(
+        agent.walletAddress
+          ? "Smart wallet deployed. Opening wallet..."
+          : "Deployment confirmed. Waiting for wallet address to appear...",
+      );
 
       router.push(`/wallets/${agent.id}`);
     } catch (caughtError) {
@@ -501,35 +506,26 @@ export function AgentCreationWizard() {
       )}
 
       {stepIndex === 4 && (
-        <fieldset className="wizard-fieldset">
-          <legend>Deploy Wallet</legend>
-          <div className="choice-grid">
-            <label className="choice-card">
-              <input
-                checked={createWalletNow}
-                name="smart-wallet-option"
-                onChange={() => setCreateWalletNow(true)}
-                type="radio"
-              />
-              <span>
-                <strong>Create smart wallet now</strong>
-                <small>Actions use only funds inside this smart wallet.</small>
-              </span>
-            </label>
-            <label className="choice-card">
-              <input
-                checked={!createWalletNow}
-                name="smart-wallet-option"
-                onChange={() => setCreateWalletNow(false)}
-                type="radio"
-              />
-              <span>
-                <strong>Create smart wallet later</strong>
-                <small>The smart wallet can be configured before funding.</small>
-              </span>
-            </label>
-          </div>
-        </fieldset>
+        <section className="wizard-review" aria-label="Deploy wallet review">
+          <dl>
+            <div>
+              <dt>Deployment</dt>
+              <dd>Smart wallet will be deployed now</dd>
+            </div>
+            <div>
+              <dt>Network</dt>
+              <dd>Mantle Sepolia</dd>
+            </div>
+            <div>
+              <dt>Owner</dt>
+              <dd>{address ?? "Connect wallet"}</dd>
+            </div>
+            <div>
+              <dt>Funding</dt>
+              <dd>Fund after deployment</dd>
+            </div>
+          </dl>
+        </section>
       )}
 
       {isReviewStep && (
@@ -569,11 +565,11 @@ export function AgentCreationWizard() {
             </div>
             <div>
               <dt>Smart Wallet</dt>
-              <dd>{createWalletNow ? "Create now" : "Create later"}</dd>
+              <dd>Deploy during creation</dd>
             </div>
             <div>
               <dt>Next Step</dt>
-              <dd>{createWalletNow ? "Fund the smart wallet" : "Create the smart wallet"}</dd>
+              <dd>Fund the smart wallet</dd>
             </div>
           </dl>
         </section>
@@ -590,6 +586,11 @@ export function AgentCreationWizard() {
       {error && (
         <p className="error-text" role="alert">
           {error}
+        </p>
+      )}
+      {creationStatus && (
+        <p className="success-text" role="status">
+          {creationStatus}
         </p>
       )}
 

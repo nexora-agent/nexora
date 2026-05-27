@@ -138,6 +138,11 @@ export const nexoraRiskRegistryAbi = [
 ] as const;
 
 export const nexoraPreflightRegistryAbi = [
+  { inputs: [], name: "InvalidScore", type: "error" },
+  { inputs: [], name: "MissingIntentHash", type: "error" },
+  { inputs: [], name: "NotSmartWalletOwner", type: "error" },
+  { inputs: [], name: "PreflightAlreadyRecorded", type: "error" },
+  { inputs: [], name: "PreflightNotFound", type: "error" },
   {
     inputs: [
       { internalType: "uint256", name: "walletId", type: "uint256" },
@@ -236,6 +241,16 @@ export const nexoraPreflightRegistryAbi = [
 ] as const;
 
 export const nexoraAgentWalletAbi = [
+  { inputs: [], name: "ExecutionFailed", type: "error" },
+  { inputs: [], name: "IntentMismatch", type: "error" },
+  { inputs: [], name: "MissingReport", type: "error" },
+  { inputs: [], name: "NotOwner", type: "error" },
+  { inputs: [], name: "PolicyBlockedExecution", type: "error" },
+  { inputs: [], name: "PreflightFailed", type: "error" },
+  { inputs: [], name: "PreflightScoreTooLow", type: "error" },
+  { inputs: [], name: "PreflightStale", type: "error" },
+  { inputs: [], name: "PreflightWalletMismatch", type: "error" },
+  { inputs: [], name: "RiskTooHigh", type: "error" },
   {
     inputs: [
       { internalType: "address", name: "target", type: "address" },
@@ -310,6 +325,205 @@ export const nexoraReputationAbi = [
       },
     ],
     stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export const nexoraAgentIdentityRegistryAbi = [
+  {
+    inputs: [{ internalType: "string", name: "agentURI", type: "string" }],
+    name: "registerAgent",
+    outputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "getAgent",
+    outputs: [
+      {
+        components: [
+          { internalType: "address", name: "owner", type: "address" },
+          { internalType: "string", name: "agentURI", type: "string" },
+          { internalType: "address", name: "agentWallet", type: "address" },
+          { internalType: "uint64", name: "createdAt", type: "uint64" },
+        ],
+        internalType: "struct NexoraAgentIdentityRegistry.Agent",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "owner", type: "address" }],
+    name: "agentsOfOwner",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "agentWalletOf",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "nextAgentId",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export const nexora4337WalletFactoryAbi = [
+  {
+    inputs: [
+      { internalType: "string", name: "agentURI", type: "string" },
+      { internalType: "bytes32", name: "salt", type: "bytes32" },
+    ],
+    name: "createAgentWallet",
+    outputs: [
+      { internalType: "uint256", name: "agentId", type: "uint256" },
+      { internalType: "address", name: "wallet", type: "address" },
+    ],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    name: "walletOfAgent",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export const nexoraAgentValidationRegistryAbi = [
+  { inputs: [], name: "InvalidScore", type: "error" },
+  { inputs: [], name: "MissingIntentHash", type: "error" },
+  { inputs: [], name: "NotAgentOwner", type: "error" },
+  { inputs: [], name: "ValidationAlreadyRecorded", type: "error" },
+  { inputs: [], name: "ValidationNotFound", type: "error" },
+  {
+    inputs: [
+      { internalType: "uint256", name: "agentId", type: "uint256" },
+      { internalType: "uint16", name: "basicScore", type: "uint16" },
+      { internalType: "uint16", name: "adversarialScore", type: "uint16" },
+      { internalType: "uint16", name: "externalScore", type: "uint16" },
+      { internalType: "uint16", name: "averageScore", type: "uint16" },
+      { internalType: "uint16", name: "maxRiskScore", type: "uint16" },
+      { internalType: "uint32", name: "freshnessSeconds", type: "uint32" },
+    ],
+    name: "setThresholds",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "getThresholds",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint16", name: "basicScore", type: "uint16" },
+          { internalType: "uint16", name: "adversarialScore", type: "uint16" },
+          { internalType: "uint16", name: "externalScore", type: "uint16" },
+          { internalType: "uint16", name: "averageScore", type: "uint16" },
+          { internalType: "uint16", name: "maxRiskScore", type: "uint16" },
+          { internalType: "uint32", name: "freshnessSeconds", type: "uint32" },
+          { internalType: "bool", name: "exists", type: "bool" },
+        ],
+        internalType: "struct NexoraAgentValidationRegistry.Thresholds",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "agentId", type: "uint256" },
+          { internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+          { internalType: "bytes32", name: "modelHash", type: "bytes32" },
+          { internalType: "bytes32", name: "harnessHash", type: "bytes32" },
+          { internalType: "bytes32", name: "policyHash", type: "bytes32" },
+          { internalType: "bytes32", name: "toolsHash", type: "bytes32" },
+          { internalType: "bytes32", name: "suiteHash", type: "bytes32" },
+          { internalType: "bytes32", name: "reportHash", type: "bytes32" },
+          { internalType: "uint16", name: "basicScore", type: "uint16" },
+          { internalType: "uint16", name: "adversarialScore", type: "uint16" },
+          { internalType: "uint16", name: "externalScore", type: "uint16" },
+          { internalType: "uint16", name: "averageScore", type: "uint16" },
+          { internalType: "uint16", name: "maxRiskScore", type: "uint16" },
+          { internalType: "bool", name: "passed", type: "bool" },
+        ],
+        internalType: "struct NexoraAgentValidationRegistry.ValidationInput",
+        name: "input",
+        type: "tuple",
+      },
+    ],
+    name: "recordValidation",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+export const nexora4337AgentWalletAbi = [
+  { inputs: [], name: "ExecutionFailed", type: "error" },
+  { inputs: [], name: "InvalidNonce", type: "error" },
+  { inputs: [], name: "InvalidUserOperation", type: "error" },
+  { inputs: [], name: "NotAuthorized", type: "error" },
+  { inputs: [], name: "PreflightFailed", type: "error" },
+  { inputs: [], name: "PreflightScoreTooLow", type: "error" },
+  { inputs: [], name: "PreflightStale", type: "error" },
+  { inputs: [], name: "PreflightWalletMismatch", type: "error" },
+  { inputs: [], name: "RiskTooHigh", type: "error" },
+  { inputs: [], name: "SpendLimitExceeded", type: "error" },
+  { inputs: [], name: "TargetNotAllowed", type: "error" },
+  {
+    inputs: [
+      { internalType: "address", name: "executor", type: "address" },
+      { internalType: "bool", name: "enabled", type: "bool" },
+      { internalType: "bool", name: "requirePreflight", type: "bool" },
+      { internalType: "uint256", name: "maxValuePerAction", type: "uint256" },
+      { internalType: "uint256", name: "dailyLimit", type: "uint256" },
+      { internalType: "uint64", name: "validUntil", type: "uint64" },
+    ],
+    name: "setExecutorPolicy",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "target", type: "address" },
+      { internalType: "bool", name: "allowed", type: "bool" },
+    ],
+    name: "setAllowedTarget",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "validationRegistry", type: "address" },
+      { internalType: "address", name: "target", type: "address" },
+      { internalType: "uint256", name: "value", type: "uint256" },
+      { internalType: "bytes", name: "data", type: "bytes" },
+      { internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+      { internalType: "uint16", name: "riskScore", type: "uint16" },
+    ],
+    name: "executeWithPreflightByExecutor",
+    outputs: [{ internalType: "bytes", name: "result", type: "bytes" }],
+    stateMutability: "nonpayable",
     type: "function",
   },
 ] as const;

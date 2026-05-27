@@ -12,8 +12,8 @@ export function ReputationEventTable({ runs }: ReputationEventTableProps) {
         <p>No reputation events yet.</p>
       ) : (
         <ol>
-          {runs.map((run) => (
-            <li key={run.id}>
+          {runs.map((run, index) => (
+            <li key={`${run.id}-${index}`}>
               <strong>{run.objective}</strong>
               <span>{run.execution?.status ?? "pending"}</span>
             </li>

@@ -18,7 +18,9 @@
     "contracts:test": "forge test --root contracts",
     "contracts:deploy:mantle": "bash contracts/script/deploy-mantle.sh",
     "contracts:deploy:preflight": "bash contracts/script/deploy-preflight-registry.sh",
-    "contracts:deploy:vaults": "bash contracts/script/deploy-benchmark-vaults.sh"
+    "contracts:deploy:v2": "bash contracts/script/deploy-v2-agent-wallets.sh",
+    "contracts:deploy:vaults": "bash contracts/script/deploy-benchmark-vaults.sh",
+    "agent:runner": "pnpm --filter @nexora/api agent:runner"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.32.1",

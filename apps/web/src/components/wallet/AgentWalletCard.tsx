@@ -40,9 +40,11 @@ export function AgentWalletCard({
     try {
       const updatedAgent = await createAgentWallet(agent, address);
       setNotice(
-        updatedAgent.walletAddress === agent.walletAddress
-          ? "Existing wallet linked."
-          : "Smart wallet created.",
+        updatedAgent.walletDeploymentPending
+          ? "Transaction confirmed. Waiting for the wallet address to appear on-chain."
+          : updatedAgent.walletAddress === agent.walletAddress
+            ? "Existing wallet linked."
+            : "Smart wallet created.",
       );
       onWalletCreated(updatedAgent);
     } catch {
@@ -61,7 +63,11 @@ export function AgentWalletCard({
               : "status-pill status-disconnected"
           }
         >
-          {agent.walletAddress ? "Deployed" : "Not created"}
+          {agent.walletAddress
+            ? "Deployed"
+            : agent.walletDeploymentPending
+              ? "Confirming"
+              : "Not created"}
         </span>
       </div>
 
@@ -71,7 +77,9 @@ export function AgentWalletCard({
           <dd>
             {agent.walletAddress
               ? formatAddress(agent.walletAddress)
-              : "Not created"}
+              : agent.walletDeploymentPending
+                ? "Transaction confirmed"
+                : "Not created"}
           </dd>
         </div>
         <div>
@@ -98,7 +106,11 @@ export function AgentWalletCard({
           onClick={() => void createWallet()}
           type="button"
         >
-          {isCreating ? "Creating..." : "Create Smart Wallet"}
+          {isCreating
+            ? "Waiting for confirmation..."
+            : agent.walletDeploymentPending
+              ? "Check Wallet Address"
+              : "Create Smart Wallet"}
         </button>
       )}
 

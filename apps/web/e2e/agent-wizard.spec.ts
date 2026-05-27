@@ -35,7 +35,7 @@ test("user creates an agent through the identity wizard", async ({ page }) => {
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await expect(page.getByLabel("Policy review")).toContainText("Policy checks required");
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await expect(page.getByText("Create smart wallet later")).toBeVisible();
+  await expect(page.getByLabel("Deploy wallet review")).toContainText("Smart wallet will be deployed now");
   await page.getByRole("button", { name: "Next", exact: true }).click();
 
   const review = page.getByLabel("Smart wallet review");
@@ -44,15 +44,15 @@ test("user creates an agent through the identity wizard", async ({ page }) => {
   await expect(review.getByText("Demo", { exact: true })).toBeVisible();
   await expect(review.getByText("Nexora Demo Model")).toBeVisible();
   await expect(review.getByText("enabled")).toBeVisible();
-  await expect(review.getByText("Create later")).toBeVisible();
+  await expect(review.getByText("Deploy during creation")).toBeVisible();
 
   await connectIfNeeded(page);
   await expect(page.getByRole("button", { name: "Create Smart Wallet" })).toBeEnabled();
   await page.getByRole("button", { name: "Create Smart Wallet" }).click();
   await expect(page).toHaveURL(/\/wallets\/1$/);
   await expect(page.getByLabel("Smart wallet profile").getByText("YieldGuard")).toBeVisible();
-  await expect(page.getByLabel("Next step")).toContainText("Create Smart Wallet");
-  await expect(page.getByLabel("Wallet setup summary")).toContainText("Safe Approval Harness");
+  await expect(page.getByRole("button", { name: "Fund Wallet" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Test Lab" })).toBeVisible();
 });
 
 test("empty name is rejected before runtime selection", async ({ page }) => {
@@ -78,7 +78,6 @@ test("smart wallet setup can create the agent wallet during creation", async ({
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
-  await page.getByText("Create smart wallet now").click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await connectIfNeeded(page);
   await expect(page.getByRole("button", { name: "Create Smart Wallet" })).toBeEnabled();

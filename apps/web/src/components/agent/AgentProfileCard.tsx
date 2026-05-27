@@ -19,6 +19,7 @@ import {
   toolStatusLabel,
 } from "@/lib/smartWalletDefinition";
 import { BenchmarkTestLab } from "../benchmark/BenchmarkTestLab";
+import { ModelDecisionPanel } from "../benchmark/ModelDecisionPanel";
 import { ByrealStatusCard } from "../byreal/ByrealStatusCard";
 import { HarnessDetailPanel } from "../harness/HarnessDetailPanel";
 import { HarnessSelector } from "../harness/HarnessSelector";
@@ -33,6 +34,7 @@ import { AgentWalletBalance } from "../wallet/AgentWalletBalance";
 import { AgentWalletCard } from "../wallet/AgentWalletCard";
 import { FundWalletPanel } from "../wallet/FundWalletPanel";
 import { AgentStatusBadge, getAgentStatus } from "./AgentStatusBadge";
+import { AutonomyControls } from "./AutonomyControls";
 
 type AgentProfileCardProps = {
   agent: AgentRecord;
@@ -44,7 +46,9 @@ type DetailTab =
   | "model"
   | "tools"
   | "objective"
+  | "autonomy"
   | "results"
+  | "reputation"
   | "activity"
   | "settings";
 
@@ -62,8 +66,10 @@ const tabs: Array<{ id: DetailTab; label: string }> = [
   { id: "overview", label: "Mission" },
   { id: "model", label: "Model" },
   { id: "tools", label: "Tools" },
-  { id: "objective", label: "Test Lab" },
+  { id: "objective", label: "Benchmarks" },
+  { id: "autonomy", label: "Autonomy" },
   { id: "results", label: "Reports" },
+  { id: "reputation", label: "Reputation" },
   { id: "activity", label: "Timeline" },
   { id: "settings", label: "Controls" },
 ];
@@ -297,6 +303,14 @@ export function AgentProfileCard({
             <dd>{harness.name}</dd>
           </div>
           <div>
+            <dt>Agent ID</dt>
+            <dd>
+              {currentAgent.identityStandard === "erc-8004"
+                ? `ERC-8004 #${currentAgent.agentIdentityId ?? currentAgent.id}`
+                : "Legacy"}
+            </dd>
+          </div>
+          <div>
             <dt>Benchmark</dt>
             <dd>{latestRun?.benchmarkScore?.finalScore ?? "—"}</dd>
           </div>
@@ -328,14 +342,15 @@ export function AgentProfileCard({
         <section className="wallet-setup-hero" aria-label="Next step">
           <div>
             <span className="status-pill status-current">Setup required</span>
-            <h3>Deploy wallet</h3>
+            <h3>{currentAgent.walletDeploymentPending ? "Wallet deployment confirming" : "Deploy wallet"}</h3>
             <p>
-              This creates the dedicated Mantle Sepolia wallet for {currentAgent.name}.
-              It gets its own address and can only use funds sent to that address.
+              {currentAgent.walletDeploymentPending
+                ? "The deployment transaction was confirmed. Nexora is waiting for the registry read to return the wallet address."
+                : `This creates the dedicated Mantle Sepolia wallet for ${currentAgent.name}. It gets its own address and can only use funds sent to that address.`}
             </p>
           </div>
           <button className="primary-action" onClick={openNextStep} type="button">
-            Create Smart Wallet
+            {currentAgent.walletDeploymentPending ? "Check Wallet Address" : "Create Smart Wallet"}
           </button>
         </section>
       )}
@@ -528,6 +543,65 @@ export function AgentProfileCard({
           </div>
         )}
 
+        {activeTab === "autonomy" && (
+          <div className="overview-grid">
+            <section className="summary-card">
+              <h3>Autonomous Execution</h3>
+              <p>
+                {currentAgent.identityStandard === "erc-8004"
+                  ? "Enabled for local executor setup"
+                  : "Create a V2 wallet to enable autonomous execution."}
+              </p>
+              <dl>
+                <div>
+                  <dt>Identity</dt>
+                  <dd>
+                    {currentAgent.identityStandard === "erc-8004"
+                      ? `ERC-8004 #${currentAgent.agentIdentityId ?? currentAgent.id}`
+                      : "Legacy wallet"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>EntryPoint</dt>
+                  <dd>{currentAgent.autonomy?.entryPointAddress ? formatAddress(currentAgent.autonomy.entryPointAddress) : "Not configured"}</dd>
+                </div>
+                <div>
+                  <dt>Validation Registry</dt>
+                  <dd>{currentAgent.autonomy?.validationRegistryAddress ? formatAddress(currentAgent.autonomy.validationRegistryAddress) : "Not configured"}</dd>
+                </div>
+              </dl>
+            </section>
+            <section className="summary-card">
+              <h3>Local Runner</h3>
+              <dl>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{currentAgent.identityStandard === "erc-8004" ? "Ready to configure" : "Requires V2 wallet"}</dd>
+                </div>
+                <div>
+                  <dt>Command</dt>
+                  <dd>pnpm agent:runner</dd>
+                </div>
+                <div>
+                  <dt>Wallet ID</dt>
+                  <dd>{currentAgent.id}</dd>
+                </div>
+              </dl>
+            </section>
+            <section className="summary-card">
+              <h3>Execution Gate</h3>
+              <p>
+                The runner must publish a fresh validation proof before the smart wallet accepts a delegated action.
+              </p>
+            </section>
+            <AutonomyControls
+              agent={currentAgent}
+              isOwner={Boolean(isOwner)}
+              onSaved={setCurrentAgent}
+            />
+          </div>
+        )}
+
         {activeTab === "results" && (
           <div className="results-grid">
             <section className="summary-card" aria-label="Benchmark summary">
@@ -598,9 +672,38 @@ export function AgentProfileCard({
             </section>
             <details className="setup-detail-card">
               <summary>Expandable Details</summary>
-              <p>{latestExecution?.reason ?? "Run an objective to populate detailed results."}</p>
+              {latestRun ? (
+                <>
+                  <ModelDecisionPanel intent={latestRun.intent} />
+                  <section className="summary-card">
+                    <h3>Tool Trace</h3>
+                    <ol className="tool-trace-list">
+                      {latestRun.toolTrace.map((tool) => (
+                        <li key={`${latestRun.id}-${tool.index}`}>
+                          <strong>{tool.toolName}</strong>
+                          <span>{tool.summary}</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </section>
+                  {latestExecution?.reason && (
+                    <section className="summary-card">
+                      <h3>Execution</h3>
+                      <p>{latestExecution.reason}</p>
+                    </section>
+                  )}
+                </>
+              ) : (
+                <p>Run a Test Lab benchmark to populate detailed results.</p>
+              )}
             </details>
           </div>
+        )}
+
+        {activeTab === "reputation" && (
+          <section className="summary-card" aria-label="Agent reputation">
+            <ReputationPanel agent={currentAgent} />
+          </section>
         )}
 
         {activeTab === "activity" && (
@@ -698,6 +801,11 @@ export function AgentProfileCard({
               </button>
             </section>
             <PreflightSettingsPanel
+              agent={currentAgent}
+              isOwner={Boolean(isOwner)}
+              onSaved={setCurrentAgent}
+            />
+            <AutonomyControls
               agent={currentAgent}
               isOwner={Boolean(isOwner)}
               onSaved={setCurrentAgent}

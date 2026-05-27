@@ -34,6 +34,7 @@ import {
 } from "@/lib/byreal/byrealClient";
 import { getExternalDefiEligibility } from "@/lib/byreal/externalDefiEligibility";
 import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
+import { createObjectiveRunId } from "@/lib/objectives/objectiveRunIds";
 import { analyzeRiskLocally } from "@/lib/risk/analyzeRisk";
 
 const defaultTokenAddress = "0x0000000000000000000000000000000000000002";
@@ -554,7 +555,7 @@ export async function runObjectiveWithExternalTools(
     benchmarkScore,
     createdAt: new Date().toISOString(),
     harnessId: harness.id,
-    id: `objective-${Date.now()}`,
+    id: createObjectiveRunId(),
     intent,
     objective,
     proposal,
@@ -590,7 +591,7 @@ export function runObjectiveLocally(
     });
 
     return attachReportEnvelope({
-      id: `objective-${Date.now()}`,
+      id: createObjectiveRunId(),
       agentId: agent.id,
       harnessId: harness.id,
       objective,
@@ -635,7 +636,7 @@ export function runObjectiveLocally(
   });
 
   return attachReportEnvelope({
-    id: `objective-${Date.now()}`,
+    id: createObjectiveRunId(),
     agentId: agent.id,
     harnessId: harness.id,
     objective,
@@ -714,7 +715,7 @@ export function runMntBenchmarkWithDecision(
   });
 
   return attachReportEnvelope({
-    id: `objective-${Date.now()}`,
+    id: createObjectiveRunId(),
     agentId: agent.id,
     harnessId: harness.id,
     objective,
