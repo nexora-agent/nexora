@@ -29,13 +29,14 @@ export type TransactionIntent = {
     benchmarkUnlock?: "none" | "benchmark_complete" | "external_defi_dry_run";
     expectedYieldBps?: number;
     expectedYield?: string;
-    executionMode?: "read_only" | "dry_run" | "disabled";
+    executionMode?: "read_only" | "dry_run" | "live" | "disabled";
     liveExecutionEnabled?: boolean;
     mode?:
       | "demo"
       | "api_read_only"
       | "cli_read_only"
       | "cli_dry_run"
+      | "cli_live"
       | "disabled"
       | "live";
     modelDecisionSource?: "demo" | "llm";
@@ -50,6 +51,7 @@ export type TransactionIntent = {
     modelReasoning?: string;
     modelRejectedVaults?: string[];
     modelSelectedVault?: string;
+    poolId?: string;
     poolName?: string;
     protocol?: "byreal" | string;
     rejectedOptions?: Array<{ name: string; reason: string }>;

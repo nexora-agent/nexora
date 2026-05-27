@@ -7,6 +7,7 @@ import {
 import { BenchmarkScoreCard } from "../benchmark/BenchmarkScoreCard";
 import { ModelDecisionPanel } from "../benchmark/ModelDecisionPanel";
 import { ByrealActionProposal } from "../byreal/ByrealActionProposal";
+import { ByrealLiveExecutionButton } from "../byreal/ByrealLiveExecutionButton";
 import { ByrealPoolCard } from "../byreal/ByrealPoolCard";
 import { BlockedExecutionCard } from "../execution/BlockedExecutionCard";
 import { ExecuteProposalButton } from "../execution/ExecuteProposalButton";
@@ -64,6 +65,9 @@ export function ObjectiveResultCard({
       )}
       {run.proposal && run.harnessId === "byreal-defi" && (
         <ByrealActionProposal proposal={run.proposal} />
+      )}
+      {run.proposal && run.harnessId === "byreal-defi" && (
+        <ByrealLiveExecutionButton run={run} onExecution={onRunUpdated} />
       )}
       {run.benchmarkScore && <BenchmarkScoreCard score={run.benchmarkScore} />}
       <ReportEnvelopeCard envelope={reportEnvelope} />

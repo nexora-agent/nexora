@@ -23,3 +23,11 @@ export function parseJsonOutput<T>(output: string | null): T | null {
     return null;
   }
 }
+
+export function runByrealCommandStrict(command: string, args: string[], timeout = 15000) {
+  return execFileSync(command, args, {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout,
+  }).trim();
+}

@@ -1,1 +1,1 @@
-export { inspectByrealPool } from "../../../byreal/byrealAdapter";
+export { inspectByrealPoolReadOnly as inspectByrealPool } from "../../../integrations/byreal/byrealAdapter";

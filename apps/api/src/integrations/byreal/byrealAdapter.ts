@@ -3,14 +3,14 @@ import { mapByrealError } from "./byrealErrorMapper";
 import { parseJsonOutput, runByrealCommand } from "./byrealCommandRunner";
 import { normalizeByrealPoolList } from "./byrealNormalizer";
 import { getByrealStatus } from "./byrealStatus";
-import type { ByrealMode, ByrealPool, ByrealToolOutput } from "./byrealTypes";
+import type { ByrealExecutionMode, ByrealMode, ByrealPool, ByrealToolOutput } from "./byrealTypes";
 
 function output<TInput, TResult>(
   toolName: string,
   input: TInput,
   result: TResult,
   riskHints: string[],
-  executionMode: "read_only" | "dry_run" | "disabled" = "read_only",
+  executionMode: ByrealExecutionMode = "read_only",
   mode: ByrealMode = "demo",
 ): ByrealToolOutput<TInput, TResult> {
   return {
@@ -118,9 +118,9 @@ export async function getByrealOverviewReadOnly() {
     "get_byreal_overview",
     {},
     {
-      executionEnabled: false,
+      executionEnabled: status.executionEnabled,
       executionMode: status.executionMode,
-      liveExecutionEnabled: false,
+      liveExecutionEnabled: status.executionEnabled,
       mode: status.mode,
       operatorMessage: status.operatorMessage,
       poolCount: pools.result.length,
@@ -252,7 +252,7 @@ export async function createByrealActionPreview(poolId = byrealDemoPools[0].id, 
       asset: "MNT",
       executionMode: "dry_run",
       expectedYield: pool.aprBps >= 1000 ? "high" : pool.aprBps >= 500 ? "medium" : "low",
-      liveExecutionEnabled: false,
+      liveExecutionEnabled: inspected.mode === "cli_live",
       mode: inspected.mode,
       poolName: pool.name,
       protocol: "byreal",

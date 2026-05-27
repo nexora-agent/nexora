@@ -22,8 +22,8 @@ export type ByrealStatus = {
   version: string | null;
   walletConfigured: boolean;
   supportedTools: string[];
-  executionEnabled: false;
-  executionMode: "read_only" | "dry_run" | "disabled";
+  executionEnabled: boolean;
+  executionMode: "read_only" | "dry_run" | "live" | "disabled";
   errors: string[];
 };
 
@@ -32,7 +32,22 @@ export type ByrealMode =
   | "api_read_only"
   | "cli_read_only"
   | "cli_dry_run"
+  | "cli_live"
   | "disabled";
+
+export type ByrealExecutionMode = "read_only" | "dry_run" | "live" | "disabled";
+
+export type ByrealToolOutput<TResult, TInput = unknown> = {
+  adapterMode: ByrealMode;
+  executionMode: ByrealExecutionMode;
+  input: TInput;
+  mode: ByrealMode;
+  result: TResult;
+  riskHints: string[];
+  source: "Byreal / RealClaw";
+  timestamp: string;
+  toolName: string;
+};
 
 export const byrealSupportedTools = [
   "get_byreal_status",

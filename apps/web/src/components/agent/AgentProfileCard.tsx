@@ -626,8 +626,8 @@ export function AgentProfileCard({
                   <li key={`${run.id}-risk`}><strong>Risk report generated</strong><span>{run.riskReport?.riskScore ?? "—"} / 100</span></li>,
                   ...(run.intent?.kind.startsWith("byreal_")
                     ? [
-                        <li key={`${run.id}-byreal-status`}><strong>Byreal status checked</strong><span>Demo adapter; live execution disabled</span></li>,
-                        <li key={`${run.id}-byreal-pools`}><strong>Byreal pools listed</strong><span>Demo opportunities inspected</span></li>,
+                        <li key={`${run.id}-byreal-status`}><strong>Byreal status checked</strong><span>{run.intent.metadata?.mode ?? "demo"} mode; live execution disabled</span></li>,
+                        <li key={`${run.id}-byreal-pools`}><strong>Byreal pools listed</strong><span>External DeFi opportunities inspected</span></li>,
                         <li key={`${run.id}-byreal-inspected`}><strong>Byreal opportunity inspected</strong><span>{run.intent.metadata?.poolName ?? "Byreal / RealClaw opportunity"}</span></li>,
                         <li key={`${run.id}-byreal-proposal`}><strong>Byreal proposal created</strong><span>External DeFi Preview</span></li>,
                         <li key={`${run.id}-byreal-risk`}><strong>Byreal risk report generated</strong><span>{run.riskReport?.riskScore ?? "—"} / 100</span></li>,

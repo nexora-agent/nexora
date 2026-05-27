@@ -25,6 +25,13 @@ import {
   inspectByrealPool,
   listByrealPools,
 } from "@/lib/byreal/byrealAdapter";
+import {
+  analyzeByrealRiskRemote,
+  compareByrealOpportunitiesRemote,
+  fetchByrealPools,
+  fetchByrealStatus,
+  previewByrealActionRemote,
+} from "@/lib/byreal/byrealClient";
 import { getExternalDefiEligibility } from "@/lib/byreal/externalDefiEligibility";
 import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
 import { analyzeRiskLocally } from "@/lib/risk/analyzeRisk";
@@ -98,7 +105,9 @@ function proposalForRun(input: {
       reasoning:
         input.intent.kind === "byreal_action_reject"
           ? "External DeFi inspection is locked until the smart wallet passes the controlled MNT benchmark. Nexora produced a dry-run rejection proposal instead of enabling live action."
-          : `${input.intent.metadata?.poolName} was selected for a bounded dry-run Byreal / RealClaw proposal. Nexora keeps live execution disabled and applies policy/risk scoring before any external DeFi mode can be considered.`,
+          : input.intent.metadata?.liveExecutionEnabled
+            ? `${input.intent.metadata?.poolName} was selected for a bounded local Byreal / RealClaw execution proposal. Nexora applies policy/risk scoring before execution.`
+            : `${input.intent.metadata?.poolName} was selected for a bounded External DeFi Preview proposal. Nexora keeps live execution disabled and applies policy/risk scoring before any external DeFi mode can be considered.`,
       riskHints: input.intent.metadata?.riskHints,
       target: input.intent.target,
       token: input.intent.tokenSymbol,
@@ -385,12 +394,186 @@ function createByrealDryRunIntent(agent: AgentRecord, objective: string): Transa
   };
 }
 
+function isByrealObjective(agent: AgentRecord, objective: string) {
+  return (
+    getHarnessTemplate(agent.selectedHarnessId).id === "byreal-defi" ||
+    objective.toLowerCase().includes("byreal") ||
+    objective.toLowerCase().includes("realclaw")
+  );
+}
+
+function selectByrealPoolForObjective(
+  objective: string,
+  pools: ReturnType<typeof listByrealPools>,
+  rankedPools: ReturnType<typeof listByrealPools>,
+) {
+  const normalized = objective.toLowerCase();
+
+  if (normalized.includes("reject") || normalized.includes("unsafe") || normalized.includes("high apr")) {
+    return (
+      pools.find((pool) => pool.riskHints.some((hint) => hint.toLowerCase().includes("high"))) ??
+      pools.find((pool) => pool.volatility === "high") ??
+      pools[0]
+    );
+  }
+
+  if (normalized.includes("stable")) {
+    return pools.find((pool) => pool.pair.toLowerCase().includes("stable")) ?? rankedPools[0] ?? pools[0];
+  }
+
+  return rankedPools[0] ?? pools[0];
+}
+
+export async function runObjectiveWithExternalTools(
+  agent: AgentRecord,
+  objective: string,
+): Promise<ObjectiveRun> {
+  if (!isByrealObjective(agent, objective)) {
+    return runObjectiveLocally(agent, objective);
+  }
+
+  const harness = getHarnessTemplate(agent.selectedHarnessId);
+  const policy = getAgentPolicy(agent);
+  const eligibility = getExternalDefiEligibility(agent);
+  const status = await fetchByrealStatus();
+  const poolsOutput = await fetchByrealPools();
+  const compareOutput = await compareByrealOpportunitiesRemote();
+  const pools = poolsOutput.result.length ? poolsOutput.result : listByrealPools();
+  const rankedPools = compareOutput.result.length ? compareOutput.result : compareByrealOpportunities();
+  const pool = selectByrealPoolForObjective(objective, pools, rankedPools);
+  const previewOutput = await previewByrealActionRemote({
+    amount: "0.01",
+    poolId: pool.id,
+  });
+  const remoteRisk = await analyzeByrealRiskRemote({
+    agentId: agent.id,
+    amount: previewOutput.result.amount,
+    poolId: pool.id,
+    policy,
+    walletAddress: agent.walletAddress,
+  });
+  const isLocked = eligibility.status === "locked";
+  const liveExecutionEnabled = Boolean(status.executionEnabled && !isLocked);
+  const kind = isLocked
+    ? "byreal_action_reject"
+    : objective.toLowerCase().includes("swap")
+      ? "byreal_swap_preview"
+      : "byreal_lp_deposit_preview";
+  const intentWithoutHash = {
+    agentId: agent.id,
+    amount: previewOutput.result.amount,
+    amountBaseUnits: parseEther(previewOutput.result.amount).toString(),
+    calldata: "0x" as const,
+    chainId: mantleSepolia.id,
+    kind,
+    metadata: {
+      asset: previewOutput.result.asset,
+      executionMode: liveExecutionEnabled ? "live" as const : "dry_run" as const,
+      expectedYield: previewOutput.result.expectedYield,
+      liveExecutionEnabled,
+      mode: previewOutput.mode,
+      poolId: pool.id,
+      poolName: previewOutput.result.poolName,
+      protocol: "byreal",
+      riskHints: [
+        ...previewOutput.result.riskHints,
+        isLocked ? "benchmark eligibility required" : "benchmark eligible for External DeFi Preview",
+        liveExecutionEnabled ? "local Byreal live execution enabled" : "live Byreal execution disabled",
+      ],
+    },
+    summary: isLocked
+      ? `Reject external DeFi action for ${pool.name} until MNT benchmark eligibility is met`
+      : `External DeFi Preview for ${previewOutput.result.amount} MNT in ${previewOutput.result.poolName}`,
+    target: previewOutput.result.target,
+    tokenAddress: "0x0000000000000000000000000000000000000000" as const,
+    tokenDecimals: 18,
+    tokenSymbol: "MNT",
+  } satisfies Omit<TransactionIntent, "intentHash">;
+  const intent = {
+    ...intentWithoutHash,
+    intentHash: hashIntent(intentWithoutHash),
+  };
+  const riskReport =
+    remoteRisk.report && !isLocked && remoteRisk.report.intentHash === intent.intentHash
+      ? remoteRisk.report
+      : analyzeRiskLocally(intent, policy, agent.walletAddress);
+  const toolTrace: ToolTraceEntry[] = [
+    {
+      index: 1,
+      status: "success",
+      summary: `Byreal / RealClaw adapter mode ${status.mode}; live execution disabled.`,
+      toolName: "get_byreal_status",
+    },
+    {
+      index: 2,
+      status: "success",
+      summary: `Listed ${pools.length} Byreal / RealClaw pools in ${poolsOutput.mode} mode.`,
+      toolName: "list_byreal_pools",
+    },
+    {
+      index: 3,
+      status: "success",
+      summary: `Inspected ${pool.name}; ${pool.riskNote}`,
+      toolName: "inspect_byreal_pool",
+    },
+    {
+      index: 4,
+      status: "success",
+      summary: `Compared opportunities and selected ${rankedPools[0]?.name ?? pool.name}.`,
+      toolName: "compare_byreal_opportunities",
+    },
+    {
+      index: 5,
+      status: "success",
+      summary: isLocked
+        ? `External DeFi eligibility checked: ${eligibility.reason}`
+        : `Created External DeFi Preview for ${previewOutput.result.poolName}.`,
+      toolName: "create_byreal_action_intent",
+    },
+    {
+      index: 6,
+      status: "success",
+      summary: `Byreal action risk score ${riskReport.riskScore}/100; policy ${riskReport.policyDecision}.`,
+      toolName: "analyze_byreal_action_risk",
+    },
+  ];
+  const proposal = proposalForRun({
+    agent,
+    harnessId: harness.id,
+    intent,
+    toolTrace,
+  });
+  const benchmarkScore = scoreBenchmarkRun({
+    proposal,
+    report: riskReport,
+    toolTrace,
+  });
+
+  return attachReportEnvelope({
+    agentId: agent.id,
+    benchmarkScore,
+    createdAt: new Date().toISOString(),
+    harnessId: harness.id,
+    id: `objective-${Date.now()}`,
+    intent,
+    objective,
+    proposal,
+    riskReport,
+    status: "completed",
+    summary:
+      intent.kind === "byreal_action_reject"
+        ? "External DeFi Preview is locked until the smart wallet passes the MNT benchmark."
+        : `${intent.summary}. Generated from Byreal / RealClaw ${previewOutput.mode} mode; live execution disabled.`,
+    toolTrace,
+  });
+}
+
 export function runObjectiveLocally(
   agent: AgentRecord,
   objective: string,
 ): ObjectiveRun {
   const harness = getHarnessTemplate(agent.selectedHarnessId);
-  if (harness.id === "byreal-defi" || objective.toLowerCase().includes("byreal") || objective.toLowerCase().includes("realclaw")) {
+  if (isByrealObjective(agent, objective)) {
     const intent = createByrealDryRunIntent(agent, objective);
     const riskReport = analyzeRiskLocally(intent, getAgentPolicy(agent), agent.walletAddress);
     const toolTrace = byrealToolTraceForObjective(agent, intent, riskReport, objective);

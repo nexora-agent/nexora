@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import { getAgentPolicy } from "@/lib/agents/localAgentRegistry";
 import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
-import { runObjectiveLocally } from "@/lib/objectives/runObjectiveLocally";
+import { runObjectiveWithExternalTools } from "@/lib/objectives/runObjectiveLocally";
 import { ObjectiveHistory } from "./ObjectiveHistory";
 import { ObjectiveInput } from "./ObjectiveInput";
 import { ObjectiveResultCard } from "./ObjectiveResultCard";
@@ -46,7 +46,7 @@ export function ObjectiveRunner({
   const harness = getHarnessTemplate(agent.selectedHarnessId);
   const policy = getAgentPolicy(agent);
 
-  const runObjective = () => {
+  const runObjective = async () => {
     setError("");
 
     if (!agent.walletAddress) {
@@ -67,7 +67,7 @@ export function ObjectiveRunner({
     setIsRunning(true);
 
     try {
-      const run = runObjectiveLocally(agent, objective.trim());
+      const run = await runObjectiveWithExternalTools(agent, objective.trim());
       const updatedAgent = agentWithRun(agent, run);
       setLatestRun(run);
       onObjectiveRunSaved(updatedAgent);

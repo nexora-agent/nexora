@@ -3,8 +3,9 @@ export type ByrealMode =
   | "api_read_only"
   | "cli_read_only"
   | "cli_dry_run"
+  | "cli_live"
   | "disabled";
-export type ByrealExecutionMode = "read_only" | "dry_run" | "disabled";
+export type ByrealExecutionMode = "read_only" | "dry_run" | "live" | "disabled";
 
 export type ByrealStatus = {
   mode: ByrealMode;
@@ -18,7 +19,7 @@ export type ByrealStatus = {
   version: string | null;
   walletConfigured: boolean;
   supportedTools: string[];
-  executionEnabled: false;
+  executionEnabled: boolean;
   executionMode: ByrealExecutionMode;
   errors: string[];
 };
@@ -38,8 +39,8 @@ export type ByrealOverview = {
   mode: ByrealMode;
   poolCount: number;
   executionMode: ByrealExecutionMode;
-  executionEnabled: false;
-  liveExecutionEnabled: false;
+  executionEnabled: boolean;
+  liveExecutionEnabled: boolean;
   operatorMessage: string;
 };
 

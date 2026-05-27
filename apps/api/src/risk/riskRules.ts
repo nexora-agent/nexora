@@ -107,32 +107,35 @@ export function evaluateRiskRules(
   }
 
   if (isByrealPreview(intent)) {
-    flags.push(
-      {
-        code: "EXTERNAL_DEFI_TARGET",
-        label: "External DeFi target",
-        severity: "medium",
-        scoreImpact: 12,
-      },
-      {
-        code: "BOUNDED_ACTION",
-        label: "Bounded action amount",
-        severity: "low",
-        scoreImpact: 0,
-      },
-      {
-        code: "DRY_RUN_ONLY",
-        label: "Dry-run only",
-        severity: "low",
-        scoreImpact: 0,
-      },
-      {
-        code: "LIVE_EXECUTION_DISABLED",
-        label: "Live execution disabled",
-        severity: "low",
-        scoreImpact: 0,
-      },
-    );
+    flags.push({
+      code: "EXTERNAL_DEFI_TARGET",
+      label: "External DeFi target",
+      severity: "medium",
+      scoreImpact: intent.metadata?.liveExecutionEnabled ? 22 : 12,
+    });
+    flags.push({
+      code: "BOUNDED_ACTION",
+      label: "Bounded action amount",
+      severity: "low",
+      scoreImpact: 0,
+    });
+
+    if (!intent.metadata?.liveExecutionEnabled) {
+      flags.push(
+        {
+          code: "DRY_RUN_ONLY",
+          label: "External DeFi Preview only",
+          severity: "low",
+          scoreImpact: 0,
+        },
+        {
+          code: "LIVE_EXECUTION_DISABLED",
+          label: "Live execution disabled",
+          severity: "low",
+          scoreImpact: 0,
+        },
+      );
+    }
 
     if (intent.metadata?.expectedYield === "high") {
       flags.push({

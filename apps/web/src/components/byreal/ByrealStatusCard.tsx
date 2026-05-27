@@ -9,6 +9,7 @@ type ByrealStatusCardProps = {
 const modeLabels: Record<ByrealStatus["mode"], string> = {
   api_read_only: "API read-only",
   cli_dry_run: "CLI preview",
+  cli_live: "CLI live",
   cli_read_only: "CLI read-only",
   demo: "Demo adapter",
   disabled: "Disabled",
@@ -34,6 +35,8 @@ export function ByrealStatusCard({
   const executionLabel =
     status.executionMode === "dry_run"
       ? "External DeFi Preview"
+      : status.executionMode === "live"
+        ? "Live local CLI"
       : status.executionMode === "read_only"
         ? "Read-only"
         : "Disabled";
@@ -61,7 +64,7 @@ export function ByrealStatusCard({
         </div>
         <div>
           <dt>Live Execution</dt>
-          <dd>Disabled</dd>
+          <dd>{status.executionEnabled ? "Enabled locally" : "Disabled"}</dd>
         </div>
         <div>
           <dt>CLI</dt>

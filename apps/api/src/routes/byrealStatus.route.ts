@@ -9,6 +9,7 @@ import {
   inspectByrealPoolReadOnly,
   listByrealPoolsReadOnly,
 } from "../integrations/byreal/byrealAdapter";
+import { executeByrealLiveAction } from "../integrations/byreal/byrealLiveExecution";
 import { getByrealStatus } from "../integrations/byreal/byrealStatus";
 
 export async function byrealStatusRoute(app: FastifyInstance) {
@@ -27,6 +28,19 @@ export async function byrealStatusRoute(app: FastifyInstance) {
     Body: { amount?: string; poolId?: string };
   }>("/integrations/byreal/intents/preview", async (request) =>
     createByrealActionPreview(request.body?.poolId, request.body?.amount ?? "0.01"),
+  );
+  app.post<{
+    Body: {
+      actionKind: "byreal_swap_preview" | "byreal_lp_deposit_preview";
+      amount: string;
+      autonomous?: boolean;
+      intentHash: `0x${string}`;
+      operatorConsent?: string;
+      poolId?: string;
+      poolName?: string;
+    };
+  }>("/integrations/byreal/execution/live", async (request) =>
+    executeByrealLiveAction(request.body),
   );
   app.post<{
     Body: {
