@@ -2,6 +2,7 @@
 
 import type { AgentRecord } from "@nexora/shared";
 import { useState } from "react";
+import { isV2DeploymentReady } from "@/lib/contracts/deployments";
 import {
   allowBenchmarkVaultsOnchain,
   saveExecutorPolicyOnchain,
@@ -21,6 +22,7 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
   const [validForHours, setValidForHours] = useState(24);
   const [isSaving, setIsSaving] = useState(false);
   const isV2 = agent.identityStandard === "erc-8004";
+  const isV2Ready = isV2DeploymentReady();
 
   const savePolicy = async () => {
     setNotice("");
@@ -76,10 +78,20 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
     <section className="summary-card" aria-label="Autonomy controls">
       <div className="card-heading-row">
         <h3>Local Autonomy</h3>
-        <span className={`status-pill ${isV2 ? "status-ready" : "status-disconnected"}`}>
-          {isV2 ? "V2" : "Legacy"}
+        <span
+          className={`status-pill ${
+            isV2 && isV2Ready ? "status-ready" : "status-disconnected"
+          }`}
+        >
+          {isV2 ? (isV2Ready ? "V2" : "V2 pending") : "Legacy"}
         </span>
       </div>
+      {!isV2Ready && (
+        <p className="ownership-note">
+          V2 autonomy is not available in this frontend config yet. Deploy the V2
+          contracts and update the configured addresses first.
+        </p>
+      )}
       <dl>
         <div>
           <dt>Agent ID</dt>
@@ -132,7 +144,7 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
       <div className="table-action-group">
         <button
           className="primary-action"
-          disabled={!isOwner || !isV2 || isSaving}
+          disabled={!isOwner || !isV2 || !isV2Ready || isSaving}
           onClick={() => void savePolicy()}
           type="button"
         >
@@ -140,7 +152,7 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
         </button>
         <button
           className="secondary-action"
-          disabled={!isOwner || !isV2 || isSaving}
+          disabled={!isOwner || !isV2 || !isV2Ready || isSaving}
           onClick={() => void allowTargets()}
           type="button"
         >

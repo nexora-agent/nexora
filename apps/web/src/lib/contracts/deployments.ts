@@ -1,3 +1,5 @@
+import { zeroAddress } from "viem";
+
 export const mantleSepoliaContracts = {
   agentIdentity: "0xfE84E525441723e2A4710F2eC65f55ADa824Afc5",
   agentIdentityV2: "0x0000000000000000000000000000000000000000",
@@ -15,3 +17,16 @@ export const mantleSepoliaContracts = {
   smartWalletRegistry: "0x3959F427883faD713C5F533A762A83dDbF1b86fD",
   volatileVault: "0xd3510f6f50374e40E1c9eE0C5C9b61AD753d3889",
 } as const;
+
+function hasContractAddress(address: string) {
+  return address.toLowerCase() !== zeroAddress.toLowerCase();
+}
+
+export function isV2DeploymentReady() {
+  return [
+    mantleSepoliaContracts.agentIdentityV2,
+    mantleSepoliaContracts.agent4337WalletFactory,
+    mantleSepoliaContracts.agentValidationRegistry,
+    mantleSepoliaContracts.entryPoint,
+  ].every(hasContractAddress);
+}

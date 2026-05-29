@@ -24,7 +24,10 @@ import {
   nexoraAgentIdentityRegistryAbi,
   nexoraSmartWalletRegistryAbi,
 } from "@/lib/contracts/abis";
-import { mantleSepoliaContracts } from "@/lib/contracts/deployments";
+import {
+  isV2DeploymentReady,
+  mantleSepoliaContracts,
+} from "@/lib/contracts/deployments";
 import { wagmiConfig } from "@/lib/wagmi/config";
 import { isNexoraMockWallet } from "./onchainAgents";
 import { readPreflightThresholdsOnchain } from "./onchainPreflight";
@@ -125,15 +128,8 @@ function delay(ms: number) {
   });
 }
 
-function hasContractAddress(address: string) {
-  return address.toLowerCase() !== zeroAddress.toLowerCase();
-}
-
 function isV2SmartWalletsEnabled() {
-  return (
-    hasContractAddress(mantleSepoliaContracts.agentIdentityV2) &&
-    hasContractAddress(mantleSepoliaContracts.agent4337WalletFactory)
-  );
+  return isV2DeploymentReady();
 }
 
 async function waitForRegistryReceipt(hash: `0x${string}`, label: string) {
