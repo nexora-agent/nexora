@@ -22,6 +22,8 @@ type DeploymentFile = {
   rpcUrl?: string;
 };
 
+const zeroAddress = "0x0000000000000000000000000000000000000000";
+
 type BenchmarkResult = {
   actionIntentHash: Hex;
   adversarialScore: number;
@@ -179,6 +181,23 @@ function contractAddress(
   const value = process.env[envName] ?? deployments.contracts?.[contractName];
   if (!value || !/^0x[a-fA-F0-9]{40}$/.test(value)) {
     throw new Error(`${envName} or ${contractName} is required.`);
+  }
+
+  return value as Address;
+}
+
+function optionalContractAddress(
+  deployments: DeploymentFile,
+  envName: string,
+  contractName: string,
+) {
+  const value = process.env[envName] ?? deployments.contracts?.[contractName];
+  if (!value) {
+    return undefined;
+  }
+
+  if (!/^0x[a-fA-F0-9]{40}$/.test(value) || value.toLowerCase() === zeroAddress) {
+    return undefined;
   }
 
   return value as Address;
@@ -386,6 +405,7 @@ async function sendUserOperation(input: {
 async function main() {
   const deployments = deployment();
   const rpcUrl = requiredEnv("MANTLE_RPC_URL");
+  const useBundler = process.env.NEXORA_USE_BUNDLER === "true";
   const privateKey = requiredEnv("NEXORA_AGENT_EXECUTOR_PRIVATE_KEY") as Hex;
   const agentId = BigInt(requiredEnv("NEXORA_SMART_WALLET_ID"));
   const account = privateKeyToAccount(privateKey);
@@ -395,7 +415,9 @@ async function main() {
   const validationRegistry = contractAddress(deployments, "NEXORA_AGENT_VALIDATION_REGISTRY", "NexoraAgentValidationRegistry");
   const reputationRegistry = deployments.contracts?.NexoraAgentReputationRegistry as Address | undefined;
   const safeVault = contractAddress(deployments, "NEXORA_SAFE_VAULT", "NexoraSafeVault");
-  const entryPoint = contractAddress(deployments, "NEXORA_ENTRYPOINT_ADDRESS", "NexoraEntryPoint");
+  const entryPoint = useBundler
+    ? contractAddress(deployments, "NEXORA_ENTRYPOINT_ADDRESS", "NexoraEntryPoint")
+    : optionalContractAddress(deployments, "NEXORA_ENTRYPOINT_ADDRESS", "NexoraEntryPoint");
   const walletAddress = await publicClient.readContract({
     abi: factoryAbi,
     address: factory,
@@ -479,13 +501,13 @@ async function main() {
     ],
   });
 
-  if (process.env.NEXORA_USE_BUNDLER === "true") {
+  if (useBundler) {
     const bundlerUrl = requiredEnv("NEXORA_BUNDLER_RPC_URL");
     const userOpHash = await sendUserOperation({
       account,
       bundlerUrl,
       callData,
-      entryPoint,
+      entryPoint: entryPoint as Address,
       publicClient,
       walletAddress,
     });

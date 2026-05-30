@@ -576,7 +576,15 @@ export function AgentProfileCard({
               <dl>
                 <div>
                   <dt>Status</dt>
-                  <dd>{currentAgent.identityStandard === "erc-8004" ? "Ready to configure" : "Requires V2 wallet"}</dd>
+                  <dd>
+                    {currentAgent.identityStandard === "erc-8004"
+                      ? currentAgent.autonomy?.entryPointAddress &&
+                        currentAgent.autonomy.entryPointAddress !==
+                          "0x0000000000000000000000000000000000000000"
+                        ? "Ready to configure"
+                        : "Ready to configure (direct executor only)"
+                      : "Requires V2 wallet"}
+                  </dd>
                 </div>
                 <div>
                   <dt>Command</dt>

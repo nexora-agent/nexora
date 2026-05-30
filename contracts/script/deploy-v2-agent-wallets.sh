@@ -16,6 +16,7 @@ RPC_URL="${MANTLE_RPC_URL:-}"
 DEPLOYER_KEY="${PRIVATE_KEY:-${DEPLOYER_PRIVATE_KEY:-}}"
 ENTRYPOINT_ADDRESS="${NEXORA_ENTRYPOINT_ADDRESS:-}"
 NETWORK_NAME="${NETWORK_NAME:-mantle-sepolia}"
+ZERO_ADDRESS="0x0000000000000000000000000000000000000000"
 
 if [[ -z "$RPC_URL" ]]; then
   echo "MANTLE_RPC_URL is required."
@@ -28,8 +29,7 @@ if [[ -z "$DEPLOYER_KEY" ]]; then
 fi
 
 if [[ -z "$ENTRYPOINT_ADDRESS" ]]; then
-  echo "NEXORA_ENTRYPOINT_ADDRESS is required for V2 ERC-4337 deployment."
-  exit 1
+  ENTRYPOINT_ADDRESS="$ZERO_ADDRESS"
 fi
 
 mkdir -p "$DEPLOYMENTS_DIR"
@@ -42,6 +42,11 @@ echo "Network: $NETWORK_NAME"
 echo "Deployer: $deployer"
 echo "EntryPoint: $ENTRYPOINT_ADDRESS"
 echo "Balance wei: $balance_wei"
+if [[ "$ENTRYPOINT_ADDRESS" == "$ZERO_ADDRESS" ]]; then
+  echo "Mode: direct executor only (no ERC-4337 EntryPoint configured)"
+else
+  echo "Mode: ERC-4337 / bundler compatible"
+fi
 
 if [[ "$balance_wei" == "0" ]]; then
   echo "Deployer has no native token balance. Fund it with Mantle Sepolia MNT first."
@@ -97,9 +102,10 @@ deploy_contract() {
       --private-key "$DEPLOYER_KEY" \
       --nonce "$nonce" \
       --broadcast \
+      --json \
       "$contract_path" \
       "$@" \
-      --json >"$tmp_out" 2>"$tmp_err"; then
+      >"$tmp_out" 2>"$tmp_err"; then
       echo "Raw stdout for $label:" >&2
       cat "$tmp_out" >&2
       echo "" >&2

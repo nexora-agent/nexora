@@ -11,6 +11,24 @@ import { mantleSepolia } from "@/lib/chains/mantle";
 
 export type WalletReadiness = "disconnected" | "wrong-network" | "ready";
 
+function normalizeWalletError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return new Error("Wallet action failed.");
+  }
+
+  if (
+    error.name === "ProviderNotFoundError" ||
+    error.message.includes("Provider not found")
+  ) {
+    return new Error(
+      "MetaMask is not available in this browser. Open the app in a browser with the MetaMask extension enabled.",
+      { cause: error },
+    );
+  }
+
+  return error;
+}
+
 export function useWalletConnection() {
   const { address, chainId, isConnected, isConnecting } = useAccount();
   const {
@@ -40,9 +58,13 @@ export function useWalletConnection() {
       throw new Error("No injected wallet connector found.");
     }
 
-    await connectAsync({
-      connector,
-    });
+    try {
+      await connectAsync({
+        connector,
+      });
+    } catch (error) {
+      throw normalizeWalletError(error);
+    }
   };
 
   const switchToMantle = async () => {

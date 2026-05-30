@@ -2,10 +2,10 @@ import { zeroAddress } from "viem";
 
 export const mantleSepoliaContracts = {
   agentIdentity: "0xfE84E525441723e2A4710F2eC65f55ADa824Afc5",
-  agentIdentityV2: "0x0000000000000000000000000000000000000000",
-  agent4337WalletFactory: "0x0000000000000000000000000000000000000000",
-  agentValidationRegistry: "0x0000000000000000000000000000000000000000",
-  agentReputationRegistry: "0x0000000000000000000000000000000000000000",
+  agentIdentityV2: "0x6abc04a3768BA2f50AEE7b58F4456f2287f2C118",
+  agent4337WalletFactory: "0x957386D0Bb50C1D0d6BaF1B85887BfC43428c18E",
+  agentValidationRegistry: "0x7c8E9df2CC0BB852432170f5bAFa77Ff6B839Da5",
+  agentReputationRegistry: "0xe2dff064Dcb5eaa0B02d3815382e5C88A7a7c2Ed",
   entryPoint: "0x0000000000000000000000000000000000000000",
   factory: "0x600d0a6c8A3067BCe9D1bB089914ABC2c45C9E6C",
   policy: "0x073fE1166748ea8c5cE304e1AE0a6319EDE5e108",
@@ -27,6 +27,10 @@ export function isV2DeploymentReady() {
     mantleSepoliaContracts.agentIdentityV2,
     mantleSepoliaContracts.agent4337WalletFactory,
     mantleSepoliaContracts.agentValidationRegistry,
-    mantleSepoliaContracts.entryPoint,
   ].every(hasContractAddress);
 }
+
+export function isV2BundlerReady() {
+  return isV2DeploymentReady() && hasContractAddress(mantleSepoliaContracts.entryPoint);
+}
+

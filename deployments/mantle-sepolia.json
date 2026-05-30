@@ -1,17 +1,22 @@
 {
-  "network": "mantle-sepolia",
-  "rpcUrl": "https://rpc.sepolia.mantle.xyz",
-  "deployer": "0x25D40008ffC27D95D506224a246916d7E7ac0f36",
-  "contracts": {
-    "NexoraAgentIdentity": "0xfE84E525441723e2A4710F2eC65f55ADa824Afc5",
-    "NexoraFactory": "0x600d0a6c8A3067BCe9D1bB089914ABC2c45C9E6C",
-    "NexoraPolicy": "0x073fE1166748ea8c5cE304e1AE0a6319EDE5e108",
-    "NexoraRiskRegistry": "0xC0495a933C41Fd7c32Dd674c1983Ab6f95e58E08",
-    "NexoraPreflightRegistry": "0xeB2D0dEa9C72Ff5A212ef37e948eec760096c829",
-    "NexoraReputation": "0xc4EAa1d5F94Ee779EE48Ca1E8f1246d29dF07C6f",
-    "NexoraSmartWalletRegistry": "0x3959F427883faD713C5F533A762A83dDbF1b86fD",
-    "NexoraSafeVault": "0x705ef09F3C4E28B0028Ae9a76fad558f48f3c22A",
-    "NexoraRiskyVault": "0x4a13f61f9cD32a7F9dc04210632018b2D8060397",
-    "NexoraVolatileVault": "0xd3510f6f50374e40E1c9eE0C5C9b61AD753d3889"
-  }
+    "network":  "mantle-sepolia",
+    "rpcUrl":  "https://rpc.sepolia.mantle.xyz",
+    "deployer":  "0x25D40008ffC27D95D506224a246916d7E7ac0f36",
+    "contracts":  {
+                      "NexoraAgentIdentity":  "0xfE84E525441723e2A4710F2eC65f55ADa824Afc5",
+                      "NexoraFactory":  "0x600d0a6c8A3067BCe9D1bB089914ABC2c45C9E6C",
+                      "NexoraPolicy":  "0x073fE1166748ea8c5cE304e1AE0a6319EDE5e108",
+                      "NexoraRiskRegistry":  "0xC0495a933C41Fd7c32Dd674c1983Ab6f95e58E08",
+                      "NexoraPreflightRegistry":  "0xeB2D0dEa9C72Ff5A212ef37e948eec760096c829",
+                      "NexoraReputation":  "0xc4EAa1d5F94Ee779EE48Ca1E8f1246d29dF07C6f",
+                      "NexoraSmartWalletRegistry":  "0x3959F427883faD713C5F533A762A83dDbF1b86fD",
+                      "NexoraSafeVault":  "0x705ef09F3C4E28B0028Ae9a76fad558f48f3c22A",
+                      "NexoraRiskyVault":  "0x4a13f61f9cD32a7F9dc04210632018b2D8060397",
+                      "NexoraVolatileVault":  "0xd3510f6f50374e40E1c9eE0C5C9b61AD753d3889",
+                      "NexoraEntryPoint":  "0x0000000000000000000000000000000000000000",
+                      "NexoraAgentIdentityRegistry":  "0x6abc04a3768BA2f50AEE7b58F4456f2287f2C118",
+                      "NexoraAgentValidationRegistry":  "0x7c8E9df2CC0BB852432170f5bAFa77Ff6B839Da5",
+                      "NexoraAgentReputationRegistry":  "0xe2dff064Dcb5eaa0B02d3815382e5C88A7a7c2Ed",
+                      "Nexora4337WalletFactory":  "0x957386D0Bb50C1D0d6BaF1B85887BfC43428c18E"
+                  }
 }

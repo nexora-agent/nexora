@@ -20,6 +20,7 @@ export function ConnectWalletButton({
     switchToMantle,
   } = useWalletConnection();
   const [isMounted, setIsMounted] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
   const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
@@ -43,6 +44,7 @@ export function ConnectWalletButton({
         <button onClick={() => disconnectWallet()} type="button">
           Disconnect
         </button>
+        {errorMessage && <p className="ownership-note">{errorMessage}</p>}
       </div>
     );
   }
@@ -55,16 +57,26 @@ export function ConnectWalletButton({
         : "primary-action";
 
   return (
-    <button
-      className={className}
-      disabled={isPending}
-      onClick={() => {
-        setIsPending(true);
-        void connectWallet().finally(() => setIsPending(false));
-      }}
-      type="button"
-    >
-      {isPending ? "Connecting..." : "Connect MetaMask"}
-    </button>
+    <>
+      <button
+        className={className}
+        disabled={isPending}
+        onClick={() => {
+          setErrorMessage("");
+          setIsPending(true);
+          void connectWallet()
+            .catch((error: unknown) => {
+              setErrorMessage(
+                error instanceof Error ? error.message : "Wallet action failed.",
+              );
+            })
+            .finally(() => setIsPending(false));
+        }}
+        type="button"
+      >
+        {isPending ? "Connecting..." : "Connect MetaMask"}
+      </button>
+      {errorMessage && <p className="ownership-note">{errorMessage}</p>}
+    </>
   );
 }
