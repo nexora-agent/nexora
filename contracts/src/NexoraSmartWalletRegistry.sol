@@ -32,11 +32,7 @@ contract NexoraSmartWalletRegistry {
         uint8 riskMode,
         uint8 runnerMode
     );
-    event SmartWalletCreated(
-        uint256 indexed smartWalletId,
-        address indexed owner,
-        address wallet
-    );
+    event SmartWalletCreated(uint256 indexed smartWalletId, address indexed owner, address wallet);
     event SmartWalletMetadataUpdated(uint256 indexed smartWalletId, string metadataURI);
     event SmartWalletHarnessUpdated(uint256 indexed smartWalletId, bytes32 harnessId);
 
@@ -45,12 +41,10 @@ contract NexoraSmartWalletRegistry {
     error NotSmartWalletOwner();
     error SmartWalletNotFound();
 
-    function registerSmartWallet(
-        string calldata metadataURI,
-        bytes32 harnessId,
-        uint8 riskMode,
-        uint8 runnerMode
-    ) external returns (uint256 smartWalletId) {
+    function registerSmartWallet(string calldata metadataURI, bytes32 harnessId, uint8 riskMode, uint8 runnerMode)
+        external
+        returns (uint256 smartWalletId)
+    {
         if (bytes(metadataURI).length == 0) {
             revert EmptyMetadataURI();
         }
@@ -72,14 +66,7 @@ contract NexoraSmartWalletRegistry {
         });
         _ownerSmartWallets[msg.sender].push(smartWalletId);
 
-        emit SmartWalletRegistered(
-            smartWalletId,
-            msg.sender,
-            metadataURI,
-            harnessId,
-            riskMode,
-            runnerMode
-        );
+        emit SmartWalletRegistered(smartWalletId, msg.sender, metadataURI, harnessId, riskMode, runnerMode);
     }
 
     function createSmartWallet(uint256 smartWalletId) external returns (address wallet) {
@@ -149,9 +136,7 @@ contract NexoraSmartWalletRegistry {
         return _nextSmartWalletId;
     }
 
-    function _smartWalletOrRevert(
-        uint256 smartWalletId
-    ) private view returns (SmartWallet storage smartWallet) {
+    function _smartWalletOrRevert(uint256 smartWalletId) private view returns (SmartWallet storage smartWallet) {
         smartWallet = _smartWallets[smartWalletId];
         if (smartWallet.owner == address(0)) {
             revert SmartWalletNotFound();

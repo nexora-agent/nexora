@@ -405,9 +405,31 @@ export const nexora4337WalletFactoryAbi = [
 export const nexoraAgentValidationRegistryAbi = [
   { inputs: [], name: "InvalidScore", type: "error" },
   { inputs: [], name: "MissingIntentHash", type: "error" },
+  { inputs: [], name: "NotAuthorizedReporter", type: "error" },
   { inputs: [], name: "NotAgentOwner", type: "error" },
   { inputs: [], name: "ValidationAlreadyRecorded", type: "error" },
   { inputs: [], name: "ValidationNotFound", type: "error" },
+  {
+    inputs: [
+      { internalType: "uint256", name: "", type: "uint256" },
+      { internalType: "address", name: "", type: "address" },
+    ],
+    name: "authorizedReporters",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "agentId", type: "uint256" },
+      { internalType: "address", name: "reporter", type: "address" },
+      { internalType: "bool", name: "enabled", type: "bool" },
+    ],
+    name: "setReporter",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
   {
     inputs: [
       { internalType: "uint256", name: "agentId", type: "uint256" },
@@ -478,8 +500,10 @@ export const nexoraAgentValidationRegistryAbi = [
 
 export const nexora4337AgentWalletAbi = [
   { inputs: [], name: "ExecutionFailed", type: "error" },
+  { inputs: [], name: "IntentAlreadyConsumed", type: "error" },
   { inputs: [], name: "InvalidNonce", type: "error" },
   { inputs: [], name: "InvalidUserOperation", type: "error" },
+  { inputs: [], name: "NoEntryPoint", type: "error" },
   { inputs: [], name: "NotAuthorized", type: "error" },
   { inputs: [], name: "PreflightFailed", type: "error" },
   { inputs: [], name: "PreflightScoreTooLow", type: "error" },
@@ -487,7 +511,39 @@ export const nexora4337AgentWalletAbi = [
   { inputs: [], name: "PreflightWalletMismatch", type: "error" },
   { inputs: [], name: "RiskTooHigh", type: "error" },
   { inputs: [], name: "SpendLimitExceeded", type: "error" },
+  { inputs: [], name: "SelectorNotAllowed", type: "error" },
   { inputs: [], name: "TargetNotAllowed", type: "error" },
+  {
+    inputs: [],
+    name: "executorPolicy",
+    outputs: [
+      { internalType: "address", name: "executor", type: "address" },
+      { internalType: "bool", name: "enabled", type: "bool" },
+      { internalType: "bool", name: "requirePreflight", type: "bool" },
+      { internalType: "uint256", name: "maxValuePerAction", type: "uint256" },
+      { internalType: "uint256", name: "dailyLimit", type: "uint256" },
+      { internalType: "uint64", name: "validUntil", type: "uint64" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "", type: "address" }],
+    name: "allowedTargets",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "", type: "address" },
+      { internalType: "bytes4", name: "", type: "bytes4" },
+    ],
+    name: "allowedTargetSelectors",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
   {
     inputs: [
       { internalType: "address", name: "executor", type: "address" },
@@ -510,6 +566,34 @@ export const nexora4337AgentWalletAbi = [
     name: "setAllowedTarget",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "address", name: "target", type: "address" },
+      { internalType: "bytes4", name: "selector", type: "bytes4" },
+      { internalType: "bool", name: "allowed", type: "bool" },
+    ],
+    name: "setAllowedSelector",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "entryPointDeposit",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "bytes32", name: "hash", type: "bytes32" },
+      { internalType: "bytes", name: "signature", type: "bytes" },
+    ],
+    name: "isValidSignature",
+    outputs: [{ internalType: "bytes4", name: "", type: "bytes4" }],
+    stateMutability: "view",
     type: "function",
   },
   {

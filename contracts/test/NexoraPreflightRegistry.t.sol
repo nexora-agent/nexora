@@ -25,8 +25,7 @@ contract NexoraPreflightRegistryTest {
 
         _recordPassingPreflight(1, intentHash);
 
-        NexoraPreflightRegistry.PreflightRecord memory record =
-            registry.getPreflight(intentHash);
+        NexoraPreflightRegistry.PreflightRecord memory record = registry.getPreflight(intentHash);
 
         assert(record.walletId == 1);
         assert(record.actionIntentHash == intentHash);
@@ -55,14 +54,7 @@ contract NexoraPreflightRegistryTest {
         (, address walletAddress) = _createWallet();
         NexoraAgentWallet wallet = NexoraAgentWallet(payable(walletAddress));
 
-        try wallet.executeWithPreflight(
-            address(registry),
-            address(this),
-            0,
-            "",
-            keccak256("missing-intent"),
-            6
-        ) {
+        try wallet.executeWithPreflight(address(registry), address(this), 0, "", keccak256("missing-intent"), 6) {
             revert("expected missing preflight revert");
         } catch (bytes memory reason) {
             assert(reason.length > 0);
@@ -75,14 +67,7 @@ contract NexoraPreflightRegistryTest {
         bytes32 intentHash = keccak256("intent-1");
         _recordPassingPreflight(agentId + 1, intentHash);
 
-        try wallet.executeWithPreflight(
-            address(registry),
-            address(this),
-            0,
-            "",
-            intentHash,
-            6
-        ) {
+        try wallet.executeWithPreflight(address(registry), address(this), 0, "", intentHash, 6) {
             revert("expected wallet mismatch revert");
         } catch (bytes memory reason) {
             assert(reason.length > 0);
@@ -97,14 +82,7 @@ contract NexoraPreflightRegistryTest {
         registry.setPreflightThresholds(agentId, 90, 80, 75, 80, 25, 1);
         vm.warp(block.timestamp + 2);
 
-        try wallet.executeWithPreflight(
-            address(registry),
-            address(this),
-            0,
-            "",
-            intentHash,
-            6
-        ) {
+        try wallet.executeWithPreflight(address(registry), address(this), 0, "", intentHash, 6) {
             revert("expected stale revert");
         } catch (bytes memory reason) {
             assert(reason.length > 0);
@@ -118,14 +96,7 @@ contract NexoraPreflightRegistryTest {
         _recordPassingPreflight(agentId, intentHash);
         registry.setPreflightThresholds(agentId, 99, 99, 99, 99, 25, 600);
 
-        try wallet.executeWithPreflight(
-            address(registry),
-            address(this),
-            0,
-            "",
-            intentHash,
-            6
-        ) {
+        try wallet.executeWithPreflight(address(registry), address(this), 0, "", intentHash, 6) {
             revert("expected score revert");
         } catch (bytes memory reason) {
             assert(reason.length > 0);
@@ -143,12 +114,7 @@ contract NexoraPreflightRegistryTest {
         assert(funded);
 
         wallet.executeWithPreflight(
-            address(registry),
-            address(vault),
-            0.01 ether,
-            abi.encodeWithSignature("deposit()"),
-            intentHash,
-            6
+            address(registry), address(vault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         );
 
         assert(vault.balanceOf(walletAddress) == 0.01 ether);
@@ -161,12 +127,7 @@ contract NexoraPreflightRegistryTest {
     receive() external payable {}
 
     function _createWallet() private returns (uint256 smartWalletId, address walletAddress) {
-        smartWalletId = smartWalletRegistry.registerSmartWallet(
-            "ipfs://wallet-1",
-            keccak256("safe-approval"),
-            0,
-            0
-        );
+        smartWalletId = smartWalletRegistry.registerSmartWallet("ipfs://wallet-1", keccak256("safe-approval"), 0, 0);
         walletAddress = smartWalletRegistry.createSmartWallet(smartWalletId);
     }
 
@@ -189,5 +150,4 @@ contract NexoraPreflightRegistryTest {
             })
         );
     }
-
 }

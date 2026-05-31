@@ -17,9 +17,7 @@ contract NexoraAgentIdentityTest {
 
         assert(agentId == 1);
         assert(agent.owner == address(this));
-        assert(
-            keccak256(bytes(agent.metadataURI)) == keccak256(bytes("ipfs://agent-1"))
-        );
+        assert(keccak256(bytes(agent.metadataURI)) == keccak256(bytes("ipfs://agent-1")));
     }
 
     function testTracksAgentsByOwner() public {

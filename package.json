@@ -18,10 +18,19 @@
     "contracts:test": "forge test --root contracts",
     "contracts:deploy:mantle": "bash contracts/script/deploy-mantle.sh",
     "contracts:deploy:preflight": "bash contracts/script/deploy-preflight-registry.sh",
-    "contracts:deploy:v2": "bash contracts/script/deploy-v2-agent-wallets.sh",
-    "contracts:deploy:v2:windows": "powershell -ExecutionPolicy Bypass -File contracts\\script\\deploy-v2-agent-wallets.ps1",
+    "contracts:deploy:agent-wallets": "bash contracts/script/deploy-agent-wallets.sh",
+    "contracts:deploy:agent-wallets:windows": "powershell -ExecutionPolicy Bypass -File contracts\\script\\deploy-agent-wallets.ps1",
     "contracts:deploy:vaults": "bash contracts/script/deploy-benchmark-vaults.sh",
-    "agent:runner": "pnpm --filter @nexora/api agent:runner"
+    "agent:runner": "pnpm --filter @nexora/api agent:runner",
+    "nexora:dev": "bash tools/nexora-manual-test.sh dev",
+    "nexora:api": "bash tools/nexora-manual-test.sh api",
+    "nexora:web": "bash tools/nexora-manual-test.sh web",
+    "nexora:harness": "bash tools/nexora-manual-test.sh harness",
+    "nexora:mcp": "bash tools/nexora-manual-test.sh mcp",
+    "nexora:byreal-mcp": "bash tools/nexora-manual-test.sh byreal-mcp",
+    "nexora:ollama": "bash tools/nexora-manual-test.sh ollama",
+    "nexora:status": "bash tools/nexora-manual-test.sh status",
+    "nexora:runner": "bash tools/nexora-manual-test.sh runner"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "^8.32.1",

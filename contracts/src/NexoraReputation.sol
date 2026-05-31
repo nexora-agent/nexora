@@ -26,13 +26,9 @@ contract NexoraReputation {
 
     error InvalidScore();
 
-    function recordRun(
-        uint256 agentId,
-        bool executed,
-        bool policyViolation,
-        uint16 riskScore,
-        uint16 benchmarkScore
-    ) external {
+    function recordRun(uint256 agentId, bool executed, bool policyViolation, uint16 riskScore, uint16 benchmarkScore)
+        external
+    {
         if (riskScore > 100 || benchmarkScore > 100) {
             revert InvalidScore();
         }
@@ -65,14 +61,7 @@ contract NexoraReputation {
             stats.trustScore = 100;
         }
 
-        emit ReputationUpdated(
-            agentId,
-            executed,
-            policyViolation,
-            riskScore,
-            benchmarkScore,
-            stats.trustScore
-        );
+        emit ReputationUpdated(agentId, executed, policyViolation, riskScore, benchmarkScore, stats.trustScore);
     }
 
     function getStats(uint256 agentId) external view returns (Stats memory) {

@@ -87,7 +87,7 @@ export function PreflightSettingsPanel({
       setIsSaving(true);
       setNotice("Confirm the settings transaction in MetaMask.");
       await savePreflightThresholdsOnchain(agent.id, thresholds, {
-        useV2Validation: agent.identityStandard === "erc-8004",
+        useAgentValidation: agent.identityStandard === "erc-8004",
       });
       onSaved({
         ...agent,

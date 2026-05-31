@@ -125,6 +125,23 @@ function Invoke-DeployContract(
   throw "forge create failed for $label after 3 attempts."
 }
 
+function Get-ExistingContractAddress([string]$deploymentFile, [string]$contractName) {
+  if (-not (Test-Path -LiteralPath $deploymentFile)) {
+    return $zeroAddress
+  }
+
+  try {
+    $payload = Get-Content -LiteralPath $deploymentFile -Raw | ConvertFrom-Json
+    $value = $payload.contracts.$contractName
+    if ($value -is [string] -and $value -match "^0x[a-fA-F0-9]{40}$") {
+      return $value
+    }
+  } catch {
+  }
+
+  return $zeroAddress
+}
+
 Import-DotEnv (Join-Path $rootDir ".env")
 
 $rpcUrl = Require-Env "MANTLE_RPC_URL"
@@ -163,10 +180,14 @@ if ($balanceWei -eq "0") {
   throw "Deployer has no native token balance. Fund it with Mantle Sepolia MNT first."
 }
 
-$identityV2 = Invoke-DeployContract -label "NexoraAgentIdentityRegistry" -contractPath "src/NexoraAgentIdentityRegistry.sol:NexoraAgentIdentityRegistry" -constructorArgs @() -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
-$validationRegistry = Invoke-DeployContract -label "NexoraAgentValidationRegistry" -contractPath "src/NexoraAgentValidationRegistry.sol:NexoraAgentValidationRegistry" -constructorArgs @($identityV2) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
-$reputationRegistry = Invoke-DeployContract -label "NexoraAgentReputationRegistry" -contractPath "src/NexoraAgentReputationRegistry.sol:NexoraAgentReputationRegistry" -constructorArgs @() -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
-$factoryV2 = Invoke-DeployContract -label "Nexora4337WalletFactory" -contractPath "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" -constructorArgs @($identityV2, $entryPointAddress) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
+$safeVault = Get-ExistingContractAddress $deploymentFile "NexoraSafeVault"
+$volatileVault = Get-ExistingContractAddress $deploymentFile "NexoraVolatileVault"
+$riskyVault = Get-ExistingContractAddress $deploymentFile "NexoraRiskyVault"
+
+$identityRegistry = Invoke-DeployContract -label "NexoraAgentIdentityRegistry" -contractPath "src/NexoraAgentIdentityRegistry.sol:NexoraAgentIdentityRegistry" -constructorArgs @() -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
+$validationRegistry = Invoke-DeployContract -label "NexoraAgentValidationRegistry" -contractPath "src/NexoraAgentValidationRegistry.sol:NexoraAgentValidationRegistry" -constructorArgs @($identityRegistry) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
+$reputationRegistry = Invoke-DeployContract -label "NexoraAgentReputationRegistry" -contractPath "src/NexoraAgentReputationRegistry.sol:NexoraAgentReputationRegistry" -constructorArgs @($identityRegistry) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
+$walletFactory = Invoke-DeployContract -label "Nexora4337WalletFactory" -contractPath "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" -constructorArgs @($identityRegistry, $entryPointAddress, $reputationRegistry, $safeVault, $volatileVault, $riskyVault) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
 
 Write-Host ""
 Write-Host "Authorizing factory as identity controller..."
@@ -174,9 +195,9 @@ Invoke-Cast @(
   "send",
   "--rpc-url", $rpcUrl,
   "--private-key", $privateKey,
-  $identityV2,
+  $identityRegistry,
   "setController(address,bool)",
-  $factoryV2,
+  $walletFactory,
   "true"
 ) | Out-Null
 
@@ -197,20 +218,20 @@ if (-not $payload.deployer) { $payload | Add-Member -NotePropertyName "deployer"
 if (-not $payload.contracts) { $payload | Add-Member -NotePropertyName "contracts" -NotePropertyValue ([pscustomobject]@{}) -Force }
 
 $payload.contracts | Add-Member -NotePropertyName "NexoraEntryPoint" -NotePropertyValue $entryPointAddress -Force
-$payload.contracts | Add-Member -NotePropertyName "NexoraAgentIdentityRegistry" -NotePropertyValue $identityV2 -Force
+$payload.contracts | Add-Member -NotePropertyName "NexoraAgentIdentityRegistry" -NotePropertyValue $identityRegistry -Force
 $payload.contracts | Add-Member -NotePropertyName "NexoraAgentValidationRegistry" -NotePropertyValue $validationRegistry -Force
 $payload.contracts | Add-Member -NotePropertyName "NexoraAgentReputationRegistry" -NotePropertyValue $reputationRegistry -Force
-$payload.contracts | Add-Member -NotePropertyName "Nexora4337WalletFactory" -NotePropertyValue $factoryV2 -Force
+$payload.contracts | Add-Member -NotePropertyName "Nexora4337WalletFactory" -NotePropertyValue $walletFactory -Force
 
 $payload | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $deploymentFile
 
 $webSource = Get-Content -LiteralPath $webDeploymentsFile -Raw
 $replacements = @{
   entryPoint = $entryPointAddress
-  agentIdentityV2 = $identityV2
+  agentIdentityRegistry = $identityRegistry
   agentValidationRegistry = $validationRegistry
   agentReputationRegistry = $reputationRegistry
-  agent4337WalletFactory = $factoryV2
+  agent4337WalletFactory = $walletFactory
 }
 
 foreach ($key in $replacements.Keys) {
@@ -222,5 +243,5 @@ foreach ($key in $replacements.Keys) {
 Set-Content -LiteralPath $webDeploymentsFile -Value $webSource
 
 Write-Host ""
-Write-Host "V2 deployment written to $deploymentFile"
+Write-Host "Agent wallet deployment written to $deploymentFile"
 Write-Host "Frontend contract constants updated in $webDeploymentsFile"

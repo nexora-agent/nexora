@@ -98,12 +98,8 @@ contract NexoraPreflightRegistry {
         }
 
         if (
-            basicScore > 100 ||
-            adversarialScore > 100 ||
-            externalScore > 100 ||
-            averageScore > 100 ||
-            maxRiskScore > 100 ||
-            freshnessSeconds == 0
+            basicScore > 100 || adversarialScore > 100 || externalScore > 100 || averageScore > 100
+                || maxRiskScore > 100 || freshnessSeconds == 0
         ) {
             revert InvalidScore();
         }
@@ -119,21 +115,11 @@ contract NexoraPreflightRegistry {
         });
 
         emit PreflightThresholdsUpdated(
-            walletId,
-            basicScore,
-            adversarialScore,
-            externalScore,
-            averageScore,
-            maxRiskScore,
-            freshnessSeconds
+            walletId, basicScore, adversarialScore, externalScore, averageScore, maxRiskScore, freshnessSeconds
         );
     }
 
-    function getPreflightThresholds(uint256 walletId)
-        public
-        view
-        returns (PreflightThresholds memory)
-    {
+    function getPreflightThresholds(uint256 walletId) public view returns (PreflightThresholds memory) {
         PreflightThresholds memory thresholds = _thresholds[walletId];
         if (thresholds.exists) {
             return thresholds;
@@ -160,11 +146,8 @@ contract NexoraPreflightRegistry {
         }
 
         if (
-            input.basicScore > 100 ||
-            input.adversarialScore > 100 ||
-            input.externalScore > 100 ||
-            input.averageScore > 100 ||
-            input.maxRiskScore > 100
+            input.basicScore > 100 || input.adversarialScore > 100 || input.externalScore > 100
+                || input.averageScore > 100 || input.maxRiskScore > 100
         ) {
             revert InvalidScore();
         }
@@ -188,20 +171,11 @@ contract NexoraPreflightRegistry {
         });
 
         emit PreflightRecorded(
-            input.walletId,
-            input.actionIntentHash,
-            input.suiteHash,
-            input.averageScore,
-            input.passed,
-            msg.sender
+            input.walletId, input.actionIntentHash, input.suiteHash, input.averageScore, input.passed, msg.sender
         );
     }
 
-    function getPreflight(bytes32 actionIntentHash)
-        external
-        view
-        returns (PreflightRecord memory)
-    {
+    function getPreflight(bytes32 actionIntentHash) external view returns (PreflightRecord memory) {
         PreflightRecord memory record = _preflights[actionIntentHash];
         if (record.timestamp == 0) {
             revert PreflightNotFound();

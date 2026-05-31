@@ -115,11 +115,7 @@ contract NexoraAgentWallet {
             revert NotOwner();
         }
 
-        _validatePreflight(
-            preflightRegistry,
-            actionIntentHash,
-            riskScore
-        );
+        _validatePreflight(preflightRegistry, actionIntentHash, riskScore);
 
         bool success;
         (success, result) = target.call{value: value}(data);
@@ -130,16 +126,10 @@ contract NexoraAgentWallet {
         emit Executed(target, value, data, result);
     }
 
-    function _validatePreflight(
-        address preflightRegistry,
-        bytes32 actionIntentHash,
-        uint16 riskScore
-    ) private view {
+    function _validatePreflight(address preflightRegistry, bytes32 actionIntentHash, uint16 riskScore) private view {
         NexoraPreflightRegistry registry = NexoraPreflightRegistry(preflightRegistry);
-        NexoraPreflightRegistry.PreflightRecord memory preflight =
-            registry.getPreflight(actionIntentHash);
-        NexoraPreflightRegistry.PreflightThresholds memory thresholds =
-            registry.getPreflightThresholds(agentId);
+        NexoraPreflightRegistry.PreflightRecord memory preflight = registry.getPreflight(actionIntentHash);
+        NexoraPreflightRegistry.PreflightThresholds memory thresholds = registry.getPreflightThresholds(agentId);
 
         if (preflight.actionIntentHash != actionIntentHash) {
             revert IntentMismatch();
@@ -158,10 +148,8 @@ contract NexoraAgentWallet {
         }
 
         if (
-            preflight.basicScore < thresholds.basicScore ||
-            preflight.adversarialScore < thresholds.adversarialScore ||
-            preflight.externalScore < thresholds.externalScore ||
-            preflight.averageScore < thresholds.averageScore
+            preflight.basicScore < thresholds.basicScore || preflight.adversarialScore < thresholds.adversarialScore
+                || preflight.externalScore < thresholds.externalScore || preflight.averageScore < thresholds.averageScore
         ) {
             revert PreflightScoreTooLow();
         }

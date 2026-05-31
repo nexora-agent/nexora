@@ -14,14 +14,7 @@ contract NexoraRiskRegistryTest {
         bytes32 reportHash = keccak256("report-1");
 
         registry.recordReport(
-            1,
-            keccak256("safe-approval"),
-            keccak256("objective-1"),
-            keccak256("intent-1"),
-            28,
-            true,
-            92,
-            reportHash
+            1, keccak256("safe-approval"), keccak256("objective-1"), keccak256("intent-1"), 28, true, 92, reportHash
         );
 
         NexoraRiskRegistry.Report memory report = registry.getReport(reportHash);
@@ -54,25 +47,11 @@ contract NexoraRiskRegistryTest {
         bytes32 reportHash = keccak256("report-1");
 
         registry.recordReport(
-            1,
-            keccak256("safe-approval"),
-            keccak256("objective-1"),
-            keccak256("intent-1"),
-            28,
-            true,
-            92,
-            reportHash
+            1, keccak256("safe-approval"), keccak256("objective-1"), keccak256("intent-1"), 28, true, 92, reportHash
         );
 
         try registry.recordReport(
-            1,
-            keccak256("safe-approval"),
-            keccak256("objective-1"),
-            keccak256("intent-1"),
-            28,
-            true,
-            92,
-            reportHash
+            1, keccak256("safe-approval"), keccak256("objective-1"), keccak256("intent-1"), 28, true, 92, reportHash
         ) {
             revert("expected duplicate report revert");
         } catch (bytes memory reason) {

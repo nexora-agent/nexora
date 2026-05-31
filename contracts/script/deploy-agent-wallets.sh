@@ -137,19 +137,47 @@ deploy_contract() {
   exit 1
 }
 
-identity_v2="$(deploy_contract "NexoraAgentIdentityRegistry" "src/NexoraAgentIdentityRegistry.sol:NexoraAgentIdentityRegistry")"
-validation_registry="$(deploy_contract "NexoraAgentValidationRegistry" "src/NexoraAgentValidationRegistry.sol:NexoraAgentValidationRegistry" --constructor-args "$identity_v2")"
-reputation_registry="$(deploy_contract "NexoraAgentReputationRegistry" "src/NexoraAgentReputationRegistry.sol:NexoraAgentReputationRegistry")"
-factory_v2="$(deploy_contract "Nexora4337WalletFactory" "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" --constructor-args "$identity_v2" "$ENTRYPOINT_ADDRESS")"
+contract_from_deployment() {
+  local contract_name="$1"
+  if [[ ! -f "$deployment_file" ]]; then
+    printf "%s" "$ZERO_ADDRESS"
+    return 0
+  fi
+
+  python3 - "$deployment_file" "$contract_name" "$ZERO_ADDRESS" <<'PY'
+import json
+import re
+import sys
+from pathlib import Path
+
+payload = json.loads(Path(sys.argv[1]).read_text())
+contract_name = sys.argv[2]
+zero = sys.argv[3]
+value = payload.get("contracts", {}).get(contract_name, zero)
+if isinstance(value, str) and re.fullmatch(r"0x[a-fA-F0-9]{40}", value):
+    print(value)
+else:
+    print(zero)
+PY
+}
+
+safe_vault="$(contract_from_deployment "NexoraSafeVault")"
+volatile_vault="$(contract_from_deployment "NexoraVolatileVault")"
+risky_vault="$(contract_from_deployment "NexoraRiskyVault")"
+
+identity_registry="$(deploy_contract "NexoraAgentIdentityRegistry" "src/NexoraAgentIdentityRegistry.sol:NexoraAgentIdentityRegistry")"
+validation_registry="$(deploy_contract "NexoraAgentValidationRegistry" "src/NexoraAgentValidationRegistry.sol:NexoraAgentValidationRegistry" --constructor-args "$identity_registry")"
+reputation_registry="$(deploy_contract "NexoraAgentReputationRegistry" "src/NexoraAgentReputationRegistry.sol:NexoraAgentReputationRegistry" --constructor-args "$identity_registry")"
+wallet_factory="$(deploy_contract "Nexora4337WalletFactory" "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" --constructor-args "$identity_registry" "$ENTRYPOINT_ADDRESS" "$reputation_registry" "$safe_vault" "$volatile_vault" "$risky_vault")"
 
 echo ""
 echo "Authorizing factory as identity controller..."
 cast send \
   --rpc-url "$RPC_URL" \
   --private-key "$DEPLOYER_KEY" \
-  "$identity_v2" \
+  "$identity_registry" \
   "setController(address,bool)" \
-  "$factory_v2" \
+  "$wallet_factory" \
   true >/dev/null
 
 python3 - "$deployment_file" \
@@ -157,10 +185,10 @@ python3 - "$deployment_file" \
   "$RPC_URL" \
   "$deployer" \
   "$ENTRYPOINT_ADDRESS" \
-  "$identity_v2" \
+  "$identity_registry" \
   "$validation_registry" \
   "$reputation_registry" \
-  "$factory_v2" <<'PY'
+  "$wallet_factory" <<'PY'
 import json
 import sys
 from pathlib import Path
@@ -170,7 +198,7 @@ network_name = sys.argv[2]
 rpc_url = sys.argv[3]
 deployer = sys.argv[4]
 entrypoint = sys.argv[5]
-identity_v2 = sys.argv[6]
+identity_registry = sys.argv[6]
 validation = sys.argv[7]
 reputation = sys.argv[8]
 factory = sys.argv[9]
@@ -185,7 +213,7 @@ payload["rpcUrl"] = payload.get("rpcUrl") or rpc_url
 payload["deployer"] = payload.get("deployer") or deployer
 payload.setdefault("contracts", {})
 payload["contracts"]["NexoraEntryPoint"] = entrypoint
-payload["contracts"]["NexoraAgentIdentityRegistry"] = identity_v2
+payload["contracts"]["NexoraAgentIdentityRegistry"] = identity_registry
 payload["contracts"]["NexoraAgentValidationRegistry"] = validation
 payload["contracts"]["NexoraAgentReputationRegistry"] = reputation
 payload["contracts"]["Nexora4337WalletFactory"] = factory
@@ -195,10 +223,10 @@ PY
 
 python3 - "$WEB_DEPLOYMENTS_FILE" \
   "$ENTRYPOINT_ADDRESS" \
-  "$identity_v2" \
+  "$identity_registry" \
   "$validation_registry" \
   "$reputation_registry" \
-  "$factory_v2" <<'PY'
+  "$wallet_factory" <<'PY'
 import re
 import sys
 from pathlib import Path
@@ -206,7 +234,7 @@ from pathlib import Path
 web_file = Path(sys.argv[1])
 values = {
     "entryPoint": sys.argv[2],
-    "agentIdentityV2": sys.argv[3],
+    "agentIdentityRegistry": sys.argv[3],
     "agentValidationRegistry": sys.argv[4],
     "agentReputationRegistry": sys.argv[5],
     "agent4337WalletFactory": sys.argv[6],
@@ -222,5 +250,5 @@ web_file.write_text(source)
 PY
 
 echo ""
-echo "V2 deployment written to $deployment_file"
+echo "Agent wallet deployment written to $deployment_file"
 echo "Frontend contract constants updated in $WEB_DEPLOYMENTS_FILE"

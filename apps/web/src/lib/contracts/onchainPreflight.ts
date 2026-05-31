@@ -92,6 +92,10 @@ function normalizeTransactionError(error: unknown) {
       "NotAgentOwner",
       "Only the owner wallet can save validation settings for this agent identity.",
     ],
+    [
+      "NotAuthorizedReporter",
+      "This executor is not authorized to publish validation proofs for the agent.",
+    ],
     ["InvalidScore", "Preflight settings must use scores from 0 to 100 and a non-zero freshness window."],
     ["MissingIntentHash", "Preflight could not be published because the action intent hash is missing."],
     ["PreflightAlreadyRecorded", "This preflight proof was already published. Run the benchmark again to create a fresh proof."],
@@ -241,7 +245,7 @@ function requireAgentValidationRegistry() {
     mantleSepoliaContracts.agentValidationRegistry.toLowerCase() ===
     zeroAddress.toLowerCase()
   ) {
-    throw new Error("Deploy NexoraAgentValidationRegistry before using V2 validation proofs.");
+    throw new Error("Deploy NexoraAgentValidationRegistry before using agent validation proofs.");
   }
 
   return mantleSepoliaContracts.agentValidationRegistry;
@@ -249,9 +253,9 @@ function requireAgentValidationRegistry() {
 
 export async function recordPreflightOnchain(
   credential: PreflightCredential,
-  options: { useV2Validation?: boolean } = {},
+  options: { useAgentValidation?: boolean } = {},
 ) {
-  if (options.useV2Validation) {
+  if (options.useAgentValidation) {
     const registryAddress = requireAgentValidationRegistry();
     await waitForRpcSlot();
     const transactionHash = await writeContract(wagmiConfig, {
@@ -388,9 +392,9 @@ export async function executeRunWithPreflightOnchain(
 export async function savePreflightThresholdsOnchain(
   walletId: string,
   thresholds: PreflightThresholds,
-  options: { useV2Validation?: boolean } = {},
+  options: { useAgentValidation?: boolean } = {},
 ) {
-  if (options.useV2Validation) {
+  if (options.useAgentValidation) {
     const registryAddress = requireAgentValidationRegistry();
     await waitForRpcSlot();
     const transactionHash = await writeContract(wagmiConfig, {
@@ -416,7 +420,7 @@ export async function savePreflightThresholdsOnchain(
     }
 
     await waitForMantleReceipt(transactionHash, "Validation settings");
-    preflightThresholdCache.set(`v2:${walletId}`, {
+    preflightThresholdCache.set(`agent:${walletId}`, {
       expiresAt: Date.now() + 30_000,
       thresholds,
     });
@@ -459,15 +463,15 @@ export async function savePreflightThresholdsOnchain(
 
 export async function readPreflightThresholdsOnchain(
   walletId: string,
-  options: { useV2Validation?: boolean } = {},
+  options: { useAgentValidation?: boolean } = {},
 ) {
-  const cacheKey = options.useV2Validation ? `v2:${walletId}` : walletId;
+  const cacheKey = options.useAgentValidation ? `agent:${walletId}` : walletId;
   const cached = preflightThresholdCache.get(cacheKey);
   if (cached && cached.expiresAt > Date.now()) {
     return cached.thresholds;
   }
 
-  if (options.useV2Validation) {
+  if (options.useAgentValidation) {
     const registryAddress = requireAgentValidationRegistry();
     const result = await withRpcRetry("Validation settings read", () =>
       readContract(wagmiConfig, {

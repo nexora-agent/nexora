@@ -65,14 +65,7 @@ contract NexoraRiskRegistry {
         });
 
         emit ReportRecorded(
-            reportHash,
-            agentId,
-            objectiveRunId,
-            intentHash,
-            riskScore,
-            policyPassed,
-            benchmarkScore,
-            msg.sender
+            reportHash, agentId, objectiveRunId, intentHash, riskScore, policyPassed, benchmarkScore, msg.sender
         );
     }
 

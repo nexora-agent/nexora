@@ -10,25 +10,8 @@ import {
   getExternalDefiEligibility,
   latestByrealRun,
 } from "@/lib/byreal/externalDefiEligibility";
-import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
-import {
-  enabledToolsCount,
-  normalizeModelConfig,
-  normalizeToolsConfig,
-  toolGroupLabel,
-  toolStatusLabel,
-} from "@/lib/smartWalletDefinition";
-import { BenchmarkTestLab } from "../benchmark/BenchmarkTestLab";
 import { ModelDecisionPanel } from "../benchmark/ModelDecisionPanel";
 import { ByrealStatusCard } from "../byreal/ByrealStatusCard";
-import { HarnessDetailPanel } from "../harness/HarnessDetailPanel";
-import { HarnessSelector } from "../harness/HarnessSelector";
-import { LocalHarnessRuntimePanel } from "../harness/LocalHarnessRuntimePanel";
-import { IntentBuilder } from "../intent/IntentBuilder";
-import { EditModelForm } from "../model/EditModelForm";
-import { ObjectiveRunner } from "../objective/ObjectiveRunner";
-import { PolicyEditor } from "../policy/PolicyEditor";
-import { PreflightSettingsPanel } from "../preflight/PreflightSettingsPanel";
 import { ReputationPanel } from "../reputation/ReputationPanel";
 import { AgentWalletBalance } from "../wallet/AgentWalletBalance";
 import { AgentWalletCard } from "../wallet/AgentWalletCard";
@@ -43,35 +26,20 @@ type AgentProfileCardProps = {
 
 type DetailTab =
   | "overview"
-  | "model"
-  | "tools"
-  | "objective"
-  | "autonomy"
+  | "agent-access"
   | "results"
-  | "reputation"
-  | "activity"
-  | "settings";
+  | "activity";
 
 type ModalName =
   | "create-wallet"
-  | "edit-profile"
   | "fund-wallet"
-  | "edit-model"
-  | "edit-tools"
-  | "change-harness"
-  | "policy-settings"
   | null;
 
 const tabs: Array<{ id: DetailTab; label: string }> = [
-  { id: "overview", label: "Mission" },
-  { id: "model", label: "Model" },
-  { id: "tools", label: "Tools" },
-  { id: "objective", label: "Benchmarks" },
-  { id: "autonomy", label: "Autonomy" },
+  { id: "overview", label: "Overview" },
+  { id: "agent-access", label: "Agent Access" },
   { id: "results", label: "Reports" },
-  { id: "reputation", label: "Reputation" },
   { id: "activity", label: "Timeline" },
-  { id: "settings", label: "Controls" },
 ];
 
 function formatAddress(address: string) {
@@ -125,9 +93,9 @@ function nextStepFor(agent: AgentRecord, funded: boolean) {
 
   if (!latestRun) {
     return {
-      action: "run-objective" as const,
-      button: "Run Test",
-      title: "Run Test",
+      action: "results" as const,
+      button: "View Reports",
+      title: "Waiting for runner",
       tone: "current",
     };
   }
@@ -136,7 +104,7 @@ function nextStepFor(agent: AgentRecord, funded: boolean) {
     return {
       action: "results" as const,
       button: "Review Reports",
-      title: "Eligible for Live Mode",
+      title: "Ready",
       tone: "complete",
     };
   }
@@ -199,9 +167,6 @@ export function AgentProfileCard({
   const isOwner =
     connectedAddress?.toLowerCase() === currentAgent.ownerAddress.toLowerCase();
   const isViewOnly = Boolean(connectedAddress && !isOwner);
-  const harness = getHarnessTemplate(currentAgent.selectedHarnessId);
-  const modelConfig = normalizeModelConfig(currentAgent);
-  const toolsConfig = normalizeToolsConfig(currentAgent);
   const latestRun = currentAgent.objectiveRuns?.[0];
   const latestReportEnvelope = latestRun
     ? (latestRun.reportEnvelope ?? buildReportEnvelope(latestRun))
@@ -263,11 +228,6 @@ export function AgentProfileCard({
       return;
     }
 
-    if (nextStep.action === "run-objective") {
-      setActiveTab("objective");
-      return;
-    }
-
     setActiveTab("results");
   };
 
@@ -299,10 +259,6 @@ export function AgentProfileCard({
             <dd>{formatValue(currentAgent.runnerMode ?? "demo")}</dd>
           </div>
           <div>
-            <dt>Harness</dt>
-            <dd>{harness.name}</dd>
-          </div>
-          <div>
             <dt>Agent ID</dt>
             <dd>
               {currentAgent.identityStandard === "erc-8004"
@@ -322,10 +278,10 @@ export function AgentProfileCard({
             </button>
             <button
               className="secondary-action"
-              onClick={() => setActiveTab("settings")}
+              onClick={() => setActiveTab("agent-access")}
               type="button"
             >
-              Edit Wallet
+              Agent Access
             </button>
           </div>
         )}
@@ -358,10 +314,6 @@ export function AgentProfileCard({
       {!hasWallet && (
         <section className="setup-snapshot" aria-label="Wallet setup summary">
           <article>
-            <span>Harness</span>
-            <strong>{harness.name}</strong>
-          </article>
-          <article>
             <span>Runner</span>
             <strong>{formatValue(currentAgent.runnerMode ?? "demo")}</strong>
           </article>
@@ -369,17 +321,6 @@ export function AgentProfileCard({
             <span>Owner</span>
             <strong>{formatAddress(currentAgent.ownerAddress)}</strong>
           </article>
-        </section>
-      )}
-
-      {!hasWallet && (
-        <section className="setup-action-row" aria-label="Setup actions">
-          <button className="secondary-action" onClick={() => setModal("edit-profile")} type="button">
-            Edit Setup
-          </button>
-          <button className="secondary-action" onClick={() => setModal("change-harness")} type="button">
-            View Harness
-          </button>
         </section>
       )}
 
@@ -404,27 +345,57 @@ export function AgentProfileCard({
         {activeTab === "overview" && (
           <div className="overview-grid">
             <section className="summary-card">
-              <h3>Mission</h3>
-              <p>{currentAgent.primaryPurpose ?? currentAgent.goal}</p>
+              <h3>Wallet</h3>
+              <dl>
+                <div>
+                  <dt>Address</dt>
+                  <dd>{currentAgent.walletAddress ? formatAddress(currentAgent.walletAddress) : "Not created"}</dd>
+                </div>
+                <div>
+                  <dt>Owner</dt>
+                  <dd>{formatAddress(currentAgent.ownerAddress)}</dd>
+                </div>
+                <div>
+                  <dt>Balance</dt>
+                  <dd>{currentAgent.walletAddress ? formattedBalance : "—"}</dd>
+                </div>
+              </dl>
             </section>
             <section className="summary-card">
-              <h3>Mission Type</h3>
-              <p>{formatValue(currentAgent.missionType ?? currentAgent.agentType ?? "custom")}</p>
+              <h3>Executor</h3>
+              <dl>
+                <div>
+                  <dt>Runner</dt>
+                  <dd>pnpm nexora:runner -- {currentAgent.agentIdentityId ?? currentAgent.id}</dd>
+                </div>
+                <div>
+                  <dt>Status</dt>
+                  <dd>{currentAgent.autonomy?.enabled ? "Set" : "Not set"}</dd>
+                </div>
+              </dl>
+              <button className="secondary-action" onClick={() => setActiveTab("agent-access")} type="button">
+                Manage Agent Access
+              </button>
             </section>
             <section className="summary-card">
-              <h3>Risk Style</h3>
-              <p>{formatValue(currentAgent.riskMode)}</p>
+              <h3>Latest Benchmark</h3>
+              <dl>
+                <div>
+                  <dt>Score</dt>
+                  <dd>{latestRun?.benchmarkScore?.finalScore ?? "No benchmark yet"}</dd>
+                </div>
+                <div>
+                  <dt>Risk</dt>
+                  <dd>{latestRun?.riskReport ? `${latestRun.riskReport.riskScore} / 100` : "No risk report yet"}</dd>
+                </div>
+                <div>
+                  <dt>Decision</dt>
+                  <dd>{latestRun?.riskReport?.policyDecision ?? "Pending"}</dd>
+                </div>
+              </dl>
             </section>
             <section className="summary-card">
-              <h3>Preferred Behavior</h3>
-              <p>{currentAgent.preferredBehavior ?? "Prefer policy-compliant actions."}</p>
-            </section>
-            <section className="summary-card">
-              <h3>Avoided Behavior</h3>
-              <p>{currentAgent.avoidedBehavior ?? "Avoid unbounded approvals and unverified contracts."}</p>
-            </section>
-            <section className="summary-card">
-              <h3>Live Eligibility</h3>
+              <h3>Status</h3>
               <dl>
                 <div>
                   <dt>Funding</dt>
@@ -435,12 +406,8 @@ export function AgentProfileCard({
                   <dd>{currentAgent.walletAddress ? `${formattedBalance} · live balance` : "—"}</dd>
                 </div>
                 <div>
-                  <dt>Benchmark</dt>
-                  <dd>{latestRun?.benchmarkScore?.finalScore ?? "No benchmark yet"}</dd>
-                </div>
-                <div>
-                  <dt>Eligibility</dt>
-                  <dd>{status === "ready-for-live-mode" ? "Eligible" : "Not eligible yet"}</dd>
+                  <dt>Execution</dt>
+                  <dd>{latestRun?.execution?.status ?? "No execution yet"}</dd>
                 </div>
                 <div>
                   <dt>External DeFi</dt>
@@ -451,157 +418,8 @@ export function AgentProfileCard({
           </div>
         )}
 
-        {activeTab === "model" && (
-          <div className="overview-grid">
-            <section className="summary-card">
-              <h3>Model Runtime</h3>
-              <dl>
-                <div>
-                  <dt>Runner</dt>
-                  <dd>{formatValue(modelConfig.runnerMode)}</dd>
-                </div>
-                <div>
-                  <dt>Provider</dt>
-                  <dd>{formatValue(modelConfig.provider)}</dd>
-                </div>
-                <div>
-                  <dt>Connection</dt>
-                  <dd>{formatValue(modelConfig.connectionType ?? "demo")}</dd>
-                </div>
-                <div>
-                  <dt>Model</dt>
-                  <dd>{modelConfig.modelName}</dd>
-                </div>
-                <div>
-                  <dt>Endpoint</dt>
-                  <dd>{modelConfig.endpointUrl || "Not required"}</dd>
-                </div>
-              </dl>
-            </section>
-            <section className="summary-card">
-              <h3>Generation</h3>
-              <dl>
-                <div>
-                  <dt>Temperature</dt>
-                  <dd>{modelConfig.temperature}</dd>
-                </div>
-                <div>
-                  <dt>Max Tokens</dt>
-                  <dd>{modelConfig.maxTokens}</dd>
-                </div>
-                <div>
-                  <dt>Execution Mode</dt>
-                  <dd>{formatValue(modelConfig.executionMode)}</dd>
-                </div>
-              </dl>
-              <button className="secondary-action" onClick={() => setModal("edit-model")} type="button">
-                Edit Model
-              </button>
-            </section>
-          </div>
-        )}
-
-        {activeTab === "tools" && (
-          <div className="overview-grid">
-            {(["wallet", "risk", "benchmark-defi", "byreal"] as const).map((group) => (
-              <section className="summary-card" key={group}>
-                <div className="card-heading-row">
-                  <h3>{toolGroupLabel(group)}</h3>
-                  <span className="status-pill status-disconnected">
-                    {toolsConfig.filter((tool) => tool.group === group && tool.enabled).length}
-                  </span>
-                </div>
-                <ul className="capability-list allowed">
-                  {toolsConfig
-                    .filter((tool) => tool.group === group)
-                    .map((tool) => (
-                      <li key={tool.id}>
-                        {tool.name} · {toolStatusLabel(tool.status)}
-                      </li>
-                    ))}
-                </ul>
-              </section>
-            ))}
-            <section className="summary-card">
-              <h3>Tool Controls</h3>
-              <p>{enabledToolsCount(currentAgent)} tools enabled for this smart wallet.</p>
-              <button className="secondary-action" onClick={() => setModal("edit-tools")} type="button">
-                Edit Tools
-              </button>
-            </section>
-          </div>
-        )}
-
-        {activeTab === "objective" && (
-          <div className="benchmark-tab-shell">
-            <BenchmarkTestLab
-              agent={currentAgent}
-              isOwner={Boolean(isOwner)}
-              onObjectiveRunSaved={setCurrentAgent}
-              onViewReports={() => setActiveTab("results")}
-            />
-          </div>
-        )}
-
-        {activeTab === "autonomy" && (
-          <div className="overview-grid">
-            <section className="summary-card">
-              <h3>Autonomous Execution</h3>
-              <p>
-                {currentAgent.identityStandard === "erc-8004"
-                  ? "Enabled for local executor setup"
-                  : "Create a V2 wallet to enable autonomous execution."}
-              </p>
-              <dl>
-                <div>
-                  <dt>Identity</dt>
-                  <dd>
-                    {currentAgent.identityStandard === "erc-8004"
-                      ? `ERC-8004 #${currentAgent.agentIdentityId ?? currentAgent.id}`
-                      : "Legacy wallet"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>EntryPoint</dt>
-                  <dd>{currentAgent.autonomy?.entryPointAddress ? formatAddress(currentAgent.autonomy.entryPointAddress) : "Not configured"}</dd>
-                </div>
-                <div>
-                  <dt>Validation Registry</dt>
-                  <dd>{currentAgent.autonomy?.validationRegistryAddress ? formatAddress(currentAgent.autonomy.validationRegistryAddress) : "Not configured"}</dd>
-                </div>
-              </dl>
-            </section>
-            <section className="summary-card">
-              <h3>Local Runner</h3>
-              <dl>
-                <div>
-                  <dt>Status</dt>
-                  <dd>
-                    {currentAgent.identityStandard === "erc-8004"
-                      ? currentAgent.autonomy?.entryPointAddress &&
-                        currentAgent.autonomy.entryPointAddress !==
-                          "0x0000000000000000000000000000000000000000"
-                        ? "Ready to configure"
-                        : "Ready to configure (direct executor only)"
-                      : "Requires V2 wallet"}
-                  </dd>
-                </div>
-                <div>
-                  <dt>Command</dt>
-                  <dd>pnpm agent:runner</dd>
-                </div>
-                <div>
-                  <dt>Wallet ID</dt>
-                  <dd>{currentAgent.id}</dd>
-                </div>
-              </dl>
-            </section>
-            <section className="summary-card">
-              <h3>Execution Gate</h3>
-              <p>
-                The runner must publish a fresh validation proof before the smart wallet accepts a delegated action.
-              </p>
-            </section>
+        {activeTab === "agent-access" && (
+          <div className="single-panel-grid">
             <AutonomyControls
               agent={currentAgent}
               isOwner={Boolean(isOwner)}
@@ -614,14 +432,14 @@ export function AgentProfileCard({
           <div className="results-grid">
             <section className="summary-card" aria-label="Benchmark summary">
               <h3>Latest Benchmark</h3>
-              <p>{latestRun?.intent?.metadata?.benchmarkName ?? "No reports yet. Run a Test Lab benchmark to generate a risk report and benchmark score."}</p>
+              <p>{latestRun?.intent?.metadata?.benchmarkName ?? "No reports yet. Start the local runner to generate benchmark and risk records."}</p>
             </section>
             <section className="summary-card" aria-label="Risk report summary">
               <h3>Risk Score</h3>
               <p>
                 {latestRun?.riskReport
                   ? `${latestRun.riskReport.riskScore} / 100 · ${latestRun.riskReport.policyDecision}`
-                  : "No risk report yet. Run a Test Lab objective to create one."}
+                  : "No risk report yet. Start the local runner to create one."}
               </p>
             </section>
             <section className="summary-card">
@@ -679,7 +497,7 @@ export function AgentProfileCard({
               <ReputationPanel agent={currentAgent} />
             </section>
             <details className="setup-detail-card">
-              <summary>Expandable Details</summary>
+              <summary>Model and Tool Logs</summary>
               {latestRun ? (
                 <>
                   <ModelDecisionPanel intent={latestRun.intent} />
@@ -702,16 +520,10 @@ export function AgentProfileCard({
                   )}
                 </>
               ) : (
-                <p>Run a Test Lab benchmark to populate detailed results.</p>
+                <p>Start the local runner to populate detailed results.</p>
               )}
             </details>
           </div>
-        )}
-
-        {activeTab === "reputation" && (
-          <section className="summary-card" aria-label="Agent reputation">
-            <ReputationPanel agent={currentAgent} />
-          </section>
         )}
 
         {activeTab === "activity" && (
@@ -752,93 +564,12 @@ export function AgentProfileCard({
               ))}
               {!currentAgent.objectiveRuns?.length && (
                 <li>
-                  <strong>No Test Lab runs yet</strong>
-                  <span>Run an objective to add benchmark, risk, and proposal events.</span>
+                  <strong>No runner activity yet</strong>
+                  <span>Start the local runner to add benchmark, risk, and execution events.</span>
                 </li>
               )}
             </ol>
           </section>
-        )}
-
-        {activeTab === "settings" && (
-          <div className="advanced-grid">
-            <section className="summary-card">
-              <h3>Profile</h3>
-              <button className="secondary-action" onClick={() => setModal("edit-profile")} type="button">
-                Edit Wallet Profile
-              </button>
-            </section>
-            <section className="summary-card">
-              <h3>Harness</h3>
-              <p>{harness.name}</p>
-              {harness.localRuntimeUrl && <span>{harness.localRuntimeUrl}</span>}
-              <button className="secondary-action" onClick={() => setModal("change-harness")} type="button">
-                Change Harness
-              </button>
-            </section>
-            {harness.source === "custom" && (
-              <LocalHarnessRuntimePanel agent={currentAgent} harness={harness} />
-            )}
-            <section className="summary-card">
-              <h3>Model</h3>
-              <p>{modelConfig.modelName} · {formatValue(modelConfig.runnerMode)}</p>
-              <button className="secondary-action" onClick={() => setModal("edit-model")} type="button">
-                Model Settings
-              </button>
-            </section>
-            <section className="summary-card">
-              <h3>Tools</h3>
-              <p>{enabledToolsCount(currentAgent)} tools enabled</p>
-              <button className="secondary-action" onClick={() => setModal("edit-tools")} type="button">
-                Tool Settings
-              </button>
-            </section>
-            <ByrealStatusCard
-              eligibilityLabel={
-                externalDefiEligibility.status === "dry-run"
-                  ? "External Preview enabled"
-                  : externalDefiEligibility.label
-              }
-              eligibilityReason={externalDefiEligibility.reason}
-              status={byrealStatus}
-            />
-            <section className="summary-card">
-              <h3>Policy</h3>
-              <button className="secondary-action" onClick={() => setModal("policy-settings")} type="button">
-                Policy Settings
-              </button>
-            </section>
-            <PreflightSettingsPanel
-              agent={currentAgent}
-              isOwner={Boolean(isOwner)}
-              onSaved={setCurrentAgent}
-            />
-            <AutonomyControls
-              agent={currentAgent}
-              isOwner={Boolean(isOwner)}
-              onSaved={setCurrentAgent}
-            />
-            <section className="summary-card">
-              <h3>Funding</h3>
-              <p>{formattedBalance} · demo balance display</p>
-              <button className="secondary-action" onClick={() => setModal("fund-wallet")} type="button">
-                Fund Wallet
-              </button>
-            </section>
-            <IntentBuilder agent={currentAgent} isOwner={Boolean(isOwner)} />
-            <details className="setup-detail-card">
-              <summary>Advanced Test Runner</summary>
-              <ObjectiveRunner
-                agent={currentAgent}
-                isOwner={Boolean(isOwner)}
-                onObjectiveRunSaved={setCurrentAgent}
-              />
-            </details>
-            <details className="setup-detail-card">
-              <summary>Raw Harness Details</summary>
-              <HarnessDetailPanel harness={harness} />
-            </details>
-          </div>
         )}
         </section>
       )}
@@ -869,105 +600,6 @@ export function AgentProfileCard({
         </Modal>
       )}
 
-      {modal === "edit-model" && (
-        <Modal label="EditModelModal" onClose={closeModal}>
-          <EditModelForm
-            config={modelConfig}
-            isOwner={Boolean(isOwner)}
-            onSave={(updatedModel) => {
-              setCurrentAgent({
-                ...currentAgent,
-                modelConfig: updatedModel,
-                runnerMode: updatedModel.runnerMode,
-                metadata: {
-                  ...currentAgent.metadata,
-                  modelConfig: updatedModel,
-                  runnerMode: updatedModel.runnerMode,
-                },
-              });
-              setModal(null);
-            }}
-          />
-        </Modal>
-      )}
-
-      {modal === "edit-tools" && (
-        <Modal label="EditToolsModal" onClose={closeModal}>
-          <form
-            className="form-grid"
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (!connectedAddress) {
-                return;
-              }
-              const formData = new FormData(event.currentTarget);
-              const updatedTools = toolsConfig.map((tool) => ({
-                ...tool,
-                enabled: formData.get(tool.id) === "on",
-              }));
-              setCurrentAgent({
-                ...currentAgent,
-                metadata: {
-                  ...currentAgent.metadata,
-                  toolsConfig: updatedTools,
-                },
-                toolsConfig: updatedTools,
-              });
-              setModal(null);
-            }}
-          >
-            {(["wallet", "risk", "benchmark-defi", "byreal"] as const).map((group) => (
-              <section className="summary-card" key={group}>
-                <h3>{toolGroupLabel(group)}</h3>
-                {toolsConfig
-                  .filter((tool) => tool.group === group)
-                  .map((tool) => (
-                    <label className="checkbox-row" key={tool.id}>
-                      <input defaultChecked={tool.enabled} disabled={!isOwner} name={tool.id} type="checkbox" />
-                      <span>
-                        {tool.name} · {toolStatusLabel(tool.status)}
-                      </span>
-                    </label>
-                  ))}
-              </section>
-            ))}
-            <button className="primary-action" disabled={!isOwner} type="submit">
-              Save Tools
-            </button>
-          </form>
-        </Modal>
-      )}
-
-      {modal === "edit-profile" && (
-        <Modal label="EditWalletProfileModal" onClose={closeModal}>
-          <HarnessSelector
-            agent={currentAgent}
-            isOwner={Boolean(isOwner)}
-            onHarnessSaved={setCurrentAgent}
-          />
-        </Modal>
-      )}
-
-      {modal === "change-harness" && (
-        <Modal label="ChangeHarnessModal" onClose={closeModal}>
-          <HarnessSelector
-            agent={currentAgent}
-            isOwner={Boolean(isOwner)}
-            onHarnessSaved={setCurrentAgent}
-          />
-        </Modal>
-      )}
-
-      {modal === "policy-settings" && (
-        <Modal label="PolicySettingsModal" onClose={closeModal}>
-          <PolicyEditor
-            agent={currentAgent}
-            isOwner={Boolean(isOwner)}
-            ownerAddress={connectedAddress}
-            onPolicySaved={setCurrentAgent}
-          />
-        </Modal>
-      )}
     </div>
   );
 }

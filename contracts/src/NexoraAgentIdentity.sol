@@ -29,11 +29,7 @@ contract NexoraAgentIdentity {
         }
 
         agentId = _nextAgentId++;
-        _agents[agentId] = Agent({
-            owner: msg.sender,
-            metadataURI: metadataURI,
-            createdAt: uint64(block.timestamp)
-        });
+        _agents[agentId] = Agent({owner: msg.sender, metadataURI: metadataURI, createdAt: uint64(block.timestamp)});
         _ownerAgents[msg.sender].push(agentId);
 
         emit AgentRegistered(agentId, msg.sender, metadataURI);
