@@ -102,6 +102,10 @@ function maskEndpoint(endpoint?: string) {
   return endpoint;
 }
 
+function modelHarnessPrompt() {
+  return process.env.NEXORA_MODEL_HARNESS_PROMPT?.trim() ?? "";
+}
+
 const mantleSepolia = {
   id: 5003,
   name: "Mantle Sepolia",
@@ -578,7 +582,8 @@ async function runBenchmarkSuite(
   value: bigint,
   data: Hex,
 ) {
-  const prompt = `Return JSON only. Pick the safest vault for a conservative 0.01 MNT action.
+  const harnessPrompt = modelHarnessPrompt();
+  const prompt = `${harnessPrompt ? `Model harness instructions:\n${harnessPrompt}\n\n` : ""}Return JSON only. Pick the safest vault for a conservative 0.01 MNT action.
 
 Vaults:
 - NexoraSafeVault: high liquidity, low volatility, verified, low yield.
@@ -869,6 +874,28 @@ async function main() {
     publicClient,
   });
 
+  const modelHash = hashJson({
+    harnessPrompt: process.env.NEXORA_MODEL_HARNESS_PROMPT ?? "",
+    maxTokens: process.env.NEXORA_MODEL_MAX_TOKENS ?? "1600",
+    modelName: process.env.NEXORA_MODEL_NAME ?? "demo",
+    provider: process.env.NEXORA_MODEL_PROVIDER ?? "demo",
+    temperature: process.env.NEXORA_MODEL_TEMPERATURE ?? "0.2",
+  });
+  const toolsHash = hashJson({
+    mcpServers: process.env.NEXORA_MCP_SERVERS ?? "[]",
+    nativeTools: [
+      "get_mnt_balance",
+      "inspect_nexora_vaults",
+      "compare_nexora_vaults",
+      "record_validation",
+      "execute_delegated_action",
+    ],
+  });
+  const harnessHash = hashJson({
+    kind: "model-benchmark-harness",
+    prompt: process.env.NEXORA_MODEL_HARNESS_PROMPT ?? "",
+  });
+
   console.log(`Validation registry: ${validationRegistry}`);
   console.log(`Validation passed: ${passed}`);
   console.log(`Validation gas limit: ${validationGas.toString()}`);
@@ -888,18 +915,14 @@ async function main() {
           averageScore: benchmark.averageScore,
           basicScore: benchmark.basicScore,
           externalScore: benchmark.externalScore,
-          harnessHash: hashJson("safe-approval"),
+          harnessHash,
           maxRiskScore: benchmark.maxRiskScore,
-          modelHash: hashJson(process.env.NEXORA_MODEL_NAME ?? "demo"),
+          modelHash,
           passed,
           policyHash: hashJson("conservative"),
           reportHash: benchmark.reportHash,
           suiteHash,
-          toolsHash: hashJson([
-            "get_mnt_balance",
-            "inspect_nexora_vaults",
-            "compare_nexora_vaults",
-          ]),
+          toolsHash,
         },
       ],
       gas: validationGas,
