@@ -2,27 +2,65 @@
 
 import type { AgentRecord } from "@nexora/shared";
 import Link from "next/link";
-import { getExternalDefiEligibility } from "@/lib/byreal/externalDefiEligibility";
-import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
-import {
-  enabledToolsCount,
-  normalizeModelConfig,
-} from "@/lib/smartWalletDefinition";
+import { useWalletBalance } from "@/hooks/useWalletBalance";
 import {
   AgentStatusBadge,
   getAgentNextAction,
   getAgentStatus,
+  MINIMUM_MNT_READY_BALANCE,
 } from "./AgentStatusBadge";
 
 type AgentListProps = {
   agents: AgentRecord[];
   onCreateSmartWallet?: () => void;
   onOpenWallet?: (agent: AgentRecord) => void;
-  onWalletAction?: (agent: AgentRecord, status: ReturnType<typeof getAgentStatus>) => void;
+  onWalletAction?: (
+    agent: AgentRecord,
+    status: ReturnType<typeof getAgentStatus>,
+  ) => void;
 };
 
 function formatAddress(address?: string) {
-  return address ? `${address.slice(0, 6)}...${address.slice(-4)}` : "Not created";
+  return address
+    ? `${address.slice(0, 6)}...${address.slice(-4)}`
+    : "Not created";
+}
+
+function getAgentDescription(agent: AgentRecord) {
+  return agent.description ?? agent.primaryPurpose ?? agent.goal ?? "—";
+}
+
+function parseMntBalance(formattedBalance?: string | null) {
+  if (!formattedBalance) {
+    return null;
+  }
+
+  const normalizedBalance = formattedBalance.replaceAll(",", "").trim();
+  const balanceMatch = normalizedBalance.match(/-?\d+(\.\d+)?/);
+
+  if (!balanceMatch) {
+    return null;
+  }
+
+  const parsedBalance = Number(balanceMatch[0]);
+
+  return Number.isFinite(parsedBalance) ? parsedBalance : null;
+}
+
+function WalletBalanceCell({
+  walletAddress,
+  formattedBalance,
+  isLoading,
+}: {
+  walletAddress?: string;
+  formattedBalance?: string;
+  isLoading: boolean;
+}) {
+  if (!walletAddress) {
+    return <span>Not created</span>;
+  }
+
+  return <span>{isLoading ? "Checking..." : formattedBalance}</span>;
 }
 
 function AgentTableRow({
@@ -32,60 +70,114 @@ function AgentTableRow({
 }: {
   agent: AgentRecord;
   onOpenWallet?: (agent: AgentRecord) => void;
-  onWalletAction?: (agent: AgentRecord, status: ReturnType<typeof getAgentStatus>) => void;
+  onWalletAction?: (
+    agent: AgentRecord,
+    status: ReturnType<typeof getAgentStatus>,
+  ) => void;
 }) {
-  const harness = getHarnessTemplate(agent.selectedHarnessId);
-  const modelConfig = normalizeModelConfig(agent);
-  const isFunded = Boolean(agent.walletAddress && agent.walletFundedAt);
-  const status = getAgentStatus(agent, isFunded);
+  const { formattedBalance, isLoading } = useWalletBalance(
+    agent.walletAddress as `0x${string}` | undefined,
+  );
+
+  const balanceMnt = parseMntBalance(formattedBalance);
+
+  const status = getAgentStatus(agent, {
+    balanceMnt,
+    minimumReadyBalanceMnt: MINIMUM_MNT_READY_BALANCE,
+  });
+
   const nextAction = getAgentNextAction(status);
-  const externalDefi = getExternalDefiEligibility(agent, isFunded);
-  const benchmarkScore = agent.objectiveRuns?.[0]?.benchmarkScore?.finalScore;
+  const isActionDisabled = Boolean(agent.walletAddress && isLoading);
+
+  async function copyWalletAddress() {
+    if (!agent.walletAddress) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(agent.walletAddress);
+  }
 
   return (
     <tr>
       <td>
         <strong>{agent.name}</strong>
-        <span>{formatAddress(agent.walletAddress)}</span>
-        <span>
-          {agent.identityStandard === "erc-8004"
-            ? `ERC-8004 #${agent.agentIdentityId ?? agent.id}`
-            : "Legacy"}
-        </span>
       </td>
+
       <td>
-        <strong>{agent.primaryPurpose ?? agent.description ?? agent.goal}</strong>
-        <span>{harness.name}</span>
+        <span>{getAgentDescription(agent)}</span>
       </td>
-      <td>{modelConfig.modelName}</td>
-      <td>{enabledToolsCount(agent)}</td>
-      <td>{agent.riskMode}</td>
-      <td>{agent.walletAddress ? (agent.walletFundedAt ? "Funded" : "Open wallet") : "—"}</td>
-      <td>{benchmarkScore ?? "—"}</td>
+
+      <td>
+        <div className="address-cell">
+          <span title={agent.walletAddress ?? undefined}>
+            {formatAddress(agent.walletAddress)}
+          </span>
+
+          {agent.walletAddress && (
+            <button
+              aria-label="Copy full wallet address"
+              className="secondary-action table-action"
+              onClick={copyWalletAddress}
+              title="Copy full wallet address"
+              type="button"
+            >
+              <svg
+                aria-hidden="true"
+                fill="none"
+                height="16"
+                viewBox="0 0 24 24"
+                width="16"
+                xmlns="http://www.w3.org/2000/svg"
+              >
+                <rect
+                  height="13"
+                  rx="2"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  width="13"
+                  x="9"
+                  y="9"
+                />
+                <path
+                  d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                />
+              </svg>
+            </button>
+          )}
+        </div>
+      </td>
+
+      <td>
+        <WalletBalanceCell
+          walletAddress={agent.walletAddress}
+          formattedBalance={formattedBalance}
+          isLoading={isLoading}
+        />
+      </td>
+
       <td>
         <AgentStatusBadge status={status} />
       </td>
-      <td>
-        <span className={`status-pill ${agent.identityStandard === "erc-8004" ? "status-ready" : "status-disconnected"}`}>
-          {agent.identityStandard === "erc-8004" ? "Local runner" : "Legacy"}
-        </span>
-      </td>
-      <td>
-        <span className={`status-pill ${externalDefi.status === "dry-run" ? "status-ready" : "status-disconnected"}`}>
-          {externalDefi.status === "dry-run" ? "Preview enabled" : "Locked"}
-        </span>
-      </td>
+
       <td>
         <div className="table-action-group">
           {onWalletAction && (
             <button
               className="primary-action table-action"
+              disabled={isActionDisabled}
               onClick={() => onWalletAction(agent, status)}
               type="button"
             >
               {nextAction}
             </button>
           )}
+
           {onOpenWallet ? (
             <button
               className="secondary-action table-action"
@@ -95,7 +187,10 @@ function AgentTableRow({
               View
             </button>
           ) : (
-            <Link className="secondary-action table-action" href={`/wallets/${agent.id}`}>
+            <Link
+              className="secondary-action table-action"
+              href={`/wallets/${agent.id}`}
+            >
               View
             </Link>
           )}
@@ -117,10 +212,15 @@ export function AgentList({
 
     return (
       allAgents.findIndex((candidate) => {
-        const candidateIdentityKey = `${candidate.identityStandard ?? "legacy"}-${candidate.id}`;
+        const candidateIdentityKey = `${
+          candidate.identityStandard ?? "legacy"
+        }-${candidate.id}`;
         const candidateWalletKey = candidate.walletAddress?.toLowerCase();
 
-        return candidateIdentityKey === identityKey || Boolean(walletKey && candidateWalletKey === walletKey);
+        return (
+          candidateIdentityKey === identityKey ||
+          Boolean(walletKey && candidateWalletKey === walletKey)
+        );
       }) === index
     );
   });
@@ -129,8 +229,13 @@ export function AgentList({
     return (
       <section className="empty-state-card" aria-label="Empty dashboard">
         <h2>Create your first AI-controlled smart wallet.</h2>
+
         {onCreateSmartWallet ? (
-          <button className="primary-action" onClick={onCreateSmartWallet} type="button">
+          <button
+            className="primary-action"
+            onClick={onCreateSmartWallet}
+            type="button"
+          >
             Create Smart Wallet
           </button>
         ) : (
@@ -148,24 +253,22 @@ export function AgentList({
         <table>
           <thead>
             <tr>
-              <th>Smart Wallet</th>
-              <th>Mission</th>
-              <th>Model</th>
-              <th>Tools</th>
-              <th>Policy</th>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Address</th>
               <th>Balance</th>
-              <th>Benchmark</th>
               <th>Status</th>
-              <th>Autonomy</th>
-              <th>External DeFi</th>
-              <th>Next Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
+
           <tbody>
             {uniqueAgents.map((agent, index) => (
               <AgentTableRow
                 agent={agent}
-                key={`${agent.identityStandard ?? "legacy"}-${agent.id}-${agent.walletAddress ?? "profile"}-${index}`}
+                key={`${agent.identityStandard ?? "legacy"}-${agent.id}-${
+                  agent.walletAddress ?? "profile"
+                }-${index}`}
                 onOpenWallet={onOpenWallet}
                 onWalletAction={onWalletAction}
               />

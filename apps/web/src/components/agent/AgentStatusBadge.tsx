@@ -1,5 +1,7 @@
 import type { AgentRecord } from "@nexora/shared";
 
+export const MINIMUM_MNT_READY_BALANCE = 0.02;
+
 export type AgentStatus =
   | "draft"
   | "needs-wallet"
@@ -13,6 +15,11 @@ export type AgentStatus =
 
 type AgentStatusBadgeProps = {
   status: AgentStatus;
+};
+
+export type AgentFundingStatusInput = {
+  balanceMnt: number | null;
+  minimumReadyBalanceMnt?: number;
 };
 
 const statusLabels: Record<AgentStatus, string> = {
@@ -39,15 +46,43 @@ const statusClasses: Record<AgentStatus, string> = {
   paused: "status-disconnected",
 };
 
+function isFundingStatusInput(
+  value: boolean | AgentFundingStatusInput | undefined,
+): value is AgentFundingStatusInput {
+  return typeof value === "object" && value !== null && "balanceMnt" in value;
+}
+
+function hasMinimumRequiredBalance(
+  fundingStatus: boolean | AgentFundingStatusInput | undefined,
+): boolean {
+  if (isFundingStatusInput(fundingStatus)) {
+    const minimumReadyBalanceMnt =
+      fundingStatus.minimumReadyBalanceMnt ?? MINIMUM_MNT_READY_BALANCE;
+
+    return (
+      fundingStatus.balanceMnt !== null &&
+      Number.isFinite(fundingStatus.balanceMnt) &&
+      fundingStatus.balanceMnt >= minimumReadyBalanceMnt
+    );
+  }
+
+  if (typeof fundingStatus === "boolean") {
+    return fundingStatus;
+  }
+
+  return false;
+}
+
 export function getAgentStatus(
   agent: AgentRecord,
-  fundedOverride?: boolean,
+  fundingStatus?: boolean | AgentFundingStatusInput,
 ): AgentStatus {
   if (!agent.walletAddress) {
     return "needs-wallet";
   }
 
-  const isFunded = fundedOverride ?? Boolean(agent.walletFundedAt);
+  const isFunded = hasMinimumRequiredBalance(fundingStatus);
+
   if (!isFunded) {
     return "needs-funding";
   }
@@ -57,6 +92,7 @@ export function getAgentStatus(
   }
 
   const score = agent.objectiveRuns[0]?.benchmarkScore?.finalScore ?? 0;
+
   if (score < 70) {
     return "needs-better-benchmark";
   }
