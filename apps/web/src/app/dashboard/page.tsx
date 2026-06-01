@@ -11,6 +11,7 @@ import { getAgentStatus } from "@/components/agent/AgentStatusBadge";
 import { AgentWalletBalance } from "@/components/wallet/AgentWalletBalance";
 import { AgentWalletCard } from "@/components/wallet/AgentWalletCard";
 import { FundWalletPanel } from "@/components/wallet/FundWalletPanel";
+import { WalletCharacter } from "@/components/WalletCharacter";
 import { useAgents } from "@/hooks/useAgents";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import type { AgentRecord } from "@nexora/shared";
@@ -136,6 +137,9 @@ export default function DashboardPage() {
               <button className="secondary-action" onClick={() => setModal("benchmark")} type="button">
                 Create Benchmark
               </button>
+            </div>
+            <div className="dashboard-hero-character">
+              <WalletCharacter size={110} />
             </div>
           </section>
 

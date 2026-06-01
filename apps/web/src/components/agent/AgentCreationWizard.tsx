@@ -80,6 +80,22 @@ function formatValue(value: string) {
     .join(" ");
 }
 
+const WIZARD_DRAFT_KEY = "nexora_wizard_draft_v1";
+
+function clearWizardDraft(): void {
+  try { localStorage.removeItem(WIZARD_DRAFT_KEY); } catch {}
+}
+
+function humanReadableError(msg: string): string {
+  // viem errors append full call data (contract address, encoded args, etc.) after the
+  // human-readable sentence — strip everything from "Request Arguments:" or "Contract Call:" onward
+  return msg
+    .split("\n\n")[0]
+    .replace(/\s+Request Arguments:[\s\S]*$/, "")
+    .replace(/\s+Contract Call:[\s\S]*$/, "")
+    .trim() || msg.slice(0, 200);
+}
+
 export function AgentCreationWizard() {
   const router = useRouter();
   const { address, isReady, readiness } = useWalletConnection();
@@ -124,7 +140,82 @@ export function AgentCreationWizard() {
   useEffect(() => {
     setIsMounted(true);
     setAvailableHarnesses(getAllHarnessTemplates());
+    try {
+      const raw = localStorage.getItem(WIZARD_DRAFT_KEY);
+      if (!raw) return;
+      const d = JSON.parse(raw) as Record<string, unknown>;
+      if (typeof d.stepIndex === "number") setStepIndex(d.stepIndex);
+      if (typeof d.name === "string") setName(d.name);
+      if (typeof d.description === "string") setDescription(d.description);
+      if (d.agentType) setAgentType(d.agentType as AgentType);
+      if (d.riskMode) setRiskMode(d.riskMode as RiskMode);
+      if (typeof d.primaryPurpose === "string") setPrimaryPurpose(d.primaryPurpose);
+      if (typeof d.decisionStyle === "string") setDecisionStyle(d.decisionStyle);
+      if (typeof d.preferredBehavior === "string") setPreferredBehavior(d.preferredBehavior);
+      if (typeof d.avoidedBehavior === "string") setAvoidedBehavior(d.avoidedBehavior);
+      if (d.selectedHarnessId) setSelectedHarnessId(d.selectedHarnessId as HarnessId);
+      if (d.runnerMode) setRunnerMode(d.runnerMode as RunnerMode);
+      if (d.modelConfig) setModelConfig(d.modelConfig as SmartWalletModelConfig);
+      if (d.toolsConfig) setToolsConfig(d.toolsConfig as SmartWalletToolConfig[]);
+    } catch {}
   }, []);
+
+  useEffect(() => {
+    if (!isMounted) return;
+    try {
+      localStorage.setItem(
+        WIZARD_DRAFT_KEY,
+        JSON.stringify({
+          stepIndex,
+          name,
+          description,
+          agentType,
+          riskMode,
+          primaryPurpose,
+          decisionStyle,
+          preferredBehavior,
+          avoidedBehavior,
+          selectedHarnessId,
+          runnerMode,
+          modelConfig,
+          toolsConfig,
+        }),
+      );
+    } catch {}
+  }, [
+    isMounted,
+    stepIndex,
+    name,
+    description,
+    agentType,
+    riskMode,
+    primaryPurpose,
+    decisionStyle,
+    preferredBehavior,
+    avoidedBehavior,
+    selectedHarnessId,
+    runnerMode,
+    modelConfig,
+    toolsConfig,
+  ]);
+
+  const resetDraft = () => {
+    clearWizardDraft();
+    setStepIndex(0);
+    setName("YieldGuard-01");
+    setDescription("Treasury risk monitor");
+    setAgentType("wallet-defense");
+    setRiskMode("conservative");
+    setPrimaryPurpose("Monitor DeFi activity and propose low-risk wallet actions.");
+    setDecisionStyle("Conservative");
+    setPreferredBehavior("Prefer bounded approvals, verified contracts, and clear risk reports.");
+    setAvoidedBehavior("Avoid unlimited approvals, unverified contracts, and high-risk pools.");
+    setSelectedHarnessId("safe-approval");
+    setRunnerMode("demo");
+    setModelConfig(modelConfigForRunner("demo"));
+    setToolsConfig(defaultToolsForHarness("safe-approval"));
+    setError("");
+  };
 
   const validateCurrentStep = () => {
     if (stepIndex === 0) {
@@ -206,11 +297,12 @@ export function AgentCreationWizard() {
           : "Deployment confirmed. Waiting for wallet address to appear...",
       );
 
+      clearWizardDraft();
       router.push(`/wallets/${agent.id}`);
     } catch (caughtError) {
       setError(
         caughtError instanceof Error
-          ? caughtError.message
+          ? humanReadableError(caughtError.message)
           : "Could not create smart wallet.",
       );
     } finally {
@@ -225,16 +317,43 @@ export function AgentCreationWizard() {
           <h2>Create Smart Wallet</h2>
           <span>{steps[stepIndex]}</span>
         </div>
-        <span className="status-pill status-ready">
-          {stepIndex + 1} / {steps.length}
-        </span>
+        <div className="modal-topline-actions">
+          <span className="status-pill status-ready">
+            {stepIndex + 1} / {steps.length}
+          </span>
+          <button
+            className="wizard-reset-action"
+            onClick={resetDraft}
+            title="Reset all fields to defaults"
+            type="button"
+          >
+            Reset
+          </button>
+        </div>
       </div>
 
       <ol className="wizard-steps" aria-label="Smart wallet creation steps">
         {steps.map((step, index) => (
           <li
-            className={index === stepIndex ? "wizard-step-active" : ""}
+            aria-current={index === stepIndex ? "step" : undefined}
+            className={
+              index === stepIndex
+                ? "wizard-step-active"
+                : index < stepIndex
+                  ? "wizard-step-visited"
+                  : "wizard-step-future"
+            }
             key={step}
+            onClick={() => { setError(""); setStepIndex(index); }}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setError("");
+                setStepIndex(index);
+              }
+            }}
           >
             <span>{index + 1}</span>
             {step}

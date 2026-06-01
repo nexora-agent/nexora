@@ -1,81 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
 :root {
-  color-scheme: light;
-  --bg: #f4f7fb;
-  --bg-glow: radial-gradient(circle at top left, rgba(37, 99, 235, 0.16), transparent 34%),
-    radial-gradient(circle at 80% 10%, rgba(14, 165, 233, 0.12), transparent 28%);
-  --ink: #071827;
-  --muted: #5d6b7c;
-  --line: #d7e0ec;
-  --line-strong: #b8c7d9;
-  --surface: #ffffff;
-  --surface-soft: #f8fbff;
-  --surface-strong: #e8f1ff;
-  --surface-elevated: rgba(255, 255, 255, 0.88);
-  --accent: #2563eb;
-  --accent-strong: #1d4ed8;
-  --accent-soft: #dbeafe;
-  --success: #16a34a;
-  --success-soft: #dcfce7;
-  --warning: #d97706;
-  --warning-soft: #fef3c7;
-  --danger: #dc2626;
-  --danger-soft: #fee2e2;
-  --shadow: 0 22px 60px rgba(15, 23, 42, 0.1);
-  --shadow-strong: 0 30px 90px rgba(15, 23, 42, 0.18);
+  color-scheme: dark;
+  --bg: #0a0a12;
+  --bg-glow: none;
+  --ink: #e0e0e0;
+  --muted: #7c7c8c;
+  --line: #2a2a4e;
+  --line-strong: #4a4a7e;
+  --surface: #12122a;
+  --surface-soft: #0c0c1e;
+  --surface-strong: #1e1e3e;
+  --surface-elevated: rgba(18, 18, 42, 0.97);
+  --accent: #00d4ff;
+  --accent-strong: #00aacc;
+  --accent-soft: #001a2e;
+  --success: #39ff14;
+  --success-soft: #0a1f0a;
+  --warning: #ffff00;
+  --warning-soft: #1f1f00;
+  --danger: #ff3131;
+  --danger-soft: #1f0808;
+  --shadow: 4px 4px 0px #000000;
+  --shadow-strong: 6px 6px 0px #000000;
+  --pixel-border: 2px solid var(--line);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
-    --bg: #07111f;
-    --bg-glow: radial-gradient(circle at top left, rgba(37, 99, 235, 0.28), transparent 34%),
-      radial-gradient(circle at 78% 8%, rgba(14, 165, 233, 0.18), transparent 30%);
-    --ink: #edf5ff;
-    --muted: #9fb0c6;
-    --line: #213249;
-    --line-strong: #334761;
-    --surface: #0d1a2b;
-    --surface-soft: #101f33;
-    --surface-strong: #162b47;
-    --surface-elevated: rgba(13, 26, 43, 0.9);
-    --accent: #60a5fa;
-    --accent-strong: #93c5fd;
-    --accent-soft: #12345a;
-    --success: #4ade80;
-    --success-soft: #123c2a;
-    --warning: #fbbf24;
-    --warning-soft: #3b2b0d;
-    --danger: #f87171;
-    --danger-soft: #3f171b;
-    --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
-    --shadow-strong: 0 32px 100px rgba(0, 0, 0, 0.42);
   }
 }
 
-:root[data-theme="dark"] {
+/* GAME BOY — pale silver + dark green */
+:root[data-theme="light"] {
+  --bg: #c0c0c0;
+  --bg-glow: none;
+  --ink: #0a0a12;
+  --muted: #444455;
+  --line: #888899;
+  --line-strong: #666677;
+  --surface: #d8d8e8;
+  --surface-soft: #c8c8d8;
+  --surface-strong: #e8e8f8;
+  --surface-elevated: rgba(216, 216, 232, 0.97);
+  --accent: #0000cc;
+  --accent-strong: #0000aa;
+  --accent-soft: #aaaaf0;
+  --success: #006600;
+  --success-soft: #aaffaa;
+  --warning: #aa6600;
+  --warning-soft: #ffeeaa;
+  --danger: #cc0000;
+  --danger-soft: #ffaaaa;
+  --shadow: 4px 4px 0px #888888;
+  --shadow-strong: 6px 6px 0px #888888;
+}
+
+/* AMBER CRT — phosphor amber monitor */
+:root[data-theme="amber"] {
   color-scheme: dark;
-  --bg: #07111f;
-  --bg-glow: radial-gradient(circle at top left, rgba(37, 99, 235, 0.28), transparent 34%),
-    radial-gradient(circle at 78% 8%, rgba(14, 165, 233, 0.18), transparent 30%);
-  --ink: #edf5ff;
-  --muted: #9fb0c6;
-  --line: #213249;
-  --line-strong: #334761;
-  --surface: #0d1a2b;
-  --surface-soft: #101f33;
-  --surface-strong: #162b47;
-  --surface-elevated: rgba(13, 26, 43, 0.9);
-  --accent: #60a5fa;
-  --accent-strong: #93c5fd;
-  --accent-soft: #12345a;
-  --success: #4ade80;
-  --success-soft: #123c2a;
-  --warning: #fbbf24;
-  --warning-soft: #3b2b0d;
-  --danger: #f87171;
-  --danger-soft: #3f171b;
-  --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
-  --shadow-strong: 0 32px 100px rgba(0, 0, 0, 0.42);
+  --bg: #0c0700;
+  --bg-glow: none;
+  --ink: #ffb347;
+  --muted: #7a5010;
+  --line: #2c1a00;
+  --line-strong: #5a3800;
+  --surface: #160c00;
+  --surface-soft: #0c0700;
+  --surface-strong: #251400;
+  --surface-elevated: rgba(22, 12, 0, 0.97);
+  --accent: #ffb347;
+  --accent-strong: #ff8c00;
+  --accent-soft: #1f1000;
+  --success: #aaff00;
+  --success-soft: #0c1500;
+  --warning: #ff6600;
+  --warning-soft: #1a0800;
+  --danger: #ff2200;
+  --danger-soft: #1a0000;
+  --shadow: 4px 4px 0px #000000;
+  --shadow-strong: 6px 6px 0px #000000;
+  --pixel-border: 2px solid var(--line);
+}
+
+/* ARCADE — cabinet rojo/dorado estilo NES/Famicom */
+:root[data-theme="arcade"] {
+  color-scheme: dark;
+  --bg: #0d0005;
+  --bg-glow: none;
+  --ink: #ffd700;
+  --muted: #8b6914;
+  --line: #2a001a;
+  --line-strong: #4a0030;
+  --surface: #180009;
+  --surface-soft: #0d0005;
+  --surface-strong: #280015;
+  --surface-elevated: rgba(24, 0, 9, 0.97);
+  --accent: #ff3355;
+  --accent-strong: #cc1133;
+  --accent-soft: #220010;
+  --success: #00ffaa;
+  --success-soft: #001a10;
+  --warning: #ffd700;
+  --warning-soft: #1a1200;
+  --danger: #ff0044;
+  --danger-soft: #1a0010;
+  --shadow: 4px 4px 0px #000000;
+  --shadow-strong: 6px 6px 0px #000000;
+  --pixel-border: 2px solid var(--line);
 }
 
 * {
@@ -85,17 +118,35 @@
 html {
   background: var(--bg);
   color: var(--ink);
-  font-family:
-    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-    sans-serif;
+  font-family: 'VT323', 'Press Start 2P', monospace;
+  font-size: 18px;
+  image-rendering: pixelated;
 }
 
 body {
   background: var(--bg);
-  background-image: var(--bg-glow);
   background-attachment: fixed;
   margin: 0;
   min-height: 100vh;
+  position: relative;
+}
+
+body::after {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(0, 0, 0, 0.06) 3px,
+    rgba(0, 0, 0, 0.06) 4px
+  );
+  pointer-events: none;
+  z-index: 9999;
 }
 
 a {
@@ -466,6 +517,12 @@ h1 {
   justify-content: space-between;
 }
 
+.modal-topline-actions {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+}
+
 .modal-topline h2 {
   font-size: 1.35rem;
   margin: 0 0 6px;
@@ -587,10 +644,17 @@ h1 {
   box-shadow: var(--shadow);
   display: grid;
   gap: 24px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr) auto auto;
   max-width: none;
   padding: 24px;
   width: 100%;
+}
+
+.dashboard-hero-character {
+  align-self: end;
+  display: flex;
+  justify-content: center;
+  padding-bottom: 4px;
 }
 
 .dashboard-hero h1 {
@@ -2162,12 +2226,24 @@ h1 {
   border: 1px solid var(--line);
   border-radius: 8px;
   color: var(--muted);
+  cursor: pointer;
   display: flex;
   font-size: 0.86rem;
   font-weight: 800;
   gap: 8px;
   min-height: 42px;
   padding: 8px 10px;
+  user-select: none;
+}
+
+.wizard-steps li:hover {
+  border-color: var(--line-strong);
+  color: var(--ink);
+}
+
+.wizard-steps li:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .wizard-steps span {
@@ -2184,6 +2260,19 @@ h1 {
 .wizard-step-active {
   border-color: var(--accent) !important;
   color: var(--accent-strong) !important;
+}
+
+.wizard-step-active span {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.wizard-step-future {
+  opacity: 0.5;
+}
+
+.wizard-step-future:hover {
+  opacity: 1;
 }
 
 .choice-grid {
@@ -2235,9 +2324,25 @@ h1 {
 }
 
 .wizard-actions {
+  align-items: center;
   display: flex;
   gap: 10px;
   justify-content: flex-end;
+}
+
+.wizard-reset-action {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--danger);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.82rem;
+  opacity: 0.7;
+  padding: 0 8px;
+}
+
+.wizard-reset-action:hover {
+  opacity: 1;
 }
 
 .form-wallet-callout {
@@ -2508,6 +2613,10 @@ h1 {
 .error-text {
   color: var(--danger);
   margin-top: 14px;
+  max-height: 120px;
+  overflow-wrap: break-word;
+  overflow-y: auto;
+  word-break: break-word;
 }
 
 .success-text {
@@ -2812,4 +2921,454 @@ dd {
   .dashboard-hero-actions .secondary-action {
     width: 100%;
   }
+}
+
+/* ============================================
+   8-BIT RETRO THEME
+   ============================================ */
+
+@keyframes pixel-blink {
+  0%, 49% { opacity: 1; }
+  50%, 100% { opacity: 0; }
+}
+
+@keyframes pixel-glow {
+  0%, 100% { text-shadow: 0 0 4px var(--accent), 0 0 10px var(--accent); }
+  50% { text-shadow: 0 0 2px var(--accent); }
+}
+
+@keyframes pixel-scanline {
+  0% { background-position: 0 0; }
+  100% { background-position: 0 100%; }
+}
+
+@keyframes pixel-cursor {
+  0%, 49% { border-right-color: var(--accent); }
+  50%, 100% { border-right-color: transparent; }
+}
+
+@keyframes crt-flicker {
+  0%, 97%, 100% { opacity: 1; }
+  98% { opacity: 0.94; }
+  99% { opacity: 0.97; }
+}
+
+@keyframes pixel-bounce {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+.dashboard-hero-character svg {
+  animation: pixel-bounce 1.6s steps(4) infinite;
+  filter: drop-shadow(3px 3px 0 #000);
+}
+
+/* Remove all border-radius for pixel-sharp look */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
+/* Override smooth transitions to steppy ones */
+button,
+a,
+input,
+select,
+textarea {
+  transition:
+    border-color 80ms steps(2),
+    box-shadow 80ms steps(2),
+    color 80ms steps(2),
+    background 80ms steps(2) !important;
+}
+
+/* Pixel-perfect shadows on all cards/panels */
+.panel,
+.doc-card,
+.journey-table,
+.owner-wallet-card,
+.agent-form-card,
+.agent-create-modal,
+.agent-card,
+.agent-table-card,
+.empty-state-card,
+.agent-profile-card,
+.agent-hero-card,
+.agent-section-card,
+.agent-capability-card,
+.lifecycle-card,
+.agent-wallet-card,
+.wallet-balance-panel,
+.fund-wallet-panel,
+.harness-selector-card,
+.harness-builder-card,
+.harness-detail-panel,
+.policy-editor-card,
+.policy-summary-card,
+.objective-runner-card,
+.objective-result-card,
+.objective-history,
+.proposal-card,
+.proposal-risk-panel,
+.byreal-pool-card,
+.byreal-action-proposal,
+.benchmark-score-card,
+.onchain-report-card,
+.onchain-action-panel,
+.execution-action-panel,
+.execution-status-card,
+.blocked-execution-card,
+.reputation-panel,
+.trust-score-card,
+.reputation-stats-card,
+.reputation-event-table,
+.agent-leaderboard,
+.arena-setup,
+.arena-result-summary,
+.arena-scoreboard,
+.agent-comparison-table,
+.intent-builder-card,
+.transaction-intent-card,
+.tool-trace-panel,
+.intent-kind-card,
+.risk-score-card,
+.risk-flags-card,
+.ai-explanation-card,
+.policy-decision-card,
+.agent-console,
+.dashboard-summary-grid article,
+.summary-card,
+.setup-detail-card,
+.suggested-objectives-card,
+.compact-step,
+.capability-grid section,
+.lifecycle-step,
+.setup-snapshot article,
+.wallet-setup-hero,
+.wallet-modal {
+  box-shadow: var(--shadow) !important;
+  border: 2px solid var(--line) !important;
+}
+
+/* Headings use pixel font */
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Press Start 2P', monospace;
+  letter-spacing: -0.5px;
+  line-height: 1.4 !important;
+  text-transform: uppercase;
+}
+
+h1 { font-size: clamp(1.4rem, 4vw, 2.4rem) !important; }
+h2 { font-size: clamp(0.9rem, 2.5vw, 1.4rem) !important; }
+h3 { font-size: 0.75rem !important; }
+
+/* NES-style primary button */
+.wallet-button,
+.primary-action {
+  background: var(--accent) !important;
+  border: 2px solid var(--accent-strong) !important;
+  box-shadow:
+    inset -3px -3px 0 var(--accent-strong),
+    inset 3px 3px 0 rgba(255,255,255,0.25),
+    4px 4px 0 #000000 !important;
+  color: #000000 !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.55rem !important;
+  text-transform: uppercase !important;
+  letter-spacing: 1px !important;
+}
+
+.wallet-button:hover,
+.primary-action:hover {
+  transform: none !important;
+  box-shadow:
+    inset -3px -3px 0 var(--accent-strong),
+    inset 3px 3px 0 rgba(255,255,255,0.25),
+    2px 2px 0 #000000 !important;
+  translate: 2px 2px !important;
+}
+
+.wallet-button:active,
+.primary-action:active {
+  box-shadow:
+    inset 3px 3px 0 var(--accent-strong) !important;
+  translate: 4px 4px !important;
+}
+
+/* NES-style secondary button */
+.secondary-action,
+.theme-toggle {
+  background: var(--surface) !important;
+  border: 2px solid var(--line) !important;
+  box-shadow:
+    inset -3px -3px 0 #000,
+    inset 3px 3px 0 var(--line-strong),
+    4px 4px 0 #000000 !important;
+  color: var(--ink) !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.55rem !important;
+  text-transform: uppercase !important;
+}
+
+.secondary-action:hover,
+.theme-toggle:hover {
+  transform: none !important;
+  box-shadow:
+    inset -3px -3px 0 #000,
+    inset 3px 3px 0 var(--line-strong),
+    2px 2px 0 #000000 !important;
+  translate: 2px 2px !important;
+}
+
+/* Retro pixel header */
+.site-header {
+  backdrop-filter: none !important;
+  background: var(--surface) !important;
+  border-bottom: 2px solid var(--accent) !important;
+  box-shadow: 0 4px 0 #000000 !important;
+  min-height: 60px !important;
+}
+
+.brand {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 1rem !important;
+  color: var(--accent) !important;
+  animation: pixel-glow 2s steps(2) infinite;
+  text-shadow: 0 0 6px var(--accent);
+}
+
+/* Pixel-art wallet sprite (5×5 grid @ 3px/pixel = 15×15px)
+   Shape:  ■ ■ ■ ■ ■
+           ■ . . . ■
+           ■ . ● . ■   ● = clasp (--ink color)
+           ■ . . . ■
+           ■ ■ ■ ■ ■
+   Seed pixel = element itself at (col 0, row 0).
+   Each box-shadow draws one 3×3 block at the given offset. */
+.brand::before {
+  background: var(--accent) !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow:
+    /* row 0 remaining */
+    3px 0 0 0 var(--accent),
+    6px 0 0 0 var(--accent),
+    9px 0 0 0 var(--accent),
+    12px 0 0 0 var(--accent),
+    /* row 1 */
+    0 3px 0 0 var(--accent),
+    12px 3px 0 0 var(--accent),
+    /* row 2 — sides + clasp */
+    0 6px 0 0 var(--accent),
+    6px 6px 0 0 var(--ink),
+    12px 6px 0 0 var(--accent),
+    /* row 3 */
+    0 9px 0 0 var(--accent),
+    12px 9px 0 0 var(--accent),
+    /* row 4 */
+    0 12px 0 0 var(--accent),
+    3px 12px 0 0 var(--accent),
+    6px 12px 0 0 var(--accent),
+    9px 12px 0 0 var(--accent),
+    12px 12px 0 0 var(--accent) !important;
+  width: 3px !important;
+  height: 3px !important;
+  margin-right: 10px !important;
+  margin-bottom: 12px !important;
+  align-self: flex-start !important;
+}
+
+.site-header nav a {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.45rem !important;
+  color: var(--muted) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.site-header nav a:hover {
+  color: var(--accent) !important;
+  text-shadow: 0 0 6px var(--accent);
+}
+
+/* Square pixel status dots (NES-style indicator) */
+.status-dot {
+  width: 10px !important;
+  height: 10px !important;
+  animation: pixel-blink 1s steps(1) infinite;
+}
+
+.status-dot-ready {
+  background: var(--success) !important;
+  box-shadow: 0 0 6px var(--success) !important;
+}
+
+.status-dot-disconnected {
+  animation: none !important;
+  background: var(--muted) !important;
+}
+
+/* Retro wallet control in header */
+.header-wallet-control {
+  background: var(--surface-strong) !important;
+  border: 2px solid var(--line) !important;
+  box-shadow: 3px 3px 0 #000 !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.45rem !important;
+}
+
+/* Pixel-art focus ring */
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--accent) !important;
+  outline-offset: 2px !important;
+  box-shadow: 0 0 0 4px rgba(0, 212, 255, 0.25) !important;
+}
+
+/* Retro input fields */
+input,
+textarea,
+select {
+  background: var(--surface-soft) !important;
+  border: 2px solid var(--line) !important;
+  color: var(--ink) !important;
+  font-family: 'VT323', monospace !important;
+  font-size: 1rem !important;
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 2px 2px 0 #000, 0 0 0 2px var(--accent) !important;
+  outline: none !important;
+}
+
+/* Pixel-art table styling */
+.agent-table-card th {
+  background: var(--surface-strong) !important;
+  color: var(--accent) !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.45rem !important;
+  text-transform: uppercase !important;
+  border-bottom: 2px solid var(--accent) !important;
+}
+
+.agent-table-card tbody tr:hover {
+  background: color-mix(in srgb, var(--accent) 12%, transparent) !important;
+}
+
+/* Tab navigation pixel style */
+.wallet-tab-nav {
+  background: var(--surface) !important;
+  border: 2px solid var(--line) !important;
+  box-shadow: 4px 4px 0 #000 !important;
+  gap: 4px !important;
+  padding: 4px !important;
+}
+
+.wallet-tab-nav button {
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.4rem !important;
+  text-transform: uppercase !important;
+  color: var(--muted) !important;
+}
+
+.wallet-tab-nav button.wallet-tab-active {
+  background: var(--accent) !important;
+  color: #000 !important;
+  box-shadow: 2px 2px 0 #000 !important;
+}
+
+/* Mini segmented control pixel */
+.mini-segmented-control {
+  background: var(--surface-strong) !important;
+  border: 2px solid var(--line) !important;
+  box-shadow: 3px 3px 0 #000 !important;
+}
+
+.mini-segmented-control button[aria-pressed="true"] {
+  background: var(--accent) !important;
+  color: #000 !important;
+  box-shadow: none !important;
+}
+
+/* Modal backdrop pixel CRT */
+.modal-backdrop {
+  backdrop-filter: none !important;
+  background: rgba(0, 0, 0, 0.85) !important;
+}
+
+/* Dashboard hero 8-bit style */
+.dashboard-hero {
+  background: var(--surface) !important;
+  border: 2px solid var(--accent) !important;
+  box-shadow: 6px 6px 0 #000 !important;
+}
+
+.dashboard-summary-grid article {
+  border: 2px solid var(--line) !important;
+  box-shadow: 3px 3px 0 #000 !important;
+}
+
+.dashboard-summary-grid article:hover {
+  border-color: var(--accent) !important;
+  box-shadow: 3px 3px 0 var(--accent-strong) !important;
+}
+
+/* Lifecycle steps NES style */
+.lifecycle-current {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px var(--accent), 3px 3px 0 #000 !important;
+}
+
+.lifecycle-complete {
+  border-color: var(--success) !important;
+}
+
+/* Pre / code blocks as terminal */
+pre, code {
+  background: #000 !important;
+  border: 2px solid var(--success) !important;
+  color: var(--success) !important;
+  font-family: 'VT323', monospace !important;
+  font-size: 1rem !important;
+  box-shadow: 3px 3px 0 #000 !important;
+}
+
+/* Section nav links */
+.agent-section-nav a {
+  background: var(--surface) !important;
+  border: 2px solid var(--line) !important;
+  box-shadow: 3px 3px 0 #000 !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.4rem !important;
+  text-transform: uppercase !important;
+}
+
+.agent-section-nav a:hover {
+  border-color: var(--accent) !important;
+  color: var(--accent) !important;
+}
+
+/* Compact lifecycle steps */
+.compact-step span {
+  background: var(--surface-strong) !important;
+  color: var(--accent) !important;
+  font-family: 'Press Start 2P', monospace !important;
+  font-size: 0.4rem !important;
+}
+
+.compact-step-complete span {
+  background: var(--success-soft) !important;
+  color: var(--success) !important;
+}
+
+/* CRT monitor flicker on html */
+html {
+  animation: crt-flicker 8s infinite;
 }
