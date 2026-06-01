@@ -50,17 +50,6 @@ type CreateSmartWalletProfileInput = {
   ownerAddress: `0x${string}`;
 };
 
-type RegistrySmartWallet = {
-  createdAt: bigint | number;
-  harnessId: `0x${string}`;
-  metadataURI: string;
-  owner: Address;
-  riskMode: number;
-  runnerMode: number;
-  wallet: Address;
-  walletCreatedAt: bigint | number;
-};
-
 type AgentIdentityRecord = {
   agentURI: string;
   agentWallet: Address;
@@ -74,22 +63,10 @@ const riskModeToChain: Record<RiskMode, number> = {
   experimental: 2,
 };
 
-const chainToRiskMode: Record<number, RiskMode> = {
-  0: "conservative",
-  1: "balanced",
-  2: "experimental",
-};
-
 const runnerModeToChain: Record<RunnerMode, number> = {
   demo: 0,
   hosted: 2,
   local: 1,
-};
-
-const chainToRunnerMode: Record<number, RunnerMode> = {
-  0: "demo",
-  1: "local",
-  2: "hosted",
 };
 
 function harnessIdToBytes32(harnessId: HarnessId) {
@@ -144,85 +121,6 @@ async function waitForRegistryReceipt(hash: `0x${string}`, label: string) {
   }
 
   return receipt;
-}
-
-function isSmartWalletNotFoundError(error: unknown) {
-  if (!(error instanceof Error)) {
-    return false;
-  }
-
-  return (
-    error.message.includes("SmartWalletNotFound") ||
-    error.message.includes("0xd7624a57") ||
-    error.message.includes("execution reverted")
-  );
-}
-
-async function smartWalletRecordFromChain(
-  id: bigint,
-  smartWallet: RegistrySmartWallet,
-  transactionHash?: `0x${string}`,
-): Promise<AgentRecord> {
-  const metadata = decodeMetadata(smartWallet.metadataURI);
-  let preflightThresholds = metadata?.preflightThresholds;
-  try {
-    preflightThresholds = await readPreflightThresholdsOnchain(id.toString());
-  } catch {
-    preflightThresholds = metadata?.preflightThresholds;
-  }
-  const createdAt = dateFromChainTimestamp(smartWallet.createdAt);
-  const selectedHarnessId = metadata?.selectedHarnessId ?? "safe-approval";
-  const riskMode = metadata?.riskMode ?? chainToRiskMode[smartWallet.riskMode] ?? "conservative";
-  const runnerMode = metadata?.runnerMode ?? chainToRunnerMode[smartWallet.runnerMode] ?? "demo";
-  const name = metadata?.name ?? `Smart Wallet ${id.toString()}`;
-  const description = metadata?.description ?? metadata?.goal ?? "On-chain smart wallet";
-
-  return {
-    id: id.toString(),
-    name,
-    goal: description,
-    description,
-    agentType: metadata?.agentType ?? "custom",
-    missionType: metadata?.missionType ?? metadata?.agentType ?? "custom",
-    runtime: metadata?.runtime ?? "nexora-local",
-    runnerMode,
-    modelConfig: metadata?.modelConfig,
-    toolsConfig: metadata?.toolsConfig,
-    preflightThresholds,
-    strategyType: metadata?.strategyType ?? "defensive",
-    primaryPurpose: metadata?.primaryPurpose,
-    decisionStyle: metadata?.decisionStyle,
-    preferredBehavior: metadata?.preferredBehavior,
-    avoidedBehavior: metadata?.avoidedBehavior,
-    selectedHarnessId,
-    riskMode,
-    ownerAddress: smartWallet.owner,
-    walletAddress: smartWallet.wallet === zeroAddress ? undefined : smartWallet.wallet,
-    identityTransactionHash: transactionHash,
-    metadata: {
-      name,
-      goal: description,
-      description,
-      agentType: metadata?.agentType ?? "custom",
-      missionType: metadata?.missionType ?? metadata?.agentType ?? "custom",
-      runtime: metadata?.runtime ?? "nexora-local",
-      runnerMode,
-      modelConfig: metadata?.modelConfig,
-      toolsConfig: metadata?.toolsConfig,
-      preflightThresholds,
-      strategyType: metadata?.strategyType ?? "defensive",
-      primaryPurpose: metadata?.primaryPurpose,
-      decisionStyle: metadata?.decisionStyle,
-      preferredBehavior: metadata?.preferredBehavior,
-      avoidedBehavior: metadata?.avoidedBehavior,
-      selectedHarnessId,
-      riskMode,
-      identityTransactionHash: transactionHash,
-      createdAt,
-    },
-    metadataUri: smartWallet.metadataURI,
-    createdAt,
-  };
 }
 
 async function smartWalletRecordFromIdentity(
@@ -541,28 +439,7 @@ export async function getSmartWalletProfileOnchain(
     return listLocalAgents().find((agent) => agent.id === smartWalletId);
   }
 
-  const identityAgent = await getAgentSmartWalletProfileOnchain(smartWalletId, transactionHash);
-  if (identityAgent) {
-    return identityAgent;
-  }
-
-  try {
-    const smartWallet = await readContract(wagmiConfig, {
-      address: mantleSepoliaContracts.smartWalletRegistry,
-      abi: nexoraSmartWalletRegistryAbi,
-      functionName: "getSmartWallet",
-      args: [BigInt(smartWalletId)],
-      chainId: mantleSepolia.id,
-    });
-
-    return smartWalletRecordFromChain(BigInt(smartWalletId), smartWallet, transactionHash);
-  } catch (error) {
-    if (isSmartWalletNotFoundError(error)) {
-      return undefined;
-    }
-
-    throw error;
-  }
+  return getAgentSmartWalletProfileOnchain(smartWalletId, transactionHash);
 }
 
 async function getAgentSmartWalletProfileOnchain(
@@ -599,7 +476,7 @@ export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}
     );
   }
 
-  const identitySmartWallets = isAgentSmartWalletsEnabled()
+  return isAgentSmartWalletsEnabled()
     ? await readContract(wagmiConfig, {
         address: mantleSepoliaContracts.agentIdentityRegistry,
         abi: nexoraAgentIdentityRegistryAbi,
@@ -615,27 +492,4 @@ export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}
         .then((agents) => agents.filter((agent): agent is AgentRecord => Boolean(agent)))
         .catch(() => [])
     : [];
-
-  const smartWalletIds = await readContract(wagmiConfig, {
-    address: mantleSepoliaContracts.smartWalletRegistry,
-    abi: nexoraSmartWalletRegistryAbi,
-    functionName: "smartWalletsOfOwner",
-    args: [ownerAddress],
-    chainId: mantleSepolia.id,
-  });
-
-  const smartWallets = await Promise.all(
-    smartWalletIds.map(async (smartWalletId) => {
-      try {
-        return await getSmartWalletProfileOnchain(smartWalletId.toString());
-      } catch {
-        return undefined;
-      }
-    }),
-  );
-
-  return [
-    ...identitySmartWallets,
-    ...smartWallets.filter((agent): agent is AgentRecord => Boolean(agent)),
-  ];
 }

@@ -3,7 +3,16 @@
 import type { AgentRecord } from "@nexora/shared";
 import { useEffect, useMemo, useState } from "react";
 import type { Address } from "viem";
-import { isAgentWalletDeploymentReady } from "@/lib/contracts/deployments";
+import {
+  readActiveBenchmarkForAgent,
+  readBenchmarksOfOwner,
+  selectBenchmarkForAgentOnchain,
+  type OnchainBenchmark,
+} from "@/lib/contracts/onchainBenchmarks";
+import {
+  isAgentWalletDeploymentReady,
+  isBenchmarkRegistryReady,
+} from "@/lib/contracts/deployments";
 import {
   readAllowedAddressOnchain,
   readAutonomyStateOnchain,
@@ -20,8 +29,9 @@ type AutonomyControlsProps = {
 
 type AllowedAddressRow = {
   address: Address;
-  allowed: boolean;
+  allowed?: boolean;
   label: string;
+  txHash?: `0x${string}`;
 };
 
 const zeroAddress = "0x0000000000000000000000000000000000000000";
@@ -34,38 +44,59 @@ function formatAddress(address: string) {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 }
 
-export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsProps) {
-  const [dailyLimit, setDailyLimit] = useState(agent.autonomy?.dailyLimit ?? "0.05");
-  const [executor, setExecutor] = useState(agent.autonomy?.executorAddress ?? "");
-  const [maxAction, setMaxAction] = useState(agent.autonomy?.maxValuePerAction ?? "0.01");
+export function AutonomyControls({
+  agent,
+  isOwner,
+  onSaved,
+}: AutonomyControlsProps) {
+  const [dailyLimit, setDailyLimit] = useState(
+    agent.autonomy?.dailyLimit ?? "0.05",
+  );
+  const [executor, setExecutor] = useState(
+    agent.autonomy?.executorAddress ?? "",
+  );
+  const [maxAction, setMaxAction] = useState(
+    agent.autonomy?.maxValuePerAction ?? "0.01",
+  );
   const [validForHours, setValidForHours] = useState(24);
   const [newAllowedAddress, setNewAllowedAddress] = useState("");
-  const [customAddresses, setCustomAddresses] = useState<AllowedAddressRow[]>([]);
+  const [benchmarks, setBenchmarks] = useState<OnchainBenchmark[]>([]);
+  const [activeBenchmarkId, setActiveBenchmarkId] = useState("");
   const [notice, setNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingState, setIsLoadingState] = useState(false);
-  const [onchainState, setOnchainState] = useState<AutonomyOnchainState | undefined>();
+  const [onchainState, setOnchainState] = useState<
+    AutonomyOnchainState | undefined
+  >();
   const [executorEdited, setExecutorEdited] = useState(false);
+
   const isIdentityWallet = agent.identityStandard === "erc-8004";
   const isAutonomyReady = isAgentWalletDeploymentReady();
+  const isBenchmarkReady = isBenchmarkRegistryReady();
   const agentId = agent.agentIdentityId ?? agent.id;
+
   const executorConfigured =
     Boolean(onchainState?.enabled) &&
     Boolean(onchainState?.reporterAuthorized) &&
     onchainState?.executor.toLowerCase() !== zeroAddress;
+
   const allowedAddresses = useMemo<AllowedAddressRow[]>(() => {
-    const defaults =
-      onchainState?.benchmarkVaults.map((vault) => ({
+    const byAddress = new Map<string, AllowedAddressRow>();
+
+    onchainState?.benchmarkVaults.forEach((vault) => {
+      byAddress.set(vault.address.toLowerCase(), {
         address: vault.address,
         allowed: vault.targetAllowed,
         label: vault.label,
-      })) ?? [];
-    const seen = new Set(defaults.map((row) => row.address.toLowerCase()));
-    return [
-      ...defaults,
-      ...customAddresses.filter((row) => !seen.has(row.address.toLowerCase())),
-    ];
-  }, [customAddresses, onchainState]);
+      });
+    });
+
+    onchainState?.allowedTargets.forEach((target) => {
+      byAddress.set(target.address.toLowerCase(), target);
+    });
+
+    return Array.from(byAddress.values());
+  }, [onchainState]);
 
   const refreshOnchainState = async () => {
     if (!agent.walletAddress || !isIdentityWallet || !isAutonomyReady) {
@@ -74,34 +105,25 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
 
     setIsLoadingState(true);
     setNotice("");
+
     try {
       const state = await readAutonomyStateOnchain({
         agentId,
         executor: isAddress(executor) ? executor : undefined,
         walletAddress: agent.walletAddress,
       });
+
       setOnchainState(state);
 
       if (state) {
         if (!executorEdited && state.executor.toLowerCase() !== zeroAddress) {
           setExecutor(state.executor);
         }
+
         setDailyLimit(state.dailyLimitMnt);
         setMaxAction(state.maxValuePerActionMnt);
       }
 
-      if (customAddresses.length > 0) {
-        const refreshed = await Promise.all(
-          customAddresses.map(async (row) => ({
-            ...row,
-            allowed: await readAllowedAddressOnchain({
-              target: row.address,
-              walletAddress: agent.walletAddress,
-            }),
-          })),
-        );
-        setCustomAddresses(refreshed);
-      }
     } catch {
       setNotice("Could not read executor settings from this smart wallet.");
     } finally {
@@ -109,12 +131,44 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
     }
   };
 
+  const refreshBenchmarks = async () => {
+    if (!isBenchmarkReady) {
+      return;
+    }
+
+    try {
+      const [ownedBenchmarks, activeBenchmark] = await Promise.all([
+        readBenchmarksOfOwner(agent.ownerAddress),
+        readActiveBenchmarkForAgent(agentId).catch(() => undefined),
+      ]);
+
+      setBenchmarks(ownedBenchmarks);
+      setActiveBenchmarkId(activeBenchmark?.benchmarkId ?? "");
+    } catch {
+      setBenchmarks([]);
+    }
+  };
+
   useEffect(() => {
     void refreshOnchainState();
   }, [agent.walletAddress, agentId, isAutonomyReady, isIdentityWallet]);
 
+  useEffect(() => {
+    void refreshBenchmarks();
+  }, [agent.ownerAddress, agentId, isBenchmarkReady]);
+
   const savePolicy = async () => {
     setNotice("");
+
+    if (!agent.walletAddress) {
+      setNotice("Create a smart wallet before setting executor access.");
+      return;
+    }
+
+    if (!isOwner) {
+      setNotice("Only the smart wallet owner can update executor access.");
+      return;
+    }
 
     if (!isAddress(executor)) {
       setNotice("Enter a valid executor address.");
@@ -122,6 +176,8 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
     }
 
     setIsSaving(true);
+    setNotice("Waiting for MetaMask confirmation...");
+
     try {
       await saveExecutorPolicyOnchain({
         agentId,
@@ -132,6 +188,7 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
         validForHours,
         walletAddress: agent.walletAddress,
       });
+
       onSaved({
         ...agent,
         autonomy: {
@@ -140,13 +197,20 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
           enabled: true,
           executorAddress: executor,
           maxValuePerAction: maxAction,
-          validUntil: new Date(Date.now() + validForHours * 60 * 60 * 1000).toISOString(),
+          validUntil: new Date(
+            Date.now() + validForHours * 60 * 60 * 1000,
+          ).toISOString(),
         },
       });
+
       await refreshOnchainState();
-      setNotice("Executor address saved.");
+      setNotice("Executor access stored on-chain.");
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not save executor address.");
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not save executor address.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -155,32 +219,74 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
   const addAllowedAddress = async () => {
     setNotice("");
 
+    if (!agent.walletAddress) {
+      setNotice("Create a smart wallet before adding allowed targets.");
+      return;
+    }
+
+    if (!isIdentityWallet) {
+      setNotice("This smart wallet does not support autonomy controls.");
+      return;
+    }
+
+    if (!isAutonomyReady) {
+      setNotice("Agent wallet contracts are not configured for this frontend.");
+      return;
+    }
+
+    if (!isOwner) {
+      setNotice("Only the smart wallet owner can add allowed targets.");
+      return;
+    }
+
     if (!isAddress(newAllowedAddress)) {
       setNotice("Enter a valid contract address.");
       return;
     }
 
+    const target = newAllowedAddress as Address;
+
     setIsSaving(true);
+    setNotice("Waiting for MetaMask confirmation...");
+
     try {
-      await setAllowedAddressOnchain({
+      const txHash = await setAllowedAddressOnchain({
         allowed: true,
-        target: newAllowedAddress,
+        target,
         walletAddress: agent.walletAddress,
       });
-      const row = {
-        address: newAllowedAddress,
-        allowed: true,
-        label: "Custom address",
-      };
-      setCustomAddresses((rows) => [
-        row,
-        ...rows.filter((existing) => existing.address.toLowerCase() !== row.address.toLowerCase()),
-      ]);
+
+      if (txHash) {
+        setNotice(`Allowed target transaction confirmed: ${txHash}`);
+      } else {
+        setNotice("Address is already allowed on-chain. Verifying state...");
+      }
+
+      const confirmedAllowed = await readAllowedAddressOnchain({
+        target,
+        walletAddress: agent.walletAddress,
+      });
+
+      if (confirmedAllowed !== true) {
+        throw new Error(
+          "The target was not confirmed as allowed on-chain after the transaction.",
+        );
+      }
+
       setNewAllowedAddress("");
       await refreshOnchainState();
-      setNotice("Address added.");
+
+      setNotice(
+        txHash
+          ? `Custom allowed target stored on-chain: ${txHash}`
+          : "Custom address is already allowed on-chain.",
+      );
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not add address.");
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not add address on-chain.",
+      );
     } finally {
       setIsSaving(false);
     }
@@ -188,30 +294,88 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
 
   const removeAllowedAddress = async (target: Address) => {
     setNotice("");
+
+    if (!agent.walletAddress) {
+      setNotice("Create a smart wallet before removing allowed targets.");
+      return;
+    }
+
+    if (!isOwner) {
+      setNotice("Only the smart wallet owner can remove allowed targets.");
+      return;
+    }
+
     setIsSaving(true);
+    setNotice("Waiting for MetaMask confirmation...");
+
     try {
-      await setAllowedAddressOnchain({
+      const txHash = await setAllowedAddressOnchain({
         allowed: false,
         target,
         walletAddress: agent.walletAddress,
       });
-      setCustomAddresses((rows) =>
-        rows.map((row) => (row.address.toLowerCase() === target.toLowerCase() ? { ...row, allowed: false } : row)),
-      );
+
       await refreshOnchainState();
-      setNotice("Address removed.");
+
+      setNotice(
+        txHash
+          ? `Allowed target removed on-chain: ${txHash}`
+          : "Address is already blocked on-chain.",
+      );
     } catch (error) {
-      setNotice(error instanceof Error ? error.message : "Could not remove address.");
+      setNotice(
+        error instanceof Error ? error.message : "Could not remove address.",
+      );
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveActiveBenchmark = async () => {
+    setNotice("");
+
+    if (!activeBenchmarkId) {
+      setNotice("Select a benchmark first.");
+      return;
+    }
+
+    if (!isOwner) {
+      setNotice("Only the owner can assign benchmarks.");
+      return;
+    }
+
+    setIsSaving(true);
+    setNotice("Waiting for MetaMask confirmation...");
+
+    try {
+      await selectBenchmarkForAgentOnchain({
+        agentId,
+        benchmarkId: activeBenchmarkId,
+      });
+
+      await refreshBenchmarks();
+      setNotice("Benchmark selected for this agent on-chain.");
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "Could not select benchmark.",
+      );
     } finally {
       setIsSaving(false);
     }
   };
 
   return (
-    <section className="summary-card autonomy-panel" aria-label="Agent access controls">
+    <section
+      className="summary-card autonomy-panel"
+      aria-label="Agent access controls"
+    >
       <div className="card-heading-row">
         <h3>Executor</h3>
-        <span className={`status-pill ${executorConfigured ? "status-ready" : "status-disconnected"}`}>
+        <span
+          className={`status-pill ${
+            executorConfigured ? "status-ready" : "status-disconnected"
+          }`}
+        >
           {executorConfigured ? "Set" : "Not set"}
         </span>
       </div>
@@ -234,18 +398,27 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
             value={executor}
           />
         </label>
+
         <button
           className="primary-action"
-          disabled={!isOwner || !isIdentityWallet || !isAutonomyReady || isSaving || isLoadingState}
+          disabled={
+            !isOwner ||
+            !isIdentityWallet ||
+            !isAutonomyReady ||
+            !agent.walletAddress ||
+            isSaving ||
+            isLoadingState
+          }
           onClick={() => void savePolicy()}
           type="button"
         >
-          {isSaving ? "Saving..." : executorConfigured ? "Update Executor" : "Set Executor"}
+          {isSaving ? "Waiting..." : executorConfigured ? "Update Executor" : "Set Executor"}
         </button>
       </div>
 
       <details className="advanced-permission-settings">
         <summary>Limits</summary>
+
         <div className="form-grid">
           <label>
             <span>Max Action MNT</span>
@@ -257,6 +430,7 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
               value={maxAction}
             />
           </label>
+
           <label>
             <span>Daily Limit MNT</span>
             <input
@@ -267,6 +441,7 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
               value={dailyLimit}
             />
           </label>
+
           <label>
             <span>Valid Hours</span>
             <input
@@ -281,10 +456,69 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
 
       <div className="allowed-address-manager">
         <div className="card-heading-row">
-          <h3>Allowed Addresses</h3>
+          <h3>Active Benchmark</h3>
+
           <button
             className="ghost-action"
-            disabled={!isIdentityWallet || !isAutonomyReady || isSaving || isLoadingState}
+            disabled={!isBenchmarkReady || isSaving}
+            onClick={() => void refreshBenchmarks()}
+            type="button"
+          >
+            Refresh
+          </button>
+        </div>
+
+        <div className="executor-form">
+          <label>
+            <span>Benchmark</span>
+            <select
+              disabled={!isBenchmarkReady || benchmarks.length === 0}
+              onChange={(event) => setActiveBenchmarkId(event.target.value)}
+              value={activeBenchmarkId}
+            >
+              <option value="">Select benchmark</option>
+              {benchmarks.map((benchmark) => (
+                <option
+                  key={benchmark.benchmarkId}
+                  value={benchmark.benchmarkId}
+                >
+                  #{benchmark.benchmarkId}{" "}
+                  {benchmark.benchmarkHash.slice(0, 10)}...
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <button
+            className="primary-action"
+            disabled={
+              !isOwner || !isBenchmarkReady || !activeBenchmarkId || isSaving
+            }
+            onClick={() => void saveActiveBenchmark()}
+            type="button"
+          >
+            Use Benchmark
+          </button>
+        </div>
+
+        {!isBenchmarkReady && (
+          <p className="ownership-note">Benchmark registry is not deployed yet.</p>
+        )}
+
+        {isBenchmarkReady && benchmarks.length === 0 && (
+          <p className="ownership-note">
+            Create a benchmark before assigning one to this agent.
+          </p>
+        )}
+
+        <div className="card-heading-row">
+          <h3>Allowed Addresses</h3>
+
+          <button
+            className="ghost-action"
+            disabled={
+              !isIdentityWallet || !isAutonomyReady || isSaving || isLoadingState
+            }
             onClick={() => void refreshOnchainState()}
             type="button"
           >
@@ -296,20 +530,42 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
           <label>
             <span>Add contract address</span>
             <input
+              disabled={
+                !isOwner ||
+                !isIdentityWallet ||
+                !isAutonomyReady ||
+                !agent.walletAddress ||
+                isSaving ||
+                isLoadingState
+              }
               onChange={(event) => setNewAllowedAddress(event.target.value)}
               placeholder="0x..."
               value={newAllowedAddress}
             />
           </label>
+
           <button
             className="secondary-action"
-            disabled={!isOwner || !isIdentityWallet || !isAutonomyReady || isSaving || isLoadingState}
+            disabled={
+              !isOwner ||
+              !isIdentityWallet ||
+              !isAutonomyReady ||
+              !agent.walletAddress ||
+              isSaving ||
+              isLoadingState
+            }
             onClick={() => void addAllowedAddress()}
             type="button"
           >
-            Add Address
+            {isSaving ? "Waiting..." : "Store On-Chain"}
           </button>
         </div>
+
+        {!agent.walletAddress && (
+          <p className="ownership-note">
+            Create a smart wallet before adding allowed addresses.
+          </p>
+        )}
 
         <div className="allowed-address-list">
           {allowedAddresses.map((row) => (
@@ -317,11 +573,22 @@ export function AutonomyControls({ agent, isOwner, onSaved }: AutonomyControlsPr
               <div>
                 <strong>{row.label}</strong>
                 <span>{formatAddress(row.address)}</span>
+                {row.txHash && <span>Tx {formatAddress(row.txHash)}</span>}
               </div>
+
               <div className="allowed-address-actions">
-                <span className={`status-pill ${row.allowed ? "status-ready" : "status-disconnected"}`}>
-                  {row.allowed ? "Allowed" : "Blocked"}
+                <span
+                  className={`status-pill ${
+                    row.allowed ? "status-ready" : "status-disconnected"
+                  }`}
+                >
+                  {row.allowed === undefined
+                    ? "Checking"
+                    : row.allowed
+                      ? "Allowed"
+                      : "Blocked"}
                 </span>
+
                 <button
                   className="ghost-action"
                   disabled={!isOwner || !row.allowed || isSaving || isLoadingState}

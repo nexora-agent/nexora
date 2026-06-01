@@ -168,6 +168,7 @@ risky_vault="$(contract_from_deployment "NexoraRiskyVault")"
 identity_registry="$(deploy_contract "NexoraAgentIdentityRegistry" "src/NexoraAgentIdentityRegistry.sol:NexoraAgentIdentityRegistry")"
 validation_registry="$(deploy_contract "NexoraAgentValidationRegistry" "src/NexoraAgentValidationRegistry.sol:NexoraAgentValidationRegistry" --constructor-args "$identity_registry")"
 reputation_registry="$(deploy_contract "NexoraAgentReputationRegistry" "src/NexoraAgentReputationRegistry.sol:NexoraAgentReputationRegistry" --constructor-args "$identity_registry")"
+benchmark_registry="$(deploy_contract "NexoraBenchmarkRegistry" "src/NexoraBenchmarkRegistry.sol:NexoraBenchmarkRegistry" --constructor-args "$identity_registry")"
 wallet_factory="$(deploy_contract "Nexora4337WalletFactory" "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" --constructor-args "$identity_registry" "$ENTRYPOINT_ADDRESS" "$reputation_registry" "$safe_vault" "$volatile_vault" "$risky_vault")"
 
 echo ""
@@ -188,6 +189,7 @@ python3 - "$deployment_file" \
   "$identity_registry" \
   "$validation_registry" \
   "$reputation_registry" \
+  "$benchmark_registry" \
   "$wallet_factory" <<'PY'
 import json
 import sys
@@ -201,7 +203,8 @@ entrypoint = sys.argv[5]
 identity_registry = sys.argv[6]
 validation = sys.argv[7]
 reputation = sys.argv[8]
-factory = sys.argv[9]
+benchmark = sys.argv[9]
+factory = sys.argv[10]
 
 if deployment_file.exists():
     payload = json.loads(deployment_file.read_text())
@@ -216,6 +219,7 @@ payload["contracts"]["NexoraEntryPoint"] = entrypoint
 payload["contracts"]["NexoraAgentIdentityRegistry"] = identity_registry
 payload["contracts"]["NexoraAgentValidationRegistry"] = validation
 payload["contracts"]["NexoraAgentReputationRegistry"] = reputation
+payload["contracts"]["NexoraBenchmarkRegistry"] = benchmark
 payload["contracts"]["Nexora4337WalletFactory"] = factory
 
 deployment_file.write_text(json.dumps(payload, indent=2) + "\n")
@@ -226,6 +230,7 @@ python3 - "$WEB_DEPLOYMENTS_FILE" \
   "$identity_registry" \
   "$validation_registry" \
   "$reputation_registry" \
+  "$benchmark_registry" \
   "$wallet_factory" <<'PY'
 import re
 import sys
@@ -237,7 +242,8 @@ values = {
     "agentIdentityRegistry": sys.argv[3],
     "agentValidationRegistry": sys.argv[4],
     "agentReputationRegistry": sys.argv[5],
-    "agent4337WalletFactory": sys.argv[6],
+    "benchmarkRegistry": sys.argv[6],
+    "agent4337WalletFactory": sys.argv[7],
 }
 
 source = web_file.read_text()

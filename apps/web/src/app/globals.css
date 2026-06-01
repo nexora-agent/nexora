@@ -2468,6 +2468,11 @@ h1 {
   color: var(--warning);
 }
 
+.status-blocked {
+  background: color-mix(in srgb, #f97373 18%, var(--surface-strong));
+  color: #ff9a9a;
+}
+
 .status-complete {
   background: var(--success-soft);
   color: var(--success);

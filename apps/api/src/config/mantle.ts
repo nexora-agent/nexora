@@ -6,6 +6,6 @@ export const mantleSepolia = {
     symbol: "MNT",
     decimals: 18,
   },
-  rpcUrl: "https://rpc.sepolia.mantle.xyz",
+  rpcUrl: "https://mantle-sepolia.g.alchemy.com/v2/WUHHfgnpLvICz941qwVswahyQq1wGzXX",
   blockExplorerUrl: "https://explorer.sepolia.mantle.xyz",
 };

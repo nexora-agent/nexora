@@ -19,6 +19,8 @@
     "contracts:deploy:mantle": "bash contracts/script/deploy-mantle.sh",
     "contracts:deploy:preflight": "bash contracts/script/deploy-preflight-registry.sh",
     "contracts:deploy:agent-wallets": "bash contracts/script/deploy-agent-wallets.sh",
+    "contracts:deploy:benchmark-registry": "bash contracts/script/deploy-benchmark-registry.sh",
+    "contracts:deploy:benchmark-dex": "bash contracts/script/deploy-benchmark-dex.sh",
     "contracts:deploy:agent-wallets:windows": "powershell -ExecutionPolicy Bypass -File contracts\\script\\deploy-agent-wallets.ps1",
     "contracts:deploy:vaults": "bash contracts/script/deploy-benchmark-vaults.sh",
     "agent:runner": "pnpm --filter @nexora/api agent:runner",

@@ -29,6 +29,7 @@ library NexoraECDSA {
         bytes32 r;
         bytes32 s;
         uint8 v;
+
         assembly {
             r := mload(add(signature, 0x20))
             s := mload(add(signature, 0x40))
@@ -44,6 +45,7 @@ library NexoraECDSA {
         }
 
         address recovered = ecrecover(digest, v, r, s);
+
         if (recovered == address(0)) {
             revert InvalidSignature();
         }
@@ -84,12 +86,17 @@ contract Nexora4337AgentWallet {
     uint256 public nonce;
 
     ExecutorPolicy public executorPolicy;
+
     mapping(address target => bool allowed) public allowedTargets;
     mapping(address target => mapping(bytes4 selector => bool allowed)) public allowedTargetSelectors;
     mapping(uint256 day => uint256 spent) public spentByDay;
     mapping(bytes32 actionIntentHash => bool consumed) public consumedActionIntents;
 
+    address[] private allowedTargetList;
+    mapping(address target => bool seen) private seenAllowedTarget;
+
     event Executed(address indexed target, uint256 value, bytes data, bytes result);
+
     event ExecutorPolicyUpdated(
         address indexed executor,
         bool enabled,
@@ -98,6 +105,7 @@ contract Nexora4337AgentWallet {
         uint256 dailyLimit,
         uint64 validUntil
     );
+
     event AllowedTargetUpdated(address indexed target, bool allowed);
     event AllowedSelectorUpdated(address indexed target, bytes4 indexed selector, bool allowed);
     event ActionIntentConsumed(bytes32 indexed actionIntentHash);
@@ -149,6 +157,7 @@ contract Nexora4337AgentWallet {
         if (msg.sender != owner) {
             revert NotAuthorized();
         }
+
         _;
     }
 
@@ -173,8 +182,7 @@ contract Nexora4337AgentWallet {
     }
 
     function setAllowedTarget(address target, bool allowed) external onlyOwner {
-        allowedTargets[target] = allowed;
-        emit AllowedTargetUpdated(target, allowed);
+        _setAllowedTarget(target, allowed);
     }
 
     function setAllowedSelector(address target, bytes4 selector, bool allowed) external onlyOwner {
@@ -187,17 +195,26 @@ contract Nexora4337AgentWallet {
         emit ReputationRegistryUpdated(reputationRegistry_);
     }
 
-    function _allowBenchmarkVault(address target) private {
-        if (target == address(0)) {
-            return;
-        }
+    function allowedTargetCount() external view returns (uint256) {
+        return allowedTargetList.length;
+    }
 
-        allowedTargets[target] = true;
-        allowedTargetSelectors[target][0xd0e30db0] = true;
-        allowedTargetSelectors[target][0x2e1a7d4d] = true;
-        emit AllowedTargetUpdated(target, true);
-        emit AllowedSelectorUpdated(target, 0xd0e30db0, true);
-        emit AllowedSelectorUpdated(target, 0x2e1a7d4d, true);
+    function allowedTargetAt(uint256 index) external view returns (address target, bool allowed) {
+        target = allowedTargetList[index];
+        allowed = allowedTargets[target];
+    }
+
+    function getAllowedTargets() external view returns (address[] memory targets, bool[] memory allowedStatuses) {
+        uint256 length = allowedTargetList.length;
+
+        targets = new address[](length);
+        allowedStatuses = new bool[](length);
+
+        for (uint256 i = 0; i < length; i++) {
+            address target = allowedTargetList[i];
+            targets[i] = target;
+            allowedStatuses[i] = allowedTargets[target];
+        }
     }
 
     function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
@@ -238,6 +255,7 @@ contract Nexora4337AgentWallet {
         }
 
         ExecutorPolicy memory policy = executorPolicy;
+
         if (
             signer == policy.executor && policy.enabled && policy.executor != address(0)
                 && (policy.validUntil == 0 || block.timestamp <= policy.validUntil)
@@ -315,6 +333,34 @@ contract Nexora4337AgentWallet {
         result = _executePolicyChecked(validationRegistry, target, value, data, actionIntentHash, riskScore, true);
     }
 
+    function _setAllowedTarget(address target, bool allowed) private {
+        if (target == address(0)) {
+            revert TargetNotAllowed();
+        }
+
+        if (!seenAllowedTarget[target]) {
+            allowedTargetList.push(target);
+            seenAllowedTarget[target] = true;
+        }
+
+        allowedTargets[target] = allowed;
+        emit AllowedTargetUpdated(target, allowed);
+    }
+
+    function _allowBenchmarkVault(address target) private {
+        if (target == address(0)) {
+            return;
+        }
+
+        _setAllowedTarget(target, true);
+
+        allowedTargetSelectors[target][0xd0e30db0] = true;
+        allowedTargetSelectors[target][0x2e1a7d4d] = true;
+
+        emit AllowedSelectorUpdated(target, 0xd0e30db0, true);
+        emit AllowedSelectorUpdated(target, 0x2e1a7d4d, true);
+    }
+
     function _executePolicyChecked(
         address validationRegistry,
         address target,
@@ -340,13 +386,16 @@ contract Nexora4337AgentWallet {
 
         bool success;
         (success, result) = target.call{value: value}(data);
+
         if (!success) {
             revert ExecutionFailed();
         }
 
         consumedActionIntents[actionIntentHash] = true;
         emit ActionIntentConsumed(actionIntentHash);
+
         _recordReputation(preflight);
+
         emit Executed(target, value, data, result);
     }
 
@@ -356,6 +405,7 @@ contract Nexora4337AgentWallet {
         }
 
         bytes4 selector = bytes4(callData[:4]);
+
         if (selector != this.executeWithPreflight.selector) {
             revert InvalidUserOperation();
         }
@@ -441,6 +491,7 @@ contract Nexora4337AgentWallet {
         }
 
         bytes4 selector = _selectorOf(data);
+
         if (!allowedTargetSelectors[target][selector]) {
             revert SelectorNotAllowed();
         }
@@ -458,6 +509,7 @@ contract Nexora4337AgentWallet {
 
     function _recordReputation(NexoraAgentValidationRegistry.ValidationRecord memory preflight) private {
         address registry = reputationRegistry;
+
         if (registry == address(0)) {
             return;
         }
@@ -477,6 +529,7 @@ contract Nexora4337AgentWallet {
         }
 
         (bool success,) = payable(msg.sender).call{value: missingAccountFunds}("");
+
         if (!success) {
             revert ExecutionFailed();
         }

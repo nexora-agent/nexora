@@ -173,6 +173,39 @@ const validationAbi = [
   },
 ] as const;
 
+const benchmarkRegistryAbi = [
+  {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "activeBenchmarkOfAgent",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "benchmarkId", type: "uint256" }],
+    name: "getBenchmark",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "benchmarkId", type: "uint256" },
+          { internalType: "address", name: "owner", type: "address" },
+          { internalType: "bytes32", name: "benchmarkHash", type: "bytes32" },
+          { internalType: "string", name: "metadataURI", type: "string" },
+          { internalType: "address[]", name: "targetContracts", type: "address[]" },
+          { internalType: "uint8", name: "riskMode", type: "uint8" },
+          { internalType: "bool", name: "active", type: "bool" },
+          { internalType: "uint64", name: "createdAt", type: "uint64" },
+        ],
+        internalType: "struct NexoraBenchmarkRegistry.Benchmark",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
 const walletAbi = [
   {
     inputs: [
@@ -611,6 +644,45 @@ Reject every non-selected vault and explain why high advertised yield is not eno
   } satisfies BenchmarkResult;
 }
 
+async function readActiveBenchmarkHash({
+  agentId,
+  benchmarkRegistry,
+  publicClient,
+}: {
+  agentId: bigint;
+  benchmarkRegistry?: Address;
+  publicClient: ReturnType<typeof createPublicClient>;
+}) {
+  if (!benchmarkRegistry) {
+    return hashJson("nexora-mnt-suite");
+  }
+
+  try {
+    const benchmarkId = await publicClient.readContract({
+      abi: benchmarkRegistryAbi,
+      address: benchmarkRegistry,
+      functionName: "activeBenchmarkOfAgent",
+      args: [agentId],
+    });
+
+    if (benchmarkId === 0n) {
+      return hashJson("nexora-mnt-suite");
+    }
+
+    const benchmark = await publicClient.readContract({
+      abi: benchmarkRegistryAbi,
+      address: benchmarkRegistry,
+      functionName: "getBenchmark",
+      args: [benchmarkId],
+    });
+
+    console.log(`Active benchmark: #${benchmarkId.toString()} ${benchmark.benchmarkHash}`);
+    return benchmark.benchmarkHash;
+  } catch {
+    return hashJson("nexora-mnt-suite");
+  }
+}
+
 function packGas(upper: bigint, lower: bigint) {
   return concatHex([
     pad(toHex(upper), { size: 16 }),
@@ -717,6 +789,11 @@ async function main() {
   const reputationRegistry = deployments.contracts?.NexoraAgentReputationRegistry as
     | Address
     | undefined;
+  const benchmarkRegistry = optionalContractAddress(
+    deployments,
+    "NEXORA_BENCHMARK_REGISTRY",
+    "NexoraBenchmarkRegistry",
+  );
 
   const safeVault = contractAddress(
     deployments,
@@ -786,6 +863,11 @@ async function main() {
   }
 
   const validationGas = BigInt(process.env.NEXORA_VALIDATION_GAS_LIMIT ?? "1200000");
+  const suiteHash = await readActiveBenchmarkHash({
+    agentId,
+    benchmarkRegistry,
+    publicClient,
+  });
 
   console.log(`Validation registry: ${validationRegistry}`);
   console.log(`Validation passed: ${passed}`);
@@ -812,7 +894,7 @@ async function main() {
           passed,
           policyHash: hashJson("conservative"),
           reportHash: benchmark.reportHash,
-          suiteHash: hashJson("nexora-mnt-suite"),
+          suiteHash,
           toolsHash: hashJson([
             "get_mnt_balance",
             "inspect_nexora_vaults",

@@ -2,20 +2,23 @@ import { zeroAddress } from "viem";
 
 export const mantleSepoliaContracts = {
   agentIdentity: "0xfE84E525441723e2A4710F2eC65f55ADa824Afc5",
-  agentIdentityRegistry: "0xb2B46B47487047ACbc48E32Fab1D07700D4e9bb8",
-  agent4337WalletFactory: "0x4C44d65c55523A295525225374ddD6a136c4F459",
-  agentValidationRegistry: "0x498789B18C7e1e96eaD912c315087660088Da8ed",
-  agentReputationRegistry: "0xC3b253C447773F38af15F3e8629A370FadCd945a",
+  agentIdentityRegistry: "0x7ADe45FD922036B94C5195B26c2Ee9FE06daA4af",
+  agent4337WalletFactory: "0xC9c0755a0c57a223D61ad1D132A2c6d886Ff842d",
+  agentValidationRegistry: "0xF2E9458963514F49161b2BBdD8fB8216d03E6b27",
+  agentReputationRegistry: "0xC41156d0BC62862701C43088CEE2B31A910B4f0b",
+  benchmarkDex: "0x6b9e121e7f3dbc15d2fe6ad04fda080b3611aa1b",
+  benchmarkRegistry: "0x9DBE5ae4940BEE27a615AC32131D4175edB69541",
+  benchmarkToken: "0x92819611660c14191e14fce9840eabc09bbd59ec",
   entryPoint: "0x0000000000000000000000000000000000000000",
   factory: "0x600d0a6c8A3067BCe9D1bB089914ABC2c45C9E6C",
   policy: "0x073fE1166748ea8c5cE304e1AE0a6319EDE5e108",
-  preflightRegistry: "0xeB2D0dEa9C72Ff5A212ef37e948eec760096c829",
+  preflightRegistry: "0x25D40008ffC27D95D506224a246916d7E7ac0f36",
   riskRegistry: "0xC0495a933C41Fd7c32Dd674c1983Ab6f95e58E08",
   reputation: "0xc4EAa1d5F94Ee779EE48Ca1E8f1246d29dF07C6f",
-  riskyVault: "0x4a13f61f9cD32a7F9dc04210632018b2D8060397",
-  safeVault: "0x705ef09F3C4E28B0028Ae9a76fad558f48f3c22A",
+  riskyVault: "0x724F821E3923004e9e33281248c68895680D2666",
+  safeVault: "0x9e621f3959883050cA21cdb084DDf83C37fB8407",
   smartWalletRegistry: "0x3959F427883faD713C5F533A762A83dDbF1b86fD",
-  volatileVault: "0xd3510f6f50374e40E1c9eE0C5C9b61AD753d3889",
+  volatileVault: "0xdAe906ae41d2ECfAEF72835fF8A65672D40F27bf",
 } as const;
 
 function hasContractAddress(address: string) {
@@ -28,6 +31,10 @@ export function isAgentWalletDeploymentReady() {
     mantleSepoliaContracts.agent4337WalletFactory,
     mantleSepoliaContracts.agentValidationRegistry,
   ].every(hasContractAddress);
+}
+
+export function isBenchmarkRegistryReady() {
+  return hasContractAddress(mantleSepoliaContracts.benchmarkRegistry);
 }
 
 export function isBundlerReady() {

@@ -3,6 +3,7 @@
 import { buildReportEnvelope, type AgentRecord } from "@nexora/shared";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
+import { useOnchainRunnerActivity } from "@/hooks/useOnchainRunnerActivity";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { getByrealStatus } from "@/lib/byreal/byrealAdapter";
 import { fetchByrealStatus } from "@/lib/byreal/byrealClient";
@@ -168,6 +169,16 @@ export function AgentProfileCard({
     connectedAddress?.toLowerCase() === currentAgent.ownerAddress.toLowerCase();
   const isViewOnly = Boolean(connectedAddress && !isOwner);
   const latestRun = currentAgent.objectiveRuns?.[0];
+  const agentIdentityId = currentAgent.agentIdentityId ?? currentAgent.id;
+  const {
+    activity: onchainActivity,
+    error: onchainActivityError,
+    loading: onchainActivityLoading,
+    refresh: refreshOnchainActivity,
+  } = useOnchainRunnerActivity({
+    agentId: agentIdentityId,
+    walletAddress: currentAgent.walletAddress,
+  });
   const latestReportEnvelope = latestRun
     ? (latestRun.reportEnvelope ?? buildReportEnvelope(latestRun))
     : undefined;
@@ -186,6 +197,18 @@ export function AgentProfileCard({
   const hasWallet = Boolean(currentAgent.walletAddress);
   const nextStep = nextStepFor(currentAgent, funded);
   const closeModal = () => setModal(null);
+  const latestBenchmarkScore =
+    onchainActivity?.latestValidation?.averageScore ??
+    latestRun?.benchmarkScore?.finalScore;
+  const latestRiskScore =
+    onchainActivity?.latestValidation?.riskScore ??
+    latestRun?.riskReport?.riskScore;
+  const latestPolicyDecision =
+    onchainActivity?.latestValidation
+      ? onchainActivity.latestValidation.passed
+        ? "passed"
+        : "failed"
+      : latestRun?.riskReport?.policyDecision;
 
   useEffect(() => {
     let active = true;
@@ -262,15 +285,22 @@ export function AgentProfileCard({
             <dt>Agent ID</dt>
             <dd>
               {currentAgent.identityStandard === "erc-8004"
-                ? `ERC-8004 #${currentAgent.agentIdentityId ?? currentAgent.id}`
+                ? `ERC-8004 #${agentIdentityId}`
                 : "Legacy"}
             </dd>
           </div>
           <div>
             <dt>Benchmark</dt>
-            <dd>{latestRun?.benchmarkScore?.finalScore ?? "—"}</dd>
+            <dd>{latestBenchmarkScore ?? "—"}</dd>
           </div>
         </dl>
+        {onchainActivity?.latestValidation && (
+          <span
+            className={`status-pill ${onchainActivity.latestValidation.passed ? "status-ready" : "status-blocked"}`}
+          >
+            {onchainActivity.latestValidation.passed ? "On-chain validated" : "Validation failed"}
+          </span>
+        )}
         {hasWallet && (
           <div className="wallet-header-actions">
             <button className="primary-action" onClick={openNextStep} type="button">
@@ -366,7 +396,7 @@ export function AgentProfileCard({
               <dl>
                 <div>
                   <dt>Runner</dt>
-                  <dd>pnpm nexora:runner -- {currentAgent.agentIdentityId ?? currentAgent.id}</dd>
+                  <dd>pnpm nexora:runner -- {agentIdentityId}</dd>
                 </div>
                 <div>
                   <dt>Status</dt>
@@ -382,15 +412,15 @@ export function AgentProfileCard({
               <dl>
                 <div>
                   <dt>Score</dt>
-                  <dd>{latestRun?.benchmarkScore?.finalScore ?? "No benchmark yet"}</dd>
+                  <dd>{latestBenchmarkScore ?? "No benchmark yet"}</dd>
                 </div>
                 <div>
                   <dt>Risk</dt>
-                  <dd>{latestRun?.riskReport ? `${latestRun.riskReport.riskScore} / 100` : "No risk report yet"}</dd>
+                  <dd>{latestRiskScore !== undefined ? `${latestRiskScore} / 100` : "No risk report yet"}</dd>
                 </div>
                 <div>
                   <dt>Decision</dt>
-                  <dd>{latestRun?.riskReport?.policyDecision ?? "Pending"}</dd>
+                  <dd>{latestPolicyDecision ?? "Pending"}</dd>
                 </div>
               </dl>
             </section>
@@ -407,7 +437,7 @@ export function AgentProfileCard({
                 </div>
                 <div>
                   <dt>Execution</dt>
-                  <dd>{latestRun?.execution?.status ?? "No execution yet"}</dd>
+                  <dd>{onchainActivity?.latestExecution?.status ?? latestRun?.execution?.status ?? "No execution yet"}</dd>
                 </div>
                 <div>
                   <dt>External DeFi</dt>
@@ -430,6 +460,77 @@ export function AgentProfileCard({
 
         {activeTab === "results" && (
           <div className="results-grid">
+            {onchainActivity?.latestValidation && (
+              <section className="summary-card onchain-runner-report" aria-label="On-chain runner report">
+                <div className="card-heading-row">
+                  <h3>On-chain Runner Report</h3>
+                  <button className="ghost-action" onClick={() => void refreshOnchainActivity()} type="button">
+                    Refresh
+                  </button>
+                </div>
+                <dl>
+                  <div>
+                    <dt>Average Score</dt>
+                    <dd>{onchainActivity.latestValidation.averageScore}</dd>
+                  </div>
+                  <div>
+                    <dt>Basic / Trap / External</dt>
+                    <dd>
+                      {onchainActivity.latestValidation.basicScore} /{" "}
+                      {onchainActivity.latestValidation.adversarialScore} /{" "}
+                      {onchainActivity.latestValidation.externalScore}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Risk</dt>
+                    <dd>{onchainActivity.latestValidation.riskScore} / 100</dd>
+                  </div>
+                  <div>
+                    <dt>Status</dt>
+                    <dd>{onchainActivity.latestValidation.passed ? "Passed" : "Failed"}</dd>
+                  </div>
+                  <div>
+                    <dt>Report Hash</dt>
+                    <dd>{onchainActivity.latestValidation.reportHash}</dd>
+                  </div>
+                  <div>
+                    <dt>Action Intent</dt>
+                    <dd>{onchainActivity.latestValidation.actionIntentHash}</dd>
+                  </div>
+                  <div>
+                    <dt>Validation Tx</dt>
+                    <dd>{onchainActivity.latestValidation.txHash ?? "Not found in recent logs"}</dd>
+                  </div>
+                  <div>
+                    <dt>Execution</dt>
+                    <dd>
+                      {onchainActivity.latestExecution
+                        ? `${onchainActivity.latestExecution.status ?? "unknown"} · ${onchainActivity.latestExecution.txHash ?? "no tx"}`
+                        : "No matching execution found"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>SafeVault Position</dt>
+                    <dd>{onchainActivity.safeVaultPosition?.balanceMnt ?? "No SafeVault position"}</dd>
+                  </div>
+                </dl>
+              </section>
+            )}
+            {!onchainActivity?.latestValidation && (
+              <section className="summary-card">
+                <div className="card-heading-row">
+                  <h3>On-chain Runner Report</h3>
+                  <button className="ghost-action" onClick={() => void refreshOnchainActivity()} type="button">
+                    Refresh
+                  </button>
+                </div>
+                <p>
+                  {onchainActivityLoading
+                    ? "Reading Mantle..."
+                    : onchainActivityError ?? "No on-chain runner validation found yet."}
+                </p>
+              </section>
+            )}
             <section className="summary-card" aria-label="Benchmark summary">
               <h3>Latest Benchmark</h3>
               <p>{latestRun?.intent?.metadata?.benchmarkName ?? "No reports yet. Start the local runner to generate benchmark and risk records."}</p>
@@ -439,7 +540,9 @@ export function AgentProfileCard({
               <p>
                 {latestRun?.riskReport
                   ? `${latestRun.riskReport.riskScore} / 100 · ${latestRun.riskReport.policyDecision}`
-                  : "No risk report yet. Start the local runner to create one."}
+                  : onchainActivity?.latestValidation
+                    ? `${onchainActivity.latestValidation.riskScore} / 100 · ${onchainActivity.latestValidation.passed ? "passed" : "failed"}`
+                    : "No risk report yet. Start the local runner to create one."}
               </p>
             </section>
             <section className="summary-card">
@@ -456,7 +559,7 @@ export function AgentProfileCard({
             </section>
             <section className="summary-card">
               <h3>Benchmark Score</h3>
-              <p>{latestRun?.benchmarkScore?.finalScore ?? "No benchmark score yet"}</p>
+              <p>{latestBenchmarkScore ?? "No benchmark score yet"}</p>
             </section>
             <section className="summary-card">
               <h3>Proposal</h3>
@@ -464,11 +567,11 @@ export function AgentProfileCard({
             </section>
             <section className="summary-card">
               <h3>Execution Eligibility</h3>
-              <p>{latestRun?.execution?.status ?? "No execution decision yet"}</p>
+              <p>{onchainActivity?.latestExecution?.status ?? latestRun?.execution?.status ?? "No execution decision yet"}</p>
             </section>
             <section className="summary-card">
               <h3>Report Hash</h3>
-              <p>{latestReportEnvelope?.reportHash ?? "No report hash yet"}</p>
+              <p>{onchainActivity?.latestValidation?.reportHash ?? latestReportEnvelope?.reportHash ?? "No report hash yet"}</p>
             </section>
             <section className="summary-card">
               <h3>Tool Trace Hash</h3>
@@ -494,7 +597,35 @@ export function AgentProfileCard({
               <p>{latestByrealProposalRun ? "External DeFi Preview" : "No External DeFi Preview yet"}</p>
             </section>
             <section className="summary-card" aria-label="Reputation summary">
-              <ReputationPanel agent={currentAgent} />
+              {onchainActivity?.reputation ? (
+                <>
+                  <h3>On-chain Reputation</h3>
+                  <dl>
+                    <div>
+                      <dt>Trust Score</dt>
+                      <dd>{onchainActivity.reputation.trustScore ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>Benchmark Runs</dt>
+                      <dd>{onchainActivity.reputation.benchmarkRuns ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>Safe Actions</dt>
+                      <dd>{onchainActivity.reputation.safeActions ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>Blocked Actions</dt>
+                      <dd>{onchainActivity.reputation.blockedActions ?? 0}</dd>
+                    </div>
+                    <div>
+                      <dt>Policy Violations</dt>
+                      <dd>{onchainActivity.reputation.policyViolations ?? 0}</dd>
+                    </div>
+                  </dl>
+                </>
+              ) : (
+                <ReputationPanel agent={currentAgent} />
+              )}
             </section>
             <details className="setup-detail-card">
               <summary>Model and Tool Logs</summary>
@@ -533,6 +664,32 @@ export function AgentProfileCard({
                 <strong>Profile created</strong>
                 <span>{currentAgent.createdAt}</span>
               </li>
+              {onchainActivity?.latestValidation && (
+                <li>
+                  <strong>On-chain validation recorded</strong>
+                  <span>
+                    Score {onchainActivity.latestValidation.averageScore} · risk{" "}
+                    {onchainActivity.latestValidation.riskScore} ·{" "}
+                    {onchainActivity.latestValidation.txHash ?? "tx not found"}
+                  </span>
+                </li>
+              )}
+              {onchainActivity?.latestExecution && (
+                <li>
+                  <strong>Wallet execution recorded</strong>
+                  <span>
+                    {onchainActivity.latestExecution.status} ·{" "}
+                    {onchainActivity.latestExecution.value ?? "value unavailable"} ·{" "}
+                    {onchainActivity.latestExecution.txHash ?? "tx not found"}
+                  </span>
+                </li>
+              )}
+              {onchainActivity?.safeVaultPosition && (
+                <li>
+                  <strong>SafeVault position</strong>
+                  <span>{onchainActivity.safeVaultPosition.balanceMnt}</span>
+                </li>
+              )}
               {currentAgent.walletAddress && (
                 <li>
                   <strong>Smart wallet deployed</strong>
@@ -562,7 +719,7 @@ export function AgentProfileCard({
                   <li key={`${run.id}-eligibility`}><strong>Execution eligibility updated</strong><span>{run.riskReport?.policyDecision === "passed" ? "Eligible" : "Blocked"}</span></li>,
                 ]
               ))}
-              {!currentAgent.objectiveRuns?.length && (
+              {!currentAgent.objectiveRuns?.length && !onchainActivity?.latestValidation && (
                 <li>
                   <strong>No runner activity yet</strong>
                   <span>Start the local runner to add benchmark, risk, and execution events.</span>

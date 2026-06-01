@@ -496,6 +496,57 @@ export const nexoraAgentValidationRegistryAbi = [
     stateMutability: "nonpayable",
     type: "function",
   },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "uint256", name: "agentId", type: "uint256" },
+      { indexed: true, internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+      { indexed: true, internalType: "bytes32", name: "reportHash", type: "bytes32" },
+      { indexed: false, internalType: "uint16", name: "averageScore", type: "uint16" },
+      { indexed: false, internalType: "bool", name: "passed", type: "bool" },
+      { indexed: false, internalType: "address", name: "reporter", type: "address" },
+    ],
+    name: "ValidationRecorded",
+    type: "event",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "validationsOfAgent",
+    outputs: [{ internalType: "bytes32[]", name: "", type: "bytes32[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "bytes32", name: "actionIntentHash", type: "bytes32" }],
+    name: "getValidation",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "agentId", type: "uint256" },
+          { internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+          { internalType: "bytes32", name: "modelHash", type: "bytes32" },
+          { internalType: "bytes32", name: "harnessHash", type: "bytes32" },
+          { internalType: "bytes32", name: "policyHash", type: "bytes32" },
+          { internalType: "bytes32", name: "toolsHash", type: "bytes32" },
+          { internalType: "bytes32", name: "suiteHash", type: "bytes32" },
+          { internalType: "bytes32", name: "reportHash", type: "bytes32" },
+          { internalType: "uint16", name: "basicScore", type: "uint16" },
+          { internalType: "uint16", name: "adversarialScore", type: "uint16" },
+          { internalType: "uint16", name: "externalScore", type: "uint16" },
+          { internalType: "uint16", name: "averageScore", type: "uint16" },
+          { internalType: "uint16", name: "maxRiskScore", type: "uint16" },
+          { internalType: "bool", name: "passed", type: "bool" },
+          { internalType: "uint256", name: "timestamp", type: "uint256" },
+          { internalType: "address", name: "reporter", type: "address" },
+        ],
+        internalType: "struct NexoraAgentValidationRegistry.ValidationRecord",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
 ] as const;
 
 export const nexora4337AgentWalletAbi = [
@@ -531,6 +582,16 @@ export const nexora4337AgentWalletAbi = [
     inputs: [{ internalType: "address", name: "", type: "address" }],
     name: "allowedTargets",
     outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "getAllowedTargets",
+    outputs: [
+      { internalType: "address[]", name: "targets", type: "address[]" },
+      { internalType: "bool[]", name: "allowedStatuses", type: "bool[]" },
+    ],
     stateMutability: "view",
     type: "function",
   },
@@ -608,6 +669,128 @@ export const nexora4337AgentWalletAbi = [
     name: "executeWithPreflightByExecutor",
     outputs: [{ internalType: "bytes", name: "result", type: "bytes" }],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+    ],
+    name: "ActionIntentConsumed",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      { indexed: true, internalType: "address", name: "target", type: "address" },
+      { indexed: false, internalType: "uint256", name: "value", type: "uint256" },
+      { indexed: false, internalType: "bytes", name: "data", type: "bytes" },
+      { indexed: false, internalType: "bytes", name: "result", type: "bytes" },
+    ],
+    name: "Executed",
+    type: "event",
+  },
+] as const;
+
+export const nexoraBenchmarkVaultAbi = [
+  {
+    inputs: [{ internalType: "address", name: "user", type: "address" }],
+    name: "balanceOf",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export const nexoraBenchmarkRegistryAbi = [
+  { inputs: [], name: "BenchmarkNotFound", type: "error" },
+  { inputs: [], name: "EmptyBenchmarkHash", type: "error" },
+  { inputs: [], name: "EmptyMetadataURI", type: "error" },
+  { inputs: [], name: "InactiveBenchmark", type: "error" },
+  { inputs: [], name: "NotAgentOwner", type: "error" },
+  { inputs: [], name: "NotBenchmarkOwner", type: "error" },
+  {
+    inputs: [
+      { internalType: "bytes32", name: "benchmarkHash", type: "bytes32" },
+      { internalType: "string", name: "metadataURI", type: "string" },
+      { internalType: "address[]", name: "targetContracts", type: "address[]" },
+      { internalType: "uint8", name: "riskMode", type: "uint8" },
+    ],
+    name: "registerBenchmark",
+    outputs: [{ internalType: "uint256", name: "benchmarkId", type: "uint256" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      { internalType: "uint256", name: "agentId", type: "uint256" },
+      { internalType: "uint256", name: "benchmarkId", type: "uint256" },
+    ],
+    name: "selectBenchmarkForAgent",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "address", name: "owner", type: "address" }],
+    name: "benchmarksOfOwner",
+    outputs: [{ internalType: "uint256[]", name: "", type: "uint256[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "activeBenchmarkOfAgent",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "benchmarkId", type: "uint256" }],
+    name: "getBenchmark",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "benchmarkId", type: "uint256" },
+          { internalType: "address", name: "owner", type: "address" },
+          { internalType: "bytes32", name: "benchmarkHash", type: "bytes32" },
+          { internalType: "string", name: "metadataURI", type: "string" },
+          { internalType: "address[]", name: "targetContracts", type: "address[]" },
+          { internalType: "uint8", name: "riskMode", type: "uint8" },
+          { internalType: "bool", name: "active", type: "bool" },
+          { internalType: "uint64", name: "createdAt", type: "uint64" },
+        ],
+        internalType: "struct NexoraBenchmarkRegistry.Benchmark",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export const nexoraAgentReputationRegistryAbi = [
+  {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "getReputation",
+    outputs: [
+      {
+        components: [
+          { internalType: "uint256", name: "benchmarkRuns", type: "uint256" },
+          { internalType: "uint256", name: "safeExecutions", type: "uint256" },
+          { internalType: "uint256", name: "blockedExecutions", type: "uint256" },
+          { internalType: "uint256", name: "policyViolations", type: "uint256" },
+          { internalType: "uint256", name: "totalRiskScore", type: "uint256" },
+          { internalType: "uint256", name: "totalBenchmarkScore", type: "uint256" },
+          { internalType: "uint256", name: "trustScore", type: "uint256" },
+        ],
+        internalType: "struct NexoraAgentReputationRegistry.Reputation",
+        name: "",
+        type: "tuple",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
 ] as const;

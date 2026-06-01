@@ -42,6 +42,25 @@ const benchmarkSelectors = [
   { label: "Withdraw", selector: "0x2e1a7d4d" as const },
 ];
 
+function labelAllowedTarget(address: Address) {
+  const knownTargets = [
+    ...benchmarkVaults,
+    {
+      address: mantleSepoliaContracts.benchmarkDex as Address,
+      label: "NexoraBenchmarkDex",
+    },
+    {
+      address: mantleSepoliaContracts.benchmarkToken as Address,
+      label: "NexoraBenchmarkToken",
+    },
+  ].filter((target) => target.address.toLowerCase() !== zeroAddress.toLowerCase());
+
+  return (
+    knownTargets.find((target) => target.address.toLowerCase() === address.toLowerCase())?.label ??
+    "Custom address"
+  );
+}
+
 async function readContractOrDefault<T>(read: () => Promise<T>, fallback: T) {
   try {
     return await read();
@@ -75,13 +94,18 @@ async function allowAutonomousSelectorOnchain({
 
 export type BenchmarkVaultPermission = {
   address: Address;
-  depositAllowed: boolean;
   label: string;
-  targetAllowed: boolean;
-  withdrawAllowed: boolean;
+  targetAllowed?: boolean;
+};
+
+export type AllowedTargetPermission = {
+  address: Address;
+  allowed: boolean;
+  label: string;
 };
 
 export type AutonomyOnchainState = {
+  allowedTargets: AllowedTargetPermission[];
   benchmarkVaults: BenchmarkVaultPermission[];
   dailyLimitMnt: string;
   enabled: boolean;
@@ -130,42 +154,21 @@ export async function readAutonomyStateOnchain({
 
   const vaultPermissions = await Promise.all(
     benchmarkVaults.map(async (vault) => {
-      const [targetAllowed, depositAllowed, withdrawAllowed] = await Promise.all([
-        readAllowedAddressOnchain({ target: vault.address, walletAddress: address }),
-        readContractOrDefault(
-          () =>
-            readContract(wagmiConfig, {
-              abi: nexora4337AgentWalletAbi,
-              address,
-              args: [vault.address, "0xd0e30db0"],
-              chainId: mantleSepolia.id,
-              functionName: "allowedTargetSelectors",
-            }),
-          false,
-        ),
-        readContractOrDefault(
-          () =>
-            readContract(wagmiConfig, {
-              abi: nexora4337AgentWalletAbi,
-              address,
-              args: [vault.address, "0x2e1a7d4d"],
-              chainId: mantleSepolia.id,
-              functionName: "allowedTargetSelectors",
-            }),
-          false,
-        ),
-      ]);
+      const targetAllowed = await readAllowedAddressOnchain({
+        target: vault.address,
+        walletAddress: address,
+      });
 
       return {
         ...vault,
-        depositAllowed,
         targetAllowed,
-        withdrawAllowed,
       };
     }),
   );
+  const allowedTargets = await readAllowedTargetsOnchain(address);
 
   return {
+    allowedTargets,
     benchmarkVaults: vaultPermissions,
     dailyLimitMnt: formatEther(policy[4]),
     enabled: policy[1],
@@ -177,6 +180,25 @@ export async function readAutonomyStateOnchain({
   };
 }
 
+export async function readAllowedTargetsOnchain(walletAddress?: `0x${string}`) {
+  try {
+    const [targets, allowedStatuses] = await readContract(wagmiConfig, {
+      abi: nexora4337AgentWalletAbi,
+      address: requireAgentWallet(walletAddress),
+      chainId: mantleSepolia.id,
+      functionName: "getAllowedTargets",
+    });
+
+    return targets.map((target, index): AllowedTargetPermission => ({
+      address: target,
+      allowed: Boolean(allowedStatuses[index]),
+      label: labelAllowedTarget(target),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export async function readAllowedAddressOnchain({
   target,
   walletAddress,
@@ -184,17 +206,17 @@ export async function readAllowedAddressOnchain({
   target: Address;
   walletAddress?: `0x${string}`;
 }) {
-  return readContractOrDefault(
-    () =>
-      readContract(wagmiConfig, {
-        abi: nexora4337AgentWalletAbi,
-        address: requireAgentWallet(walletAddress),
-        args: [target],
-        chainId: mantleSepolia.id,
-        functionName: "allowedTargets",
-      }),
-    false,
-  );
+  try {
+    return await readContract(wagmiConfig, {
+      abi: nexora4337AgentWalletAbi,
+      address: requireAgentWallet(walletAddress),
+      args: [target],
+      chainId: mantleSepolia.id,
+      functionName: "allowedTargets",
+    });
+  } catch {
+    return undefined;
+  }
 }
 
 export async function setAllowedAddressOnchain({

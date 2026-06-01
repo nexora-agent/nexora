@@ -6,11 +6,11 @@ import { Header } from "@/components/Header";
 import { AgentCreationWizard } from "@/components/agent/AgentCreationWizard";
 import { AgentList } from "@/components/agent/AgentList";
 import { AgentProfileCard } from "@/components/agent/AgentProfileCard";
+import { BenchmarkBuilder } from "@/components/benchmark/BenchmarkBuilder";
 import { getAgentStatus } from "@/components/agent/AgentStatusBadge";
 import { AgentWalletBalance } from "@/components/wallet/AgentWalletBalance";
 import { AgentWalletCard } from "@/components/wallet/AgentWalletCard";
 import { FundWalletPanel } from "@/components/wallet/FundWalletPanel";
-import { HarnessBuilder } from "@/components/harness-builder/HarnessBuilder";
 import { useAgents } from "@/hooks/useAgents";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
 import type { AgentRecord } from "@nexora/shared";
@@ -18,7 +18,7 @@ import type { AgentStatus } from "@/components/agent/AgentStatusBadge";
 
 type DashboardModal =
   | "smart-wallet"
-  | "harness"
+  | "benchmark"
   | "wallet-detail"
   | "create-agent-wallet"
   | "fund-wallet"
@@ -133,8 +133,8 @@ export default function DashboardPage() {
               <button className="primary-action" onClick={() => setModal("smart-wallet")} type="button">
                 Create Smart Wallet
               </button>
-              <button className="secondary-action" onClick={() => setModal("harness")} type="button">
-                Create Harness
+              <button className="secondary-action" onClick={() => setModal("benchmark")} type="button">
+                Create Benchmark
               </button>
             </div>
           </section>
@@ -173,9 +173,9 @@ export default function DashboardPage() {
         </DashboardModalShell>
       )}
 
-      {modal === "harness" && (
-        <DashboardModalShell label="Create Harness" onClose={closeModal}>
-          <HarnessBuilder />
+      {modal === "benchmark" && (
+        <DashboardModalShell label="Create Benchmark" onClose={closeModal}>
+          <BenchmarkBuilder />
         </DashboardModalShell>
       )}
 

@@ -11,7 +11,7 @@ export const mantleSepolia = defineChain({
   },
   rpcUrls: {
     default: {
-      http: ["https://rpc.sepolia.mantle.xyz"],
+      http: ["https://mantle-sepolia.g.alchemy.com/v2/WUHHfgnpLvICz941qwVswahyQq1wGzXX"],
     },
   },
   blockExplorers: {

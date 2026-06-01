@@ -2,7 +2,6 @@
 
 import type { AgentRecord } from "@nexora/shared";
 import Link from "next/link";
-import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { getExternalDefiEligibility } from "@/lib/byreal/externalDefiEligibility";
 import { getHarnessTemplate } from "@/lib/harness/harnessTemplates";
 import {
@@ -37,11 +36,11 @@ function AgentTableRow({
 }) {
   const harness = getHarnessTemplate(agent.selectedHarnessId);
   const modelConfig = normalizeModelConfig(agent);
-  const { formattedBalance, isLoading, isZeroBalance } = useWalletBalance(agent.walletAddress);
-  const isFunded = Boolean(agent.walletAddress && (agent.walletFundedAt || (!isLoading && !isZeroBalance)));
+  const isFunded = Boolean(agent.walletAddress && agent.walletFundedAt);
   const status = getAgentStatus(agent, isFunded);
   const nextAction = getAgentNextAction(status);
   const externalDefi = getExternalDefiEligibility(agent, isFunded);
+  const benchmarkScore = agent.objectiveRuns?.[0]?.benchmarkScore?.finalScore;
 
   return (
     <tr>
@@ -61,8 +60,8 @@ function AgentTableRow({
       <td>{modelConfig.modelName}</td>
       <td>{enabledToolsCount(agent)}</td>
       <td>{agent.riskMode}</td>
-      <td>{agent.walletAddress ? (isLoading ? "Checking" : formattedBalance) : "—"}</td>
-      <td>{agent.objectiveRuns?.[0]?.benchmarkScore?.finalScore ?? "—"}</td>
+      <td>{agent.walletAddress ? (agent.walletFundedAt ? "Funded" : "Open wallet") : "—"}</td>
+      <td>{benchmarkScore ?? "—"}</td>
       <td>
         <AgentStatusBadge status={status} />
       </td>
@@ -112,7 +111,21 @@ export function AgentList({
   onOpenWallet,
   onWalletAction,
 }: AgentListProps) {
-  if (agents.length === 0) {
+  const uniqueAgents = agents.filter((agent, index, allAgents) => {
+    const identityKey = `${agent.identityStandard ?? "legacy"}-${agent.id}`;
+    const walletKey = agent.walletAddress?.toLowerCase();
+
+    return (
+      allAgents.findIndex((candidate) => {
+        const candidateIdentityKey = `${candidate.identityStandard ?? "legacy"}-${candidate.id}`;
+        const candidateWalletKey = candidate.walletAddress?.toLowerCase();
+
+        return candidateIdentityKey === identityKey || Boolean(walletKey && candidateWalletKey === walletKey);
+      }) === index
+    );
+  });
+
+  if (uniqueAgents.length === 0) {
     return (
       <section className="empty-state-card" aria-label="Empty dashboard">
         <h2>Create your first AI-controlled smart wallet.</h2>
@@ -149,10 +162,10 @@ export function AgentList({
             </tr>
           </thead>
           <tbody>
-            {agents.map((agent) => (
+            {uniqueAgents.map((agent, index) => (
               <AgentTableRow
                 agent={agent}
-                key={`${agent.identityStandard ?? "legacy"}-${agent.id}-${agent.walletAddress ?? "profile"}`}
+                key={`${agent.identityStandard ?? "legacy"}-${agent.id}-${agent.walletAddress ?? "profile"}-${index}`}
                 onOpenWallet={onOpenWallet}
                 onWalletAction={onWalletAction}
               />
