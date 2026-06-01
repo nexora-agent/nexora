@@ -17,7 +17,8 @@ if [[ "$ARGUMENT" == "--" ]]; then
   ARGUMENT="${3:-}"
 fi
 RPC_URL="${MANTLE_RPC_URL:-https://rpc.sepolia.mantle.xyz}"
-MODEL_ENDPOINT="${NEXORA_MODEL_ENDPOINT_URL:-http://127.0.0.1:11434/api/generate}"
+WSL_OLLAMA_HOST="$(hostname -I 2>/dev/null | awk '{print $1}')"
+MODEL_ENDPOINT="${NEXORA_MODEL_ENDPOINT_URL:-http://${WSL_OLLAMA_HOST:-127.0.0.1}:11434/api/generate}"
 MODEL_NAME="${NEXORA_MODEL_NAME:-qwen2.5:7b}"
 ACTION_AMOUNT="${NEXORA_AGENT_ACTION_AMOUNT_MNT:-0.01}"
 EXECUTOR_MIN_BALANCE_MNT="${NEXORA_AGENT_EXECUTOR_MIN_BALANCE_MNT:-0.01}"
@@ -246,8 +247,8 @@ print_help() {
 Nexora manual test helper
 
 Commands:
-  pnpm nexora:dev                 Start API and web together
-  pnpm nexora:api                 Start the API on port 4000
+  pnpm nexora:dev                 Start Runner API and web together
+  pnpm nexora:api                 Start the Runner API on port 4000
   pnpm nexora:web                 Start the web app on port 3000
   pnpm nexora:harness             Start the example local harness on port 8787
   pnpm nexora:mcp                 Call the Nexora MCP endpoint through the API
@@ -275,6 +276,7 @@ EOF
 case "$COMMAND" in
   dev)
     export NEXT_PUBLIC_NEXORA_API_URL="${NEXT_PUBLIC_NEXORA_API_URL:-http://localhost:4000}"
+    export NEXT_PUBLIC_NEXORA_RUNNER_API_URL="${NEXT_PUBLIC_NEXORA_RUNNER_API_URL:-http://localhost:4000}"
     pnpm dev
     ;;
 
@@ -284,6 +286,7 @@ case "$COMMAND" in
 
   web)
     export NEXT_PUBLIC_NEXORA_API_URL="${NEXT_PUBLIC_NEXORA_API_URL:-http://localhost:4000}"
+    export NEXT_PUBLIC_NEXORA_RUNNER_API_URL="${NEXT_PUBLIC_NEXORA_RUNNER_API_URL:-http://localhost:4000}"
     pnpm dev:web
     ;;
 
@@ -302,8 +305,9 @@ case "$COMMAND" in
     ;;
 
   ollama)
-    echo "Checking Ollama tags at http://127.0.0.1:11434/api/tags"
-    curl -fsS http://127.0.0.1:11434/api/tags >/tmp/nexora-ollama-tags.json
+    OLLAMA_TAGS_URL="${MODEL_ENDPOINT%/api/generate}/api/tags"
+    echo "Checking Ollama tags at $OLLAMA_TAGS_URL"
+    curl -fsS "$OLLAMA_TAGS_URL" >/tmp/nexora-ollama-tags.json
     node -e "const d=require('/tmp/nexora-ollama-tags.json'); console.log('Models:', (d.models||[]).map(m=>m.name).join(', '));"
     echo "Testing model: $MODEL_NAME"
     curl -fsS "$MODEL_ENDPOINT" \

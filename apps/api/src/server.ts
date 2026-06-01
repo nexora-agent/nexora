@@ -7,6 +7,7 @@ import { byrealStatusRoute } from "./routes/byrealStatus.route";
 import { healthRoute } from "./routes/health.route";
 import { localHarnessRoute } from "./routes/localHarness.route";
 import { nexoraMcpServer } from "./mcp/nexoraMcpServer";
+import { runnerControlRoute } from "./routes/runnerControl.route";
 import { runObjectiveRoute } from "./routes/runObjective.route";
 
 const app = Fastify({
@@ -25,6 +26,7 @@ await app.register(byrealStatusRoute);
 await app.register(localHarnessRoute);
 await app.register(nexoraMcpServer);
 await app.register(runObjectiveRoute);
+await app.register(runnerControlRoute);
 
 const port = Number(process.env.PORT ?? 4000);
 const host = process.env.HOST ?? "0.0.0.0";

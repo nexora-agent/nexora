@@ -10,6 +10,7 @@ import { BenchmarkBuilder } from "@/components/benchmark/BenchmarkBuilder";
 import { getAgentStatus } from "@/components/agent/AgentStatusBadge";
 import { AgentWalletBalance } from "@/components/wallet/AgentWalletBalance";
 import { AgentWalletCard } from "@/components/wallet/AgentWalletCard";
+import { AgentConfigurationPanel } from "@/components/runner/AgentConfigurationPanel";
 import { FundWalletPanel } from "@/components/wallet/FundWalletPanel";
 import { WalletCharacter } from "@/components/WalletCharacter";
 import { useAgents } from "@/hooks/useAgents";
@@ -68,6 +69,7 @@ function DashboardModalShell({
 export default function DashboardPage() {
   const { agents, loaded, refreshAgents } = useAgents();
   const { address } = useWalletConnection();
+  const [activeView, setActiveView] = useState<"wallets" | "agent-config">("wallets");
   const [modal, setModal] = useState<DashboardModal>(null);
   const [selectedAgent, setSelectedAgent] = useState<AgentRecord | undefined>();
   const totalWallets = agents.length;
@@ -134,8 +136,8 @@ export default function DashboardPage() {
               <button className="primary-action" onClick={() => setModal("smart-wallet")} type="button">
                 Create Smart Wallet
               </button>
-              <button className="secondary-action" onClick={() => setModal("benchmark")} type="button">
-                Create Benchmark
+              <button className="secondary-action" onClick={() => setActiveView("agent-config")} type="button">
+                Agent Configuration
               </button>
             </div>
             <div className="dashboard-hero-character">
@@ -143,31 +145,64 @@ export default function DashboardPage() {
             </div>
           </section>
 
-          <section className="dashboard-summary-grid" aria-label="Dashboard summary">
-            <article>
-              <span>Total Smart Wallets</span>
-              <strong>{loaded ? totalWallets : "—"}</strong>
-            </article>
-            <article>
-              <span>Needs Funding</span>
-              <strong>{loaded ? needsFunding : "—"}</strong>
-            </article>
-            <article>
-              <span>Average Benchmark</span>
-              <strong>{loaded ? averageBenchmark : "—"}</strong>
-            </article>
-            <article>
-              <span>Active Wallets</span>
-              <strong>{loaded ? activeWallets : "—"}</strong>
-            </article>
-          </section>
+          <div className="dashboard-view-tabs" aria-label="Dashboard views">
+            <button
+              className={activeView === "wallets" ? "dashboard-view-tab-active" : ""}
+              onClick={() => setActiveView("wallets")}
+              type="button"
+            >
+              Smart Wallets
+            </button>
+            <button
+              className={activeView === "agent-config" ? "dashboard-view-tab-active" : ""}
+              onClick={() => setActiveView("agent-config")}
+              type="button"
+            >
+              Agent Configuration
+            </button>
+          </div>
 
-          <AgentList
-            agents={agents}
-            onCreateSmartWallet={() => setModal("smart-wallet")}
-            onOpenWallet={openWalletDetail}
-            onWalletAction={openWalletAction}
-          />
+          {activeView === "wallets" ? (
+            <>
+              <section className="dashboard-action-strip" aria-label="Dashboard actions">
+                <div>
+                  <strong>Benchmarks</strong>
+                  <span>Create a custom benchmark and store its hash on Mantle.</span>
+                </div>
+                <button className="secondary-action" onClick={() => setModal("benchmark")} type="button">
+                  Create Benchmark
+                </button>
+              </section>
+
+              <section className="dashboard-summary-grid" aria-label="Dashboard summary">
+                <article>
+                  <span>Total Smart Wallets</span>
+                  <strong>{loaded ? totalWallets : "—"}</strong>
+                </article>
+                <article>
+                  <span>Needs Funding</span>
+                  <strong>{loaded ? needsFunding : "—"}</strong>
+                </article>
+                <article>
+                  <span>Average Benchmark</span>
+                  <strong>{loaded ? averageBenchmark : "—"}</strong>
+                </article>
+                <article>
+                  <span>Active Wallets</span>
+                  <strong>{loaded ? activeWallets : "—"}</strong>
+                </article>
+              </section>
+
+              <AgentList
+                agents={agents}
+                onCreateSmartWallet={() => setModal("smart-wallet")}
+                onOpenWallet={openWalletDetail}
+                onWalletAction={openWalletAction}
+              />
+            </>
+          ) : (
+            <AgentConfigurationPanel agents={agents} />
+          )}
         </div>
       </section>
 
