@@ -2,13 +2,14 @@
 
 import { useEffect, useState } from "react";
 
-type Theme = "dark" | "amber" | "arcade" | "light";
+type Theme = "dark" | "amber" | "arcade" | "light" | "clean";
 
 const THEMES: { value: Theme; label: string; title: string }[] = [
   { value: "dark",   label: "NX",  title: "Nexus (dark)"     },
   { value: "amber",  label: "CRT", title: "Amber CRT"        },
   { value: "arcade", label: "ARC", title: "Arcade"           },
   { value: "light",  label: "GB",  title: "Game Boy"         },
+  { value: "clean",  label: "OG",  title: "Original"         },
 ];
 
 function preferredTheme(): Theme {

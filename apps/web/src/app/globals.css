@@ -3193,19 +3193,19 @@ dd {
   filter: drop-shadow(3px 3px 0 #000);
 }
 
-/* Remove all border-radius for pixel-sharp look */
-*,
-*::before,
-*::after {
+/* Remove all border-radius for pixel-sharp look (skip in clean theme) */
+:root:not([data-theme="clean"]) *,
+:root:not([data-theme="clean"]) *::before,
+:root:not([data-theme="clean"]) *::after {
   border-radius: 0 !important;
 }
 
-/* Override smooth transitions to steppy ones */
-button,
-a,
-input,
-select,
-textarea {
+/* Override smooth transitions to steppy ones (skip in clean theme) */
+:root:not([data-theme="clean"]) button,
+:root:not([data-theme="clean"]) a,
+:root:not([data-theme="clean"]) input,
+:root:not([data-theme="clean"]) select,
+:root:not([data-theme="clean"]) textarea {
   transition:
     border-color 80ms steps(2),
     box-shadow 80ms steps(2),
@@ -3598,7 +3598,297 @@ pre, code {
   color: var(--success) !important;
 }
 
-/* CRT monitor flicker on html */
-html {
+/* CRT monitor flicker — only on 8-bit themes */
+:root:not([data-theme="clean"]) {
   animation: crt-flicker 8s infinite;
+}
+
+/* ============================================================
+   CLEAN THEME — original design restored, no 8-bit overrides
+   ============================================================ */
+
+/* Clean light (default) — exact copy of original :root */
+:root[data-theme="clean"] {
+  color-scheme: light;
+  --bg: #f4f7fb;
+  --bg-glow: radial-gradient(circle at top left, rgba(37, 99, 235, 0.16), transparent 34%),
+    radial-gradient(circle at 80% 10%, rgba(14, 165, 233, 0.12), transparent 28%);
+  --ink: #071827;
+  --muted: #5d6b7c;
+  --line: #d7e0ec;
+  --line-strong: #b8c7d9;
+  --surface: #ffffff;
+  --surface-soft: #f8fbff;
+  --surface-strong: #e8f1ff;
+  --surface-elevated: rgba(255, 255, 255, 0.88);
+  --accent: #2563eb;
+  --accent-strong: #1d4ed8;
+  --accent-soft: #dbeafe;
+  --success: #16a34a;
+  --success-soft: #dcfce7;
+  --warning: #d97706;
+  --warning-soft: #fef3c7;
+  --danger: #dc2626;
+  --danger-soft: #fee2e2;
+  --shadow: 0 22px 60px rgba(15, 23, 42, 0.1);
+  --shadow-strong: 0 30px 90px rgba(15, 23, 42, 0.18);
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  image-rendering: auto;
+  animation: none;
+}
+
+/* Clean dark — respeta prefers-color-scheme como hacía el original */
+@media (prefers-color-scheme: dark) {
+  :root[data-theme="clean"] {
+    color-scheme: dark;
+    --bg: #07111f;
+    --bg-glow: radial-gradient(circle at top left, rgba(37, 99, 235, 0.28), transparent 34%),
+      radial-gradient(circle at 78% 8%, rgba(14, 165, 233, 0.18), transparent 30%);
+    --ink: #edf5ff;
+    --muted: #9fb0c6;
+    --line: #213249;
+    --line-strong: #334761;
+    --surface: #0d1a2b;
+    --surface-soft: #101f33;
+    --surface-strong: #162b47;
+    --surface-elevated: rgba(13, 26, 43, 0.9);
+    --accent: #60a5fa;
+    --accent-strong: #93c5fd;
+    --accent-soft: #12345a;
+    --success: #4ade80;
+    --success-soft: #123c2a;
+    --warning: #fbbf24;
+    --warning-soft: #3b2b0d;
+    --danger: #f87171;
+    --danger-soft: #3f171b;
+    --shadow: 0 24px 70px rgba(0, 0, 0, 0.28);
+    --shadow-strong: 0 32px 100px rgba(0, 0, 0, 0.42);
+  }
+}
+
+/* No scanlines */
+[data-theme="clean"] body::after {
+  display: none;
+}
+
+/* Restore background glow */
+[data-theme="clean"] body {
+  background-image: var(--bg-glow) !important;
+  background-attachment: fixed !important;
+}
+
+/* Restore fonts for all text */
+[data-theme="clean"],
+[data-theme="clean"] button,
+[data-theme="clean"] input,
+[data-theme="clean"] textarea,
+[data-theme="clean"] select {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+}
+
+/* Restore heading fonts and sizes */
+[data-theme="clean"] h1,
+[data-theme="clean"] h2,
+[data-theme="clean"] h3,
+[data-theme="clean"] h4,
+[data-theme="clean"] h5,
+[data-theme="clean"] h6 {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, sans-serif !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+[data-theme="clean"] h1 { font-size: clamp(3.2rem, 11vw, 8rem) !important; line-height: 0.9 !important; }
+[data-theme="clean"] h2 { font-size: revert !important; line-height: revert !important; }
+[data-theme="clean"] h3 { font-size: revert !important; line-height: revert !important; }
+[data-theme="clean"] .dashboard-hero h1 { font-size: clamp(2.3rem, 4vw, 4.1rem) !important; line-height: 1.05 !important; }
+[data-theme="clean"] .agent-hero-card h2 { font-size: clamp(2rem, 5vw, 4.5rem) !important; }
+
+/* Restore header */
+[data-theme="clean"] .site-header {
+  backdrop-filter: blur(18px) !important;
+  background: color-mix(in srgb, var(--surface-elevated) 86%, transparent) !important;
+  border-bottom: 1px solid color-mix(in srgb, var(--line) 72%, transparent) !important;
+  box-shadow: none !important;
+  min-height: 72px !important;
+}
+
+/* Restore brand */
+[data-theme="clean"] .brand {
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+  font-size: 1.35rem !important;
+  color: var(--ink) !important;
+  animation: none !important;
+  text-shadow: none !important;
+}
+[data-theme="clean"] .brand::before {
+  background: linear-gradient(135deg, var(--accent), #38bdf8) !important;
+  border-radius: 9px !important;
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 36%, transparent) !important;
+  width: 28px !important;
+  height: 28px !important;
+  margin-right: 0 !important;
+  margin-bottom: 0 !important;
+  align-self: auto !important;
+}
+
+/* Restore nav links */
+[data-theme="clean"] .site-header nav a {
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+  font-size: 0.95rem !important;
+  color: var(--muted) !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  text-shadow: none !important;
+}
+
+/* Restore header wallet control */
+[data-theme="clean"] .header-wallet-control {
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  font-family: Inter, ui-sans-serif, sans-serif !important;
+  font-size: 0.84rem !important;
+}
+
+/* Restore status dots (round) */
+[data-theme="clean"] .status-dot {
+  border-radius: 999px !important;
+  animation: none !important;
+  box-shadow: none !important;
+}
+
+/* Restore primary button */
+[data-theme="clean"] .wallet-button,
+[data-theme="clean"] .primary-action {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important;
+  border: 1px solid var(--accent) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 26%, transparent) !important;
+  color: white !important;
+  font-size: 1rem !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  translate: none !important;
+}
+[data-theme="clean"] .wallet-button:hover,
+[data-theme="clean"] .primary-action:hover {
+  transform: translateY(-1px) !important;
+  translate: none !important;
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--accent) 26%, transparent) !important;
+}
+
+/* Restore secondary button + theme toggle */
+[data-theme="clean"] .secondary-action,
+[data-theme="clean"] .theme-toggle {
+  background: var(--surface-soft) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  color: var(--ink) !important;
+  font-size: 1rem !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+  translate: none !important;
+}
+[data-theme="clean"] .theme-toggle {
+  color: var(--muted) !important;
+  font-size: 1.05rem !important;
+}
+
+/* Restore modal backdrop */
+[data-theme="clean"] .modal-backdrop {
+  backdrop-filter: blur(12px) !important;
+  background: rgba(4, 10, 24, 0.68) !important;
+}
+
+/* Restore dashboard hero */
+[data-theme="clean"] .dashboard-hero {
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--surface) 88%, transparent), color-mix(in srgb, var(--accent-soft) 36%, transparent)),
+    var(--surface) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: var(--shadow) !important;
+}
+[data-theme="clean"] .dashboard-summary-grid article {
+  border: 1px solid var(--line) !important;
+  box-shadow: var(--shadow) !important;
+}
+[data-theme="clean"] .dashboard-summary-grid article:hover {
+  border-color: color-mix(in srgb, var(--accent) 42%, var(--line)) !important;
+  box-shadow: var(--shadow) !important;
+}
+
+/* Restore inputs */
+[data-theme="clean"] input,
+[data-theme="clean"] textarea,
+[data-theme="clean"] select {
+  background: var(--surface-soft) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  color: var(--ink) !important;
+}
+[data-theme="clean"] input:focus,
+[data-theme="clean"] textarea:focus,
+[data-theme="clean"] select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 20%, transparent) !important;
+}
+
+/* Restore wizard tabs */
+[data-theme="clean"] .wallet-tab-nav {
+  border-radius: 8px !important;
+  box-shadow: none !important;
+}
+[data-theme="clean"] .wallet-tab-nav button {
+  font-size: 0.9rem !important;
+  text-transform: none !important;
+}
+[data-theme="clean"] .wallet-tab-nav button.wallet-tab-active {
+  background: var(--surface) !important;
+  color: var(--ink) !important;
+  box-shadow: 0 1px 10px color-mix(in srgb, var(--ink) 8%, transparent) !important;
+}
+
+/* Restore wizard steps */
+[data-theme="clean"] .wizard-steps li {
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  font-size: 0.86rem !important;
+}
+[data-theme="clean"] .wizard-step-active {
+  border-color: var(--accent) !important;
+  color: var(--accent-strong) !important;
+}
+
+/* Restore table header */
+[data-theme="clean"] .agent-table-card th {
+  color: var(--muted) !important;
+  font-size: 0.82rem !important;
+  text-transform: none !important;
+  border-bottom: 1px solid var(--line) !important;
+}
+
+/* Restore section nav links */
+[data-theme="clean"] .agent-section-nav a {
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  font-size: 0.9rem !important;
+  text-transform: none !important;
+}
+
+/* Restore focus ring */
+[data-theme="clean"] button:focus-visible,
+[data-theme="clean"] a:focus-visible,
+[data-theme="clean"] input:focus-visible,
+[data-theme="clean"] textarea:focus-visible,
+[data-theme="clean"] select:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 42%, transparent) !important;
+  outline-offset: 3px !important;
+  box-shadow: none !important;
+}
+
+/* Hide pixel art wallet character in clean theme */
+[data-theme="clean"] .dashboard-hero-character {
+  display: none;
 }
