@@ -12,6 +12,7 @@ import {
 
 type AgentListProps = {
   agents: AgentRecord[];
+  isLoading?: boolean;
   onCreateSmartWallet?: () => void;
   onOpenWallet?: (agent: AgentRecord) => void;
   onWalletAction?: (
@@ -60,7 +61,61 @@ function WalletBalanceCell({
     return <span>Not created</span>;
   }
 
-  return <span>{isLoading ? "Checking..." : formattedBalance}</span>;
+  return (
+    <span>
+      {isLoading ? (
+        <span aria-label="Loading balance" className="value-skeleton" />
+      ) : (
+        formattedBalance ?? "—"
+      )}
+    </span>
+  );
+}
+
+export function AgentListSkeleton() {
+  return (
+    <section className="agent-table-card" aria-label="Loading smart wallets">
+      <div className="agent-table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Description</th>
+              <th>Address</th>
+              <th>Balance</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {Array.from({ length: 4 }).map((_, index) => (
+              <tr key={index}>
+                <td>
+                  <span className="skeleton-line skeleton-short" />
+                </td>
+                <td>
+                  <span className="skeleton-line" />
+                </td>
+                <td>
+                  <span className="skeleton-line skeleton-short" />
+                </td>
+                <td>
+                  <span className="value-skeleton" />
+                </td>
+                <td>
+                  <span className="skeleton-line skeleton-short" />
+                </td>
+                <td>
+                  <span className="skeleton-line skeleton-short" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
 }
 
 function AgentTableRow({
@@ -162,7 +217,11 @@ function AgentTableRow({
       </td>
 
       <td>
-        <AgentStatusBadge status={status} />
+        {isLoading && agent.walletAddress ? (
+          <span aria-label="Loading status" className="skeleton-line skeleton-short" />
+        ) : (
+          <AgentStatusBadge status={status} />
+        )}
       </td>
 
       <td>
@@ -174,7 +233,11 @@ function AgentTableRow({
               onClick={() => onWalletAction(agent, status)}
               type="button"
             >
-              {nextAction}
+              {isActionDisabled ? (
+                <span aria-label="Loading action" className="value-skeleton" />
+              ) : (
+                nextAction
+              )}
             </button>
           )}
 
@@ -202,10 +265,15 @@ function AgentTableRow({
 
 export function AgentList({
   agents,
+  isLoading = false,
   onCreateSmartWallet,
   onOpenWallet,
   onWalletAction,
 }: AgentListProps) {
+  if (isLoading) {
+    return <AgentListSkeleton />;
+  }
+
   const uniqueAgents = agents.filter((agent, index, allAgents) => {
     const identityKey = `${agent.identityStandard ?? "legacy"}-${agent.id}`;
     const walletKey = agent.walletAddress?.toLowerCase();

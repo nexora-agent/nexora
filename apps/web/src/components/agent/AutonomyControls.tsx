@@ -44,6 +44,16 @@ function formatAddress(address: string) {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 }
 
+function CardSkeleton() {
+  return (
+    <section className="summary-card skeleton-card" aria-label="Loading">
+      <div className="skeleton-line skeleton-title" />
+      <div className="skeleton-line" />
+      <div className="skeleton-line skeleton-short" />
+    </section>
+  );
+}
+
 export function AutonomyControls({
   agent,
   isOwner,
@@ -65,6 +75,7 @@ export function AutonomyControls({
   const [notice, setNotice] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingState, setIsLoadingState] = useState(false);
+  const [isLoadingBenchmarks, setIsLoadingBenchmarks] = useState(false);
   const [onchainState, setOnchainState] = useState<
     AutonomyOnchainState | undefined
   >();
@@ -74,6 +85,10 @@ export function AutonomyControls({
   const isAutonomyReady = isAgentWalletDeploymentReady();
   const isBenchmarkReady = isBenchmarkRegistryReady();
   const agentId = agent.agentIdentityId ?? agent.id;
+
+  const activeBenchmark = benchmarks.find(
+    (benchmark) => String(benchmark.benchmarkId) === String(activeBenchmarkId),
+  );
 
   const executorConfigured =
     Boolean(onchainState?.enabled) &&
@@ -123,7 +138,6 @@ export function AutonomyControls({
         setDailyLimit(state.dailyLimitMnt);
         setMaxAction(state.maxValuePerActionMnt);
       }
-
     } catch {
       setNotice("Could not read executor settings from this smart wallet.");
     } finally {
@@ -136,16 +150,34 @@ export function AutonomyControls({
       return;
     }
 
+    setIsLoadingBenchmarks(true);
+
     try {
-      const [ownedBenchmarks, activeBenchmark] = await Promise.all([
+      const [ownedBenchmarks, appliedBenchmark] = await Promise.all([
         readBenchmarksOfOwner(agent.ownerAddress),
         readActiveBenchmarkForAgent(agentId).catch(() => undefined),
       ]);
 
-      setBenchmarks(ownedBenchmarks);
-      setActiveBenchmarkId(activeBenchmark?.benchmarkId ?? "");
+      const mergedBenchmarks = appliedBenchmark
+        ? [
+            appliedBenchmark,
+            ...ownedBenchmarks.filter(
+              (benchmark) =>
+                String(benchmark.benchmarkId) !==
+                String(appliedBenchmark.benchmarkId),
+            ),
+          ]
+        : ownedBenchmarks;
+
+      setBenchmarks(mergedBenchmarks);
+      setActiveBenchmarkId(
+        appliedBenchmark ? String(appliedBenchmark.benchmarkId) : "",
+      );
     } catch {
       setBenchmarks([]);
+      setActiveBenchmarkId("");
+    } finally {
+      setIsLoadingBenchmarks(false);
     }
   };
 
@@ -386,6 +418,8 @@ export function AutonomyControls({
         </p>
       )}
 
+      {isLoadingState && <CardSkeleton />}
+
       <div className="executor-form">
         <label>
           <span>Executor address</span>
@@ -412,7 +446,11 @@ export function AutonomyControls({
           onClick={() => void savePolicy()}
           type="button"
         >
-          {isSaving ? "Waiting..." : executorConfigured ? "Update Executor" : "Set Executor"}
+          {isSaving
+            ? "Waiting..."
+            : executorConfigured
+              ? "Update Executor"
+              : "Set Executor"}
         </button>
       </div>
 
@@ -456,11 +494,11 @@ export function AutonomyControls({
 
       <div className="allowed-address-manager">
         <div className="card-heading-row">
-          <h3>Active Benchmark</h3>
+          <h3>Benchmark Applied To This Wallet</h3>
 
           <button
             className="ghost-action"
-            disabled={!isBenchmarkReady || isSaving}
+            disabled={!isBenchmarkReady || isSaving || isLoadingBenchmarks}
             onClick={() => void refreshBenchmarks()}
             type="button"
           >
@@ -468,19 +506,63 @@ export function AutonomyControls({
           </button>
         </div>
 
+        {isLoadingBenchmarks ? (
+          <CardSkeleton />
+        ) : (
+          <section className="summary-card">
+            <h4>Current Benchmark</h4>
+
+            {activeBenchmark ? (
+              <dl>
+                <div>
+                  <dt>Benchmark ID</dt>
+                  <dd>#{activeBenchmark.benchmarkId}</dd>
+                </div>
+
+                <div>
+                  <dt>Benchmark hash</dt>
+                  <dd title={activeBenchmark.benchmarkHash}>
+                    {activeBenchmark.benchmarkHash.slice(0, 10)}...
+                    {activeBenchmark.benchmarkHash.slice(-8)}
+                  </dd>
+                </div>
+
+                <div>
+                  <dt>Target contract addresses</dt>
+                  <dd>
+                    {activeBenchmark.targetContracts.length > 0
+                      ? activeBenchmark.targetContracts.map((address) => (
+                          <span key={address} title={address}>
+                            {address.slice(0, 8)}...{address.slice(-6)}
+                          </span>
+                        ))
+                      : "—"}
+                  </dd>
+                </div>
+              </dl>
+            ) : (
+              <p>No benchmark selected for this smart wallet.</p>
+            )}
+          </section>
+        )}
+
         <div className="executor-form">
           <label>
             <span>Benchmark</span>
             <select
-              disabled={!isBenchmarkReady || benchmarks.length === 0}
+              disabled={
+                !isBenchmarkReady ||
+                isLoadingBenchmarks ||
+                benchmarks.length === 0
+              }
               onChange={(event) => setActiveBenchmarkId(event.target.value)}
               value={activeBenchmarkId}
             >
               <option value="">Select benchmark</option>
               {benchmarks.map((benchmark) => (
                 <option
-                  key={benchmark.benchmarkId}
-                  value={benchmark.benchmarkId}
+                  key={String(benchmark.benchmarkId)}
+                  value={String(benchmark.benchmarkId)}
                 >
                   #{benchmark.benchmarkId}{" "}
                   {benchmark.benchmarkHash.slice(0, 10)}...
@@ -492,7 +574,11 @@ export function AutonomyControls({
           <button
             className="primary-action"
             disabled={
-              !isOwner || !isBenchmarkReady || !activeBenchmarkId || isSaving
+              !isOwner ||
+              !isBenchmarkReady ||
+              !activeBenchmarkId ||
+              isSaving ||
+              isLoadingBenchmarks
             }
             onClick={() => void saveActiveBenchmark()}
             type="button"
@@ -502,10 +588,12 @@ export function AutonomyControls({
         </div>
 
         {!isBenchmarkReady && (
-          <p className="ownership-note">Benchmark registry is not deployed yet.</p>
+          <p className="ownership-note">
+            Benchmark registry is not deployed yet.
+          </p>
         )}
 
-        {isBenchmarkReady && benchmarks.length === 0 && (
+        {isBenchmarkReady && !isLoadingBenchmarks && benchmarks.length === 0 && (
           <p className="ownership-note">
             Create a benchmark before assigning one to this agent.
           </p>
@@ -567,40 +655,46 @@ export function AutonomyControls({
           </p>
         )}
 
-        <div className="allowed-address-list">
-          {allowedAddresses.map((row) => (
-            <div className="allowed-address-row" key={row.address}>
-              <div>
-                <strong>{row.label}</strong>
-                <span>{formatAddress(row.address)}</span>
-                {row.txHash && <span>Tx {formatAddress(row.txHash)}</span>}
-              </div>
+        {isLoadingState ? (
+          <CardSkeleton />
+        ) : (
+          <div className="allowed-address-list">
+            {allowedAddresses.map((row) => (
+              <div className="allowed-address-row" key={row.address}>
+                <div>
+                  <strong>{row.label}</strong>
+                  <span>{formatAddress(row.address)}</span>
+                  {row.txHash && <span>Tx {formatAddress(row.txHash)}</span>}
+                </div>
 
-              <div className="allowed-address-actions">
-                <span
-                  className={`status-pill ${
-                    row.allowed ? "status-ready" : "status-disconnected"
-                  }`}
-                >
-                  {row.allowed === undefined
-                    ? "Checking"
-                    : row.allowed
-                      ? "Allowed"
-                      : "Blocked"}
-                </span>
+                <div className="allowed-address-actions">
+                  <span
+                    className={`status-pill ${
+                      row.allowed ? "status-ready" : "status-disconnected"
+                    }`}
+                  >
+                    {row.allowed === undefined
+                      ? "Checking"
+                      : row.allowed
+                        ? "Allowed"
+                        : "Blocked"}
+                  </span>
 
-                <button
-                  className="ghost-action"
-                  disabled={!isOwner || !row.allowed || isSaving || isLoadingState}
-                  onClick={() => void removeAllowedAddress(row.address)}
-                  type="button"
-                >
-                  Remove
-                </button>
+                  <button
+                    className="ghost-action"
+                    disabled={
+                      !isOwner || !row.allowed || isSaving || isLoadingState
+                    }
+                    onClick={() => void removeAllowedAddress(row.address)}
+                    type="button"
+                  >
+                    Remove
+                  </button>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {notice && <p className="ownership-note">{notice}</p>}
