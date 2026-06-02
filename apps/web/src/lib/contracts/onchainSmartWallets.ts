@@ -22,6 +22,7 @@ import { mantleSepolia } from "@/lib/chains/mantle";
 import {
   nexora4337WalletFactoryAbi,
   nexoraAgentIdentityRegistryAbi,
+  nexora4337AgentWalletAbi ,
   nexoraSmartWalletRegistryAbi,
 } from "@/lib/contracts/abis";
 import {
@@ -372,6 +373,7 @@ export async function createSmartWalletProfileOnchain(
   return agent;
 }
 
+
 export async function createSmartWalletOnchain(
   agent: AgentRecord,
   ownerAddress: `0x${string}`,
@@ -465,6 +467,7 @@ async function getAgentSmartWalletProfileOnchain(
   }
 }
 
+
 export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}`) {
   if (!ownerAddress) {
     return [];
@@ -493,3 +496,287 @@ export async function listSmartWalletProfilesOnchain(ownerAddress?: `0x${string}
         .catch(() => [])
     : [];
 }
+
+export type SmartWalletExecutorPolicy = {
+  allowedTargets: Address[];
+  dailyLimit: bigint;
+  enabled: boolean;
+  executorAddress?: Address;
+  expiresAt: bigint;
+  maxActionAmount: bigint;
+  maxValuePerAction: bigint;
+  requirePreflight: boolean;
+  validUntil: bigint;
+};
+
+function normalizeExecutorPolicyResult(
+  result: unknown,
+  allowedTargets: Address[] = [],
+): SmartWalletExecutorPolicy {
+  const fallback: SmartWalletExecutorPolicy = {
+    allowedTargets,
+    dailyLimit: 0n,
+    enabled: false,
+    executorAddress: undefined,
+    expiresAt: 0n,
+    maxActionAmount: 0n,
+    maxValuePerAction: 0n,
+    requirePreflight: true,
+    validUntil: 0n,
+  };
+
+  if (!result) {
+    return fallback;
+  }
+
+  if (Array.isArray(result)) {
+    const executor =
+      typeof result[0] === "string" &&
+      result[0].toLowerCase() !== zeroAddress.toLowerCase()
+        ? (result[0] as Address)
+        : undefined;
+
+    const maxValuePerAction = BigInt(result[3] ?? 0);
+    const dailyLimit = BigInt(result[4] ?? 0);
+    const validUntil = BigInt(result[5] ?? 0);
+
+    return {
+      allowedTargets,
+      dailyLimit,
+      enabled: Boolean(result[1]),
+      executorAddress: executor,
+      expiresAt: validUntil,
+      maxActionAmount: maxValuePerAction,
+      maxValuePerAction,
+      requirePreflight: Boolean(result[2]),
+      validUntil,
+    };
+  }
+
+  const policy = result as {
+    dailyLimit?: bigint | number | string;
+    enabled?: boolean;
+    executor?: Address;
+    executorAddress?: Address;
+    expiresAt?: bigint | number | string;
+    maxActionAmount?: bigint | number | string;
+    maxValuePerAction?: bigint | number | string;
+    requirePreflight?: boolean;
+    validUntil?: bigint | number | string;
+  };
+
+  const executor =
+    policy.executorAddress &&
+    policy.executorAddress.toLowerCase() !== zeroAddress.toLowerCase()
+      ? policy.executorAddress
+      : policy.executor &&
+          policy.executor.toLowerCase() !== zeroAddress.toLowerCase()
+        ? policy.executor
+        : undefined;
+
+  const maxValuePerAction = BigInt(
+    policy.maxValuePerAction ?? policy.maxActionAmount ?? 0,
+  );
+  const dailyLimit = BigInt(policy.dailyLimit ?? 0);
+  const validUntil = BigInt(policy.validUntil ?? policy.expiresAt ?? 0);
+
+  return {
+    allowedTargets,
+    dailyLimit,
+    enabled: Boolean(policy.enabled),
+    executorAddress: executor,
+    expiresAt: validUntil,
+    maxActionAmount: maxValuePerAction,
+    maxValuePerAction,
+    requirePreflight: policy.requirePreflight ?? true,
+    validUntil,
+  };
+}
+
+function normalizeAllowedTargetsResult(result: unknown): Address[] {
+  if (!result) {
+    return [];
+  }
+
+  if (Array.isArray(result)) {
+    const targets = Array.isArray(result[0]) ? (result[0] as Address[]) : [];
+    const statuses = Array.isArray(result[1]) ? (result[1] as boolean[]) : [];
+
+    return targets.filter((target, index) => statuses[index] === true);
+  }
+
+  const payload = result as {
+    allowedStatuses?: boolean[];
+    targets?: Address[];
+  };
+
+  const targets = payload.targets ?? [];
+  const statuses = payload.allowedStatuses ?? [];
+
+  if (statuses.length === 0) {
+    return targets;
+  }
+
+  return targets.filter((target, index) => statuses[index] === true);
+}
+
+function normalizeExecutorPolicyError(error: unknown) {
+  if (!(error instanceof Error)) {
+    return error;
+  }
+
+  const message = error.message;
+
+  if (
+    message.includes("User denied") ||
+    message.includes("user rejected") ||
+    message.includes("4001")
+  ) {
+    return new Error("Transaction was cancelled in MetaMask.", {
+      cause: error,
+    });
+  }
+
+  if (message.includes("NotOwner")) {
+    return new Error("Only the smart wallet owner can link the local agent.", {
+      cause: error,
+    });
+  }
+
+  if (message.includes("NotAuthorized")) {
+    return new Error(
+      "This wallet is not authorized to update executor policy.",
+      { cause: error },
+    );
+  }
+
+  return error;
+}
+
+async function waitForExecutorPolicyReceipt(
+  hash: `0x${string}`,
+  label: string,
+) {
+  const receipt = await waitForTransactionReceipt(wagmiConfig, {
+    chainId: mantleSepolia.id,
+    hash,
+    timeout: 120_000,
+  }).catch((caughtError: unknown) => {
+    throw normalizeExecutorPolicyError(caughtError);
+  });
+
+  if (receipt.status === "reverted") {
+    throw new Error(`${label} reverted on Mantle.`);
+  }
+
+  return receipt;
+}
+
+export async function readExecutorPolicy(
+  walletAddress?: string,
+): Promise<SmartWalletExecutorPolicy | undefined> {
+  if (!walletAddress) {
+    return undefined;
+  }
+
+  const policyResult = await readContract(wagmiConfig, {
+    address: walletAddress as Address,
+    abi: nexora4337AgentWalletAbi,
+    functionName: "executorPolicy",
+    chainId: mantleSepolia.id,
+  }).catch(() => undefined);
+
+  const allowedTargetsResult = await readContract(wagmiConfig, {
+    address: walletAddress as Address,
+    abi: nexora4337AgentWalletAbi,
+    functionName: "getAllowedTargets",
+    chainId: mantleSepolia.id,
+  }).catch(() => undefined);
+
+  return normalizeExecutorPolicyResult(
+    policyResult,
+    normalizeAllowedTargetsResult(allowedTargetsResult),
+  );
+}
+
+export async function linkAgentToWalletExecutorOnchain({
+  allowedTargets = [],
+  dailyLimit = 0n,
+  executorAddress,
+  expiresAt = 0n,
+  maxActionAmount = 0n,
+  walletAddress,
+}: {
+  allowedTargets?: string[];
+  dailyLimit?: bigint;
+  executorAddress: string;
+  expiresAt?: bigint;
+  maxActionAmount?: bigint;
+  walletAddress: string;
+}) {
+  if (!walletAddress) {
+    throw new Error("Select a smart wallet before linking the local agent.");
+  }
+
+  if (!executorAddress) {
+    throw new Error("Runner key not configured.");
+  }
+
+  const uniqueAllowedTargets = Array.from(
+    new Set(
+      allowedTargets
+        .filter((target): target is `0x${string}` => target.startsWith("0x"))
+        .map((target) => target.toLowerCase() as Address),
+    ),
+  ).filter(
+    (target) => target.toLowerCase() !== zeroAddress.toLowerCase(),
+  );
+
+  const policyHash = await writeContract(wagmiConfig, {
+    address: walletAddress as Address,
+    abi: nexora4337AgentWalletAbi,
+    functionName: "setExecutorPolicy",
+    args: [
+      executorAddress as Address,
+      true,
+      true,
+      maxActionAmount,
+      dailyLimit,
+      expiresAt,
+    ],
+    chainId: mantleSepolia.id,
+  }).catch((caughtError: unknown) => {
+    throw normalizeExecutorPolicyError(caughtError);
+  });
+
+  if (!policyHash) {
+    throw new Error("No transaction hash returned from executor policy update.");
+  }
+
+  await waitForExecutorPolicyReceipt(policyHash, "Agent wallet executor policy");
+
+  for (const target of uniqueAllowedTargets) {
+    const targetHash = await writeContract(wagmiConfig, {
+      address: walletAddress as Address,
+      abi: nexora4337AgentWalletAbi,
+      functionName: "setAllowedTarget",
+      args: [target, true],
+      chainId: mantleSepolia.id,
+    }).catch((caughtError: unknown) => {
+      throw normalizeExecutorPolicyError(caughtError);
+    });
+
+    if (!targetHash) {
+      throw new Error(`No transaction hash returned for allowed target ${target}.`);
+    }
+
+    await waitForExecutorPolicyReceipt(
+      targetHash,
+      `Allowed target ${target}`,
+    );
+  }
+
+  return policyHash;
+}
+
+

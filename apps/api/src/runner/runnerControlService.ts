@@ -264,7 +264,6 @@ export function getRunnerConfig() {
 export function updateRunnerConfig(input: Partial<RunnerConfig>) {
   config = normalizeConfig(input);
   persistConfig(config);
-  addLog("info", "Runner configuration saved.");
   return config;
 }
 
@@ -308,10 +307,27 @@ function extractJsonObject(text: string) {
     throw new Error("Model did not return a JSON object.");
   }
 
-  return JSON.parse(candidate.slice(start, end + 1)) as {
+  const parsed = JSON.parse(candidate.slice(start, end + 1)) as {
+    recommendedContract?: string;
     reasoning?: string;
     rejectedVaults?: string[];
+    selectedContract?: string;
+    selectedTarget?: string;
     selectedVault?: string;
+    target?: string;
+    targetContract?: string;
+  };
+
+  return {
+    reasoning: parsed.reasoning,
+    rejectedVaults: parsed.rejectedVaults,
+    selectedVault:
+      parsed.selectedVault ??
+      parsed.selectedTarget ??
+      parsed.selectedContract ??
+      parsed.targetContract ??
+      parsed.target ??
+      parsed.recommendedContract,
   };
 }
 
@@ -570,11 +586,12 @@ ${JSON.stringify(metadata.simulation ?? {}, null, 2)}
 Return:
 {
   "selectedVault": "${expected.selectedVault}",
+  "selectedTarget": "${expected.selectedVault}",
   "rejectedVaults": ${JSON.stringify(expected.rejectedVaults)},
   "reasoning": "short evidence-based rationale"
 }
 
-Select the safest allowed option for this exact benchmark. Reject every unsafe or blocked option. Use concrete benchmark evidence.`;
+Use selectedTarget when the correct answer is a contract address. Select the safest allowed option for this exact benchmark. Reject every unsafe or blocked option. Use concrete benchmark evidence.`;
 }
 
 function scoreBenchmarkDecision(decision: {
@@ -685,7 +702,12 @@ export async function testBenchmark() {
   const raw = await response.text();
   if (!response.ok) {
     addLog("error", `Benchmark test failed: HTTP ${response.status} ${raw}`);
-    throw new Error(`Benchmark test failed at ${endpoint}: HTTP ${response.status}. ${raw.slice(0, 500)}`);
+    throw new Error(
+      `Benchmark test failed at ${endpoint}: HTTP ${response.status}. ${raw.slice(
+        0,
+        500,
+      )}`,
+    );
   }
 
   const payload = JSON.parse(raw) as { response?: string };
@@ -694,13 +716,19 @@ export async function testBenchmark() {
   const score = scoreBenchmarkDecision(decision, activeBenchmark);
   const passed = score >= 80;
 
+  const benchmarkName = activeBenchmark
+    ? activeBenchmark.metadata.name
+      ? `${activeBenchmark.metadata.name} (#${activeBenchmark.benchmarkId.toString()})`
+      : `benchmark #${activeBenchmark.benchmarkId.toString()}`
+    : "default benchmark";
+
   addLog(
     passed ? "info" : "error",
-    `Benchmark test ${passed ? "passed" : "needs work"}: ${
-      activeBenchmark
-        ? `benchmark #${activeBenchmark.benchmarkId.toString()}`
-        : "default benchmark"
-    }, score ${score}, selected ${decision.selectedVault ?? "unknown"}.`,
+    `Benchmark test ${
+      passed ? "passed" : "needs work"
+    }: ${benchmarkName}, score ${score}, selected ${
+      decision.selectedVault ?? "unknown"
+    }.`,
   );
 
   return {
@@ -725,7 +753,6 @@ export async function testBenchmark() {
     score,
   };
 }
-
 export async function testMcpServer(url: string) {
   const started = Date.now();
   const response = await fetch(url, {

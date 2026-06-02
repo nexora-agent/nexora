@@ -42,6 +42,19 @@ const benchmarkSelectors = [
   { label: "Withdraw", selector: "0x2e1a7d4d" as const },
 ];
 
+const benchmarkActionTargets = [
+  ...benchmarkVaults.map((vault) => ({
+    address: vault.address,
+    selectors: benchmarkSelectors,
+  })),
+  {
+    address: mantleSepoliaContracts.benchmarkDex as Address,
+    selectors: [
+      { label: "Swap MNT for tokens", selector: "0x67f9af71" as const },
+    ],
+  },
+].filter((target) => target.address.toLowerCase() !== zeroAddress.toLowerCase());
+
 function labelAllowedTarget(address: Address) {
   const knownTargets = [
     ...benchmarkVaults,
@@ -344,7 +357,8 @@ export async function allowBenchmarkVaultsOnchain(walletAddress?: `0x${string}`)
   const address = requireAgentWallet(walletAddress);
 
   const hashes: `0x${string}`[] = [];
-  for (const target of benchmarkVaults.map((vault) => vault.address)) {
+  for (const targetConfig of benchmarkActionTargets) {
+    const target = targetConfig.address;
     const targetAllowed = await readContract(wagmiConfig, {
       abi: nexora4337AgentWalletAbi,
       address,
@@ -363,7 +377,7 @@ export async function allowBenchmarkVaultsOnchain(walletAddress?: `0x${string}`)
       );
     }
 
-    for (const { selector } of benchmarkSelectors) {
+    for (const { selector } of targetConfig.selectors) {
       const selectorAllowed = await readContract(wagmiConfig, {
         abi: nexora4337AgentWalletAbi,
         address,

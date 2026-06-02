@@ -2,8 +2,18 @@ import { keccak256, stringToBytes, type Address, type Hex } from "viem";
 
 export type BenchmarkRiskMode = "conservative" | "balanced" | "aggressive";
 
+export type BenchmarkActionDefinition =
+  | string
+  | {
+      description?: string;
+      name: string;
+      parameters?: Record<string, string>;
+      signature?: string;
+      targetType?: string;
+    };
+
 export type CustomBenchmarkDefinition = {
-  allowedActions: string[];
+  allowedActions: BenchmarkActionDefinition[];
   benchmarkType: "dex-trading" | "yield" | "custom";
   blockedActions: string[];
   contractAddress: Address;
@@ -65,7 +75,15 @@ export function generateBenchmarkFromContract({
   return {
     allowedActions:
       type === "dex-trading"
-        ? ["read reserves", "quote swap", "bounded test swap", "reject unsafe price impact"]
+        ? [
+            {
+              description: "Swap a bounded MNT amount for benchmark test tokens.",
+              name: "swapMntForTokens",
+              parameters: { minTokenOut: "uint256" },
+              signature: "swapMntForTokens(uint256)",
+              targetType: "benchmark-dex",
+            },
+          ]
         : ["read protocol state", "bounded deposit", "bounded withdraw", "reject unsafe target"],
     benchmarkType: type,
     blockedActions: [

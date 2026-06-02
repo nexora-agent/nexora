@@ -517,6 +517,13 @@ export const nexoraAgentValidationRegistryAbi = [
     type: "function",
   },
   {
+    inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
+    name: "getAgentValidations",
+    outputs: [{ internalType: "bytes32[]", name: "", type: "bytes32[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [{ internalType: "bytes32", name: "actionIntentHash", type: "bytes32" }],
     name: "getValidation",
     outputs: [

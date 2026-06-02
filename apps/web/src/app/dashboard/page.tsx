@@ -174,7 +174,7 @@ export default function DashboardPage() {
                 </button>
               </section>
 
-              <section className="dashboard-summary-grid" aria-label="Dashboard summary">
+              {/* <section className="dashboard-summary-grid" aria-label="Dashboard summary">
                 <article>
                   <span>Total Smart Wallets</span>
                   <strong>{loaded ? totalWallets : "—"}</strong>
@@ -191,7 +191,7 @@ export default function DashboardPage() {
                   <span>Active Wallets</span>
                   <strong>{loaded ? activeWallets : "—"}</strong>
                 </article>
-              </section>
+              </section> */}
 
               <AgentList
                 agents={agents}

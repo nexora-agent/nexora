@@ -5,6 +5,7 @@ import {
   createPublicClient,
   formatEther,
   http,
+  parseAbiItem,
   zeroAddress,
   type Address,
   type Hex,
@@ -24,10 +25,15 @@ type LatestValidation = {
   basicScore?: number;
   blockNumber?: bigint;
   externalScore?: number;
+  harnessHash?: Hex;
+  modelHash?: Hex;
   passed?: boolean;
+  policyHash?: Hex;
   reportHash?: Hex;
   riskScore?: number;
+  suiteHash?: Hex;
   timestamp?: number;
+  toolsHash?: Hex;
   txHash?: Hex;
 };
 
@@ -71,6 +77,9 @@ const publicClient = createPublicClient({
 });
 
 const cacheTtlMs = 30_000;
+const validationRecordedEvent = parseAbiItem(
+  "event ValidationRecorded(uint256 indexed agentId, bytes32 indexed actionIntentHash, bytes32 indexed reportHash, uint16 averageScore, bool passed, address reporter)",
+);
 const activityCache = new Map<
   string,
   {
@@ -84,18 +93,64 @@ function isConfigured(address: string) {
   return address.toLowerCase() !== zeroAddress.toLowerCase();
 }
 
+async function readValidationHashes(agentId: string) {
+  try {
+    return await publicClient.readContract({
+      abi: nexoraAgentValidationRegistryAbi,
+      address: mantleSepoliaContracts.agentValidationRegistry,
+      args: [BigInt(agentId)],
+      functionName: "validationsOfAgent",
+    });
+  } catch {
+    return publicClient.readContract({
+      abi: nexoraAgentValidationRegistryAbi,
+      address: mantleSepoliaContracts.agentValidationRegistry,
+      args: [BigInt(agentId)],
+      functionName: "getAgentValidations",
+    });
+  }
+}
+
+async function readValidationEventTx({
+  actionIntentHash,
+  agentId,
+  reportHash,
+}: {
+  actionIntentHash: Hex;
+  agentId: string;
+  reportHash: Hex;
+}) {
+  const latestBlock = await publicClient.getBlockNumber();
+  const fromBlock = latestBlock > 100_000n ? latestBlock - 100_000n : 0n;
+  const logs = await publicClient.getLogs({
+    address: mantleSepoliaContracts.agentValidationRegistry,
+    args: {
+      actionIntentHash,
+      agentId: BigInt(agentId),
+      reportHash,
+    },
+    event: validationRecordedEvent,
+    fromBlock,
+    toBlock: latestBlock,
+  });
+
+  const latestLog = logs.at(-1);
+  if (!latestLog) {
+    return undefined;
+  }
+
+  return {
+    blockNumber: latestLog.blockNumber,
+    txHash: latestLog.transactionHash,
+  };
+}
+
 async function readLatestValidation(agentId: string) {
   if (!isConfigured(mantleSepoliaContracts.agentValidationRegistry)) {
     return undefined;
   }
 
-  const hashes = await publicClient.readContract({
-    abi: nexoraAgentValidationRegistryAbi,
-    address: mantleSepoliaContracts.agentValidationRegistry,
-    args: [BigInt(agentId)],
-    functionName: "validationsOfAgent",
-  });
-
+  const hashes = await readValidationHashes(agentId);
   const latestHash = hashes.at(-1);
   if (!latestHash) {
     return undefined;
@@ -107,17 +162,29 @@ async function readLatestValidation(agentId: string) {
     args: [latestHash],
     functionName: "getValidation",
   });
+  const eventTx = await readValidationEventTx({
+    actionIntentHash: record.actionIntentHash,
+    agentId,
+    reportHash: record.reportHash,
+  }).catch(() => undefined);
 
   return {
     actionIntentHash: record.actionIntentHash,
     adversarialScore: Number(record.adversarialScore),
     averageScore: Number(record.averageScore),
     basicScore: Number(record.basicScore),
+    blockNumber: eventTx?.blockNumber,
     externalScore: Number(record.externalScore),
+    harnessHash: record.harnessHash,
+    modelHash: record.modelHash,
     passed: record.passed,
+    policyHash: record.policyHash,
     reportHash: record.reportHash,
     riskScore: Number(record.maxRiskScore),
+    suiteHash: record.suiteHash,
     timestamp: Number(record.timestamp),
+    toolsHash: record.toolsHash,
+    txHash: eventTx?.txHash,
   } satisfies LatestValidation;
 }
 

@@ -47,6 +47,22 @@ function formatAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
 }
 
+function formatHash(hash?: string) {
+  if (!hash) {
+    return "Not recorded";
+  }
+
+  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
+}
+
+function formatUnixTimestamp(timestamp?: number) {
+  if (!timestamp) {
+    return "Not recorded";
+  }
+
+  return new Date(timestamp * 1000).toLocaleString();
+}
+
 function formatValue(value?: string) {
   if (!value) {
     return "Not set";
@@ -209,6 +225,14 @@ export function AgentProfileCard({
         ? "passed"
         : "failed"
       : latestRun?.riskReport?.policyDecision;
+  const latestValidation = onchainActivity?.latestValidation;
+  const latestBenchmarkLabel =
+    latestRun?.intent?.metadata?.benchmarkName ??
+    (latestValidation ? "On-chain runner validation" : undefined);
+  const latestReportHash =
+    latestValidation?.reportHash ?? latestReportEnvelope?.reportHash;
+  const latestToolTraceHash =
+    latestReportEnvelope?.toolTraceHash ?? latestValidation?.suiteHash;
 
   useEffect(() => {
     let active = true;
@@ -491,15 +515,39 @@ export function AgentProfileCard({
                   </div>
                   <div>
                     <dt>Report Hash</dt>
-                    <dd>{onchainActivity.latestValidation.reportHash}</dd>
+                    <dd title={onchainActivity.latestValidation.reportHash}>
+                      {formatHash(onchainActivity.latestValidation.reportHash)}
+                    </dd>
                   </div>
                   <div>
                     <dt>Action Intent</dt>
-                    <dd>{onchainActivity.latestValidation.actionIntentHash}</dd>
+                    <dd title={onchainActivity.latestValidation.actionIntentHash}>
+                      {formatHash(onchainActivity.latestValidation.actionIntentHash)}
+                    </dd>
                   </div>
                   <div>
                     <dt>Validation Tx</dt>
-                    <dd>{onchainActivity.latestValidation.txHash ?? "Not found in recent logs"}</dd>
+                    <dd title={onchainActivity.latestValidation.txHash}>
+                      {onchainActivity.latestValidation.txHash
+                        ? formatHash(onchainActivity.latestValidation.txHash)
+                        : "Event lookup pending"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Recorded At</dt>
+                    <dd>{formatUnixTimestamp(onchainActivity.latestValidation.timestamp)}</dd>
+                  </div>
+                  <div>
+                    <dt>Model Hash</dt>
+                    <dd title={onchainActivity.latestValidation.modelHash}>
+                      {formatHash(onchainActivity.latestValidation.modelHash)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>Tools Hash</dt>
+                    <dd title={onchainActivity.latestValidation.toolsHash}>
+                      {formatHash(onchainActivity.latestValidation.toolsHash)}
+                    </dd>
                   </div>
                   <div>
                     <dt>Execution</dt>
@@ -533,7 +581,7 @@ export function AgentProfileCard({
             )}
             <section className="summary-card" aria-label="Benchmark summary">
               <h3>Latest Benchmark</h3>
-              <p>{latestRun?.intent?.metadata?.benchmarkName ?? "No reports yet. Start the local runner to generate benchmark and risk records."}</p>
+              <p>{latestBenchmarkLabel ?? "No reports yet. Start the local runner to generate benchmark and risk records."}</p>
             </section>
             <section className="summary-card" aria-label="Risk report summary">
               <h3>Risk Score</h3>
@@ -546,11 +594,15 @@ export function AgentProfileCard({
               </p>
             </section>
             <section className="summary-card">
-              <h3>Selected Vault</h3>
-              <p>{latestRun?.intent?.metadata?.targetVault ?? "No vault selected yet"}</p>
+              <h3>Selected Target</h3>
+              <p>
+                {latestRun?.intent?.metadata?.targetVault ??
+                  latestRun?.proposal?.target ??
+                  (latestValidation ? "Stored in report hash" : "No target selected yet")}
+              </p>
             </section>
             <section className="summary-card">
-              <h3>Rejected Vaults</h3>
+              <h3>Rejected Options</h3>
               <p>{latestRun?.intent?.metadata?.rejectedOptions?.map((vault) => `${vault.name}: ${vault.reason}`).join(" · ") ?? "No rejected vaults yet"}</p>
             </section>
             <section className="summary-card">
@@ -571,11 +623,11 @@ export function AgentProfileCard({
             </section>
             <section className="summary-card">
               <h3>Report Hash</h3>
-              <p>{onchainActivity?.latestValidation?.reportHash ?? latestReportEnvelope?.reportHash ?? "No report hash yet"}</p>
+              <p title={latestReportHash}>{formatHash(latestReportHash)}</p>
             </section>
             <section className="summary-card">
-              <h3>Tool Trace Hash</h3>
-              <p>{latestReportEnvelope?.toolTraceHash ?? "No tool trace hash yet"}</p>
+              <h3>Suite / Trace Hash</h3>
+              <p title={latestToolTraceHash}>{formatHash(latestToolTraceHash)}</p>
             </section>
             <section className="summary-card">
               <h3>External DeFi Eligibility</h3>
@@ -670,7 +722,9 @@ export function AgentProfileCard({
                   <span>
                     Score {onchainActivity.latestValidation.averageScore} · risk{" "}
                     {onchainActivity.latestValidation.riskScore} ·{" "}
-                    {onchainActivity.latestValidation.txHash ?? "tx not found"}
+                    {onchainActivity.latestValidation.txHash
+                      ? formatHash(onchainActivity.latestValidation.txHash)
+                      : formatHash(onchainActivity.latestValidation.reportHash)}
                   </span>
                 </li>
               )}

@@ -7,6 +7,11 @@ import {
   type OnchainBenchmark,
 } from "@/lib/contracts/onchainBenchmarks";
 import {
+  readAutonomyStateOnchain,
+  saveExecutorPolicyOnchain,
+  type AutonomyOnchainState,
+} from "@/lib/contracts/onchainAutonomy";
+import {
   getRunnerStatus,
   runRunnerOnce,
   saveRunnerConfig,
@@ -92,6 +97,28 @@ type BenchmarkReport = {
   score: number;
 };
 
+type BenchmarkDisplaySource = {
+  benchmarkHash?: string;
+  benchmarkId: bigint | number | string;
+  metadata?: BenchmarkMetadataReport;
+  metadataURI?: string;
+  targetContracts?: string[];
+};
+
+type RunnerStatusWithExecutor = RunnerStatus & {
+  executorAddress?: string;
+};
+
+type WalletLinkStatus =
+  | "checking"
+  | "linked"
+  | "linked-other"
+  | "missing-executor"
+  | "missing-identity"
+  | "missing-wallet"
+  | "not-linked"
+  | "unknown";
+
 function formatTime(value?: string) {
   if (!value) return "—";
 
@@ -120,30 +147,40 @@ function decodeBenchmarkMetadata(metadataURI?: string) {
   }
 
   try {
-    return JSON.parse(decodeURIComponent(payload)) as {
-      description?: string;
-      expectedAnswer?: {
-        rejectedVaults?: string[];
-        reasoning?: string;
-        selectedVault?: string;
-      };
-      name?: string;
-    };
+    return JSON.parse(decodeURIComponent(payload)) as BenchmarkMetadataReport;
   } catch {
     try {
-      return JSON.parse(atob(payload)) as {
-        description?: string;
-        expectedAnswer?: {
-          rejectedVaults?: string[];
-          reasoning?: string;
-          selectedVault?: string;
-        };
-        name?: string;
-      };
+      return JSON.parse(atob(payload)) as BenchmarkMetadataReport;
     } catch {
       return undefined;
     }
   }
+}
+
+function getBenchmarkMetadata(benchmark?: BenchmarkDisplaySource) {
+  return benchmark?.metadata ?? decodeBenchmarkMetadata(benchmark?.metadataURI);
+}
+
+function getBenchmarkName(benchmark?: BenchmarkDisplaySource) {
+  if (!benchmark) {
+    return "Default built-in SafeVault benchmark";
+  }
+
+  const metadata = getBenchmarkMetadata(benchmark);
+
+  return metadata?.name ?? `Benchmark #${benchmark.benchmarkId}`;
+}
+
+function getBenchmarkHashLabel(benchmarkHash?: string) {
+  if (!benchmarkHash) {
+    return "—";
+  }
+
+  return `${benchmarkHash.slice(0, 10)}...${benchmarkHash.slice(-8)}`;
+}
+
+function getTargetContract(benchmark?: BenchmarkDisplaySource) {
+  return benchmark?.targetContracts?.[0];
 }
 
 function normalizeBenchmarkResult(
@@ -292,19 +329,11 @@ function getLastRunLabel(status?: RunnerStatus) {
 }
 
 function getBenchmarkLabel(benchmark?: OnchainBenchmark) {
-  if (!benchmark) {
-    return "Default built-in SafeVault benchmark";
-  }
-
-  const metadata = decodeBenchmarkMetadata(benchmark.metadataURI);
-
-  return metadata?.name
-    ? `#${benchmark.benchmarkId} · ${metadata.name}`
-    : `#${benchmark.benchmarkId}`;
+  return getBenchmarkName(benchmark);
 }
 
 function getTargetUsedLabel(benchmark?: OnchainBenchmark) {
-  const target = benchmark?.targetContracts[0];
+  const target = getTargetContract(benchmark);
 
   if (!target) {
     return "Fallback SafeVault target";
@@ -313,11 +342,320 @@ function getTargetUsedLabel(benchmark?: OnchainBenchmark) {
   return formatAddress(target);
 }
 
+function getAgentRuntimeId(agent?: AgentRecord) {
+  return agent?.agentIdentityId ?? agent?.id;
+}
+
+function getWalletDisplayName(agent?: AgentRecord) {
+  return agent?.name ?? "No wallet selected";
+}
+
+function normalizeAddressValue(address?: string) {
+  return address?.toLowerCase();
+}
+
+function asHexAddress(address?: string) {
+  return /^0x[a-fA-F0-9]{40}$/.test(address ?? "")
+    ? (address as `0x${string}`)
+    : undefined;
+}
+
+function getExecutorAddress(status?: RunnerStatus) {
+  return (status as RunnerStatusWithExecutor | undefined)?.executorAddress;
+}
+
+function getAutonomyExecutorAddress(state?: AutonomyOnchainState) {
+  return state?.executor;
+}
+
+function getWalletLinkStatus({
+  executorAddress,
+  isLoading,
+  selectedAgent,
+  state,
+}: {
+  executorAddress?: string;
+  isLoading: boolean;
+  selectedAgent?: AgentRecord;
+  state?: AutonomyOnchainState;
+}): WalletLinkStatus {
+  if (!selectedAgent?.walletAddress) {
+    return "missing-wallet";
+  }
+
+  if (!getAgentRuntimeId(selectedAgent)) {
+    return "missing-identity";
+  }
+
+  if (!executorAddress) {
+    return "missing-executor";
+  }
+
+  if (isLoading) {
+    return "checking";
+  }
+
+  if (!state) {
+    return "unknown";
+  }
+
+  const linkedExecutor = getAutonomyExecutorAddress(state);
+
+  if (!state.enabled || !linkedExecutor || !state.reporterAuthorized) {
+    return "not-linked";
+  }
+
+  if (
+    normalizeAddressValue(linkedExecutor) ===
+    normalizeAddressValue(executorAddress)
+  ) {
+    return "linked";
+  }
+
+  return "linked-other";
+}
+
+function getWalletLinkStatusLabel(status: WalletLinkStatus) {
+  switch (status) {
+    case "checking":
+      return "Checking wallet link...";
+    case "linked":
+      return "Linked";
+    case "linked-other":
+      return "Linked to another executor";
+    case "missing-executor":
+      return "Runner key not configured";
+    case "missing-identity":
+      return "Identity not found";
+    case "missing-wallet":
+      return "Smart wallet not deployed";
+    case "not-linked":
+      return "Not linked";
+    case "unknown":
+    default:
+      return "Unable to read link status";
+  }
+}
+
+function getWalletLinkStatusClass(status: WalletLinkStatus) {
+  return status === "linked" ? "status-ready" : "status-disconnected";
+}
+
+function normalizeAddressInput(address: string) {
+  return address.trim();
+}
+
+function isHexAddress(address: string) {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+}
+
+function AgentWalletLinkCard({
+  allowedContractAddressInput,
+  allowedContractAddresses,
+  autonomyState,
+  agents,
+  config,
+  isBusy,
+  isLinkingWallet,
+  isLoadingWalletLink,
+  onAddAllowedContractAddress,
+  onAllowedContractAddressInputChange,
+  onLinkAgentWallet,
+  onRemoveAllowedContractAddress,
+  onSelectAgent,
+  selectedAgent,
+  status,
+}: {
+  allowedContractAddressInput: string;
+  allowedContractAddresses: string[];
+  autonomyState?: AutonomyOnchainState;
+  agents: AgentRecord[];
+  config: RunnerConfig;
+  isBusy: boolean;
+  isLinkingWallet: boolean;
+  isLoadingWalletLink: boolean;
+  onAddAllowedContractAddress: () => void;
+  onAllowedContractAddressInputChange: (value: string) => void;
+  onLinkAgentWallet: () => void;
+  onRemoveAllowedContractAddress: (address: string) => void;
+  onSelectAgent: (agentId: string) => void;
+  selectedAgent?: AgentRecord;
+  status?: RunnerStatus;
+}) {
+  const executorAddress = getExecutorAddress(status);
+  const identityId = getAgentRuntimeId(selectedAgent) ?? config.agentId;
+  const linkStatus = getWalletLinkStatus({
+    executorAddress,
+    isLoading: isLoadingWalletLink,
+    selectedAgent,
+    state: autonomyState,
+  });
+  const linkedExecutor = getAutonomyExecutorAddress(autonomyState);
+  const isLinked = linkStatus === "linked";
+  const isDisabled =
+    isBusy ||
+    isLinkingWallet ||
+    isLoadingWalletLink ||
+    isLinked ||
+    !executorAddress ||
+    !identityId ||
+    !selectedAgent?.walletAddress;
+
+  return (
+    <section className="summary-card agent-wallet-link-card">
+      <div className="card-heading-row">
+        <div>
+          <h3>Agent Wallet Link</h3>
+
+          <p className="runner-note">
+            Select a smart wallet, then link the local executor to that wallet
+            and ERC-8004 identity.
+          </p>
+        </div>
+
+        <span className={`status-pill ${getWalletLinkStatusClass(linkStatus)}`}>
+          {getWalletLinkStatusLabel(linkStatus)}
+        </span>
+      </div>
+
+      <div className="form-grid">
+        <label>
+          <span>Smart Wallet</span>
+
+          {agents.length > 1 ? (
+            <select
+              onChange={(event) => onSelectAgent(event.target.value)}
+              value={identityId ?? ""}
+            >
+              {agents.map((agent) => {
+                const agentId = getAgentRuntimeId(agent) ?? agent.id;
+
+                return (
+                  <option key={agentId} value={agentId}>
+                    {agent.name}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
+            <input readOnly value={getWalletDisplayName(selectedAgent)} />
+          )}
+        </label>
+      </div>
+
+      <dl className="runner-control-details">
+        <div>
+          <dt>Smart Wallet</dt>
+          <dd>
+            <strong>{getWalletDisplayName(selectedAgent)}</strong>
+            <span title={selectedAgent?.walletAddress}>
+              {formatAddress(selectedAgent?.walletAddress)}
+            </span>
+          </dd>
+        </div>
+
+        <div>
+          <dt>Identity</dt>
+          <dd>{identityId ? `ERC-8004 #${identityId}` : "—"}</dd>
+        </div>
+
+        <div>
+          <dt>Local Executor</dt>
+          <dd title={executorAddress}>
+            {executorAddress
+              ? formatAddress(executorAddress)
+              : "Runner key not configured"}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Status</dt>
+          <dd>{getWalletLinkStatusLabel(linkStatus)}</dd>
+        </div>
+
+        {linkedExecutor && linkStatus === "linked-other" ? (
+          <div>
+            <dt>Current executor</dt>
+            <dd title={linkedExecutor}>{formatAddress(linkedExecutor)}</dd>
+          </div>
+        ) : null}
+      </dl>
+
+      <div className="runner-actions">
+        <button
+          className="primary-action"
+          disabled={isDisabled}
+          onClick={onLinkAgentWallet}
+          type="button"
+        >
+          {isLinkingWallet
+            ? "Linking..."
+            : isLinked
+              ? "Linked"
+              : "Link Agent to Wallet"}
+        </button>
+      </div>
+
+      <div className="benchmark-debug-section">
+        <h4>Allowed Contract Addresses</h4>
+
+        <div className="executor-form">
+          <label>
+            <span>Address</span>
+
+            <input
+              onChange={(event) =>
+                onAllowedContractAddressInputChange(event.target.value)
+              }
+              placeholder="0x..."
+              value={allowedContractAddressInput}
+            />
+          </label>
+
+          <button
+            className="secondary-action"
+            disabled={isBusy || !allowedContractAddressInput.trim()}
+            onClick={onAddAllowedContractAddress}
+            type="button"
+          >
+            Add address
+          </button>
+        </div>
+
+        <div className="runner-mcp-list">
+          {allowedContractAddresses.length === 0 ? (
+            <p className="runner-note">No allowed contract addresses added.</p>
+          ) : (
+            allowedContractAddresses.map((address) => (
+              <div className="runner-mcp-row" key={address}>
+                <div>
+                  <strong>{formatAddress(address)}</strong>
+                  <span>{address}</span>
+                </div>
+
+                <button
+                  className="ghost-action"
+                  disabled={isBusy}
+                  onClick={() => onRemoveAllowedContractAddress(address)}
+                  type="button"
+                >
+                  Remove address
+                </button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 function RunnerControlCard({
   activeBenchmark,
   config,
   isBusy,
   latestLog,
+  onConfigChange,
   onRunOnce,
   onStartAuto,
   onStopAuto,
@@ -328,6 +666,7 @@ function RunnerControlCard({
   config: RunnerConfig;
   isBusy: boolean;
   latestLog?: string;
+  onConfigChange: (config: RunnerConfig) => void;
   onRunOnce: () => void;
   onStartAuto: () => void;
   onStopAuto: () => void;
@@ -346,7 +685,7 @@ function RunnerControlCard({
             {status?.online ? "Runner online" : "Runner offline"}
           </span>
 
-          <h3>Agent Runner</h3>
+          <h3>Runner Controls</h3>
 
           <p className="runner-note">
             Run one benchmark, record validation on-chain, and execute only if
@@ -367,7 +706,7 @@ function RunnerControlCard({
         </div>
 
         <div>
-          <dt>Target used</dt>
+          <dt>Target contract</dt>
           <dd>{getTargetUsedLabel(activeBenchmark)}</dd>
         </div>
 
@@ -396,6 +735,24 @@ function RunnerControlCard({
           <dd>{getLastRunLabel(status)}</dd>
         </div>
       </dl>
+
+      <div className="form-grid">
+        <label>
+          <span>Auto Interval</span>
+
+          <input
+            min="10"
+            onChange={(event) =>
+              onConfigChange({
+                ...config,
+                autoIntervalSeconds: Number(event.target.value),
+              })
+            }
+            type="number"
+            value={config.autoIntervalSeconds}
+          />
+        </label>
+      </div>
 
       <div className="runner-actions">
         <button
@@ -429,9 +786,9 @@ function RunnerControlCard({
       </div>
 
       <p className="runner-note">
-        Run Once starts one benchmark + optional action cycle. Start Auto repeats
-        that cycle every Auto Interval seconds. Stop Auto prevents future
-        scheduled cycles.
+        Run Once starts one benchmark + optional action cycle. Start Auto
+        repeats that cycle every Auto Interval seconds. Stop Auto prevents
+        future scheduled cycles.
       </p>
     </section>
   );
@@ -444,12 +801,12 @@ function BenchmarkUsedCard({
   benchmark?: OnchainBenchmark;
   isLoading: boolean;
 }) {
-  const metadata = decodeBenchmarkMetadata(benchmark?.metadataURI);
-  const targetUsed = benchmark?.targetContracts[0];
+  const metadata = getBenchmarkMetadata(benchmark);
+  const targetUsed = getTargetContract(benchmark);
 
   return (
     <section className="summary-card benchmark-used-card">
-      <h4>Benchmark The Agent Will Use</h4>
+      {/* <h4>Benchmark The Agent Will Use</h4> */}
 
       {isLoading ? (
         <div className="skeleton-card">
@@ -458,54 +815,63 @@ function BenchmarkUsedCard({
           <span className="skeleton-line skeleton-short" />
         </div>
       ) : benchmark ? (
-        <dl className="benchmark-debug-grid">
-          <div>
-            <dt>Applied benchmark</dt>
-            <dd>#{benchmark.benchmarkId}</dd>
-          </div>
+        <>
+          <dl className="benchmark-debug-grid">
+            <div>
+              <dt>Active benchmark</dt>
+              <dd>{getBenchmarkName(benchmark)}</dd>
+            </div>
 
-          <div>
-            <dt>Name</dt>
-            <dd>{metadata?.name ?? "No metadata name"}</dd>
-          </div>
+            {/* <div>
+              <dt>Benchmark ID</dt>
+              <dd>#{benchmark.benchmarkId}</dd>
+            </div> */}
 
-          <div>
-            <dt>Description</dt>
-            <dd>{metadata?.description ?? "No metadata description"}</dd>
-          </div>
+            <div>
+              <dt>Target contract</dt>
+              <dd>
+                {targetUsed ? (
+                  <span title={targetUsed}>{formatAddress(targetUsed)}</span>
+                ) : (
+                  "No target contract in benchmark"
+                )}
+              </dd>
+            </div>
 
-          <div>
-            <dt>Benchmark hash</dt>
-            <dd title={benchmark.benchmarkHash}>
-              {benchmark.benchmarkHash.slice(0, 10)}...
-              {benchmark.benchmarkHash.slice(-8)}
-            </dd>
-          </div>
+            <div>
+              <dt>Benchmark hash</dt>
+              <dd title={benchmark.benchmarkHash}>
+                {getBenchmarkHashLabel(benchmark.benchmarkHash)}
+              </dd>
+            </div>
+          </dl>
 
-          <div>
-            <dt>Target contract used by runner</dt>
-            <dd>
-              {targetUsed ? (
-                <span title={targetUsed}>{formatAddress(targetUsed)}</span>
-              ) : (
-                "No target contract in benchmark"
-              )}
-            </dd>
-          </div>
+          {(metadata?.description || benchmark.targetContracts.length > 1) && (
+            <details className="benchmark-model-response">
+              <summary>Benchmark details</summary>
 
-          <div>
-            <dt>All target contracts</dt>
-            <dd>
-              {benchmark.targetContracts.length > 0
-                ? benchmark.targetContracts.map((address) => (
-                    <span key={address} title={address}>
-                      {formatAddress(address)}
-                    </span>
-                  ))
-                : "—"}
-            </dd>
-          </div>
-        </dl>
+              <dl className="benchmark-debug-grid">
+                <div>
+                  <dt>Description</dt>
+                  <dd>{metadata?.description ?? "No metadata description"}</dd>
+                </div>
+
+                <div>
+                  <dt>All target contracts</dt>
+                  <dd>
+                    {benchmark.targetContracts.length > 0
+                      ? benchmark.targetContracts.map((address) => (
+                          <span key={address} title={address}>
+                            {formatAddress(address)}
+                          </span>
+                        ))
+                      : "—"}
+                  </dd>
+                </div>
+              </dl>
+            </details>
+          )}
+        </>
       ) : (
         <p className="runner-note">
           No active benchmark is assigned to this smart wallet. The runner will
@@ -546,11 +912,29 @@ export function AgentConfigurationPanel({
   >();
   const [isLoadingBenchmarkPreview, setIsLoadingBenchmarkPreview] =
     useState(false);
+  const [autonomyState, setAutonomyState] = useState<
+    AutonomyOnchainState | undefined
+  >();
+  const [isLoadingWalletLink, setIsLoadingWalletLink] = useState(false);
+  const [isLinkingWallet, setIsLinkingWallet] = useState(false);
+  const [allowedContractAddresses, setAllowedContractAddresses] = useState<
+    string[]
+  >([]);
+  const [allowedContractAddressInput, setAllowedContractAddressInput] =
+    useState("");
+  const [showRunnerLogs, setShowRunnerLogs] = useState(false);
 
   const saveRequestId = useRef(0);
   const isDirtyRef = useRef(false);
 
-  const logs = useMemo(() => status?.logs.slice(-80).reverse() ?? [], [status]);
+  const logs = useMemo(
+    () =>
+      (status?.logs ?? [])
+        .filter((entry) => entry.message !== "Runner configuration saved.")
+        .slice(-80)
+        .reverse(),
+    [status],
+  );
   const latestLog = logs[0]?.message;
 
   const selectedAgent = useMemo(
@@ -561,6 +945,8 @@ export function AgentConfigurationPanel({
     [agents, config.agentId],
   );
 
+  const executorAddress = getExecutorAddress(status);
+  const selectedAgentIdentityId = getAgentRuntimeId(selectedAgent);
   const expectedBenchmarkAnswer = getExpectedBenchmarkAnswer(benchmarkResult);
 
   const updateConfig = (nextConfig: RunnerConfig) => {
@@ -615,6 +1001,16 @@ export function AgentConfigurationPanel({
       return { ...current, agentId: onlyAgentId };
     });
   }, [agents]);
+
+  useEffect(() => {
+    if (!selectedAgentIdentityId) return;
+    if (config.agentId === selectedAgentIdentityId) return;
+
+    updateConfig({
+      ...config,
+      agentId: selectedAgentIdentityId,
+    });
+  }, [selectedAgentIdentityId]);
 
   useEffect(() => {
     if (!isDirty) return undefined;
@@ -681,6 +1077,71 @@ export function AgentConfigurationPanel({
       cancelled = true;
     };
   }, [config.agentId]);
+
+  useEffect(() => {
+    if (!activeBenchmarkPreview?.targetContracts?.length) {
+      return;
+    }
+
+    setAllowedContractAddresses((current) => {
+      const merged = new Set(current.map((address) => address.toLowerCase()));
+
+      for (const address of activeBenchmarkPreview.targetContracts) {
+        merged.add(address.toLowerCase());
+      }
+
+      return Array.from(merged);
+    });
+  }, [activeBenchmarkPreview?.targetContracts]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadAutonomyState() {
+      if (
+        !selectedAgentIdentityId ||
+        !selectedAgent?.walletAddress ||
+        !executorAddress
+      ) {
+        setAutonomyState(undefined);
+        return;
+      }
+      const executor = asHexAddress(executorAddress);
+
+      if (!executor) {
+        setAutonomyState(undefined);
+        return;
+      }
+
+      setIsLoadingWalletLink(true);
+
+      try {
+        const state = await readAutonomyStateOnchain({
+          agentId: selectedAgentIdentityId,
+          executor,
+          walletAddress: selectedAgent.walletAddress,
+        });
+
+        if (!cancelled) {
+          setAutonomyState(state);
+        }
+      } catch {
+        if (!cancelled) {
+          setAutonomyState(undefined);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoadingWalletLink(false);
+        }
+      }
+    }
+
+    void loadAutonomyState();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [executorAddress, selectedAgent?.walletAddress, selectedAgentIdentityId]);
 
   const testModel = async () => {
     setIsBusy(true);
@@ -814,13 +1275,123 @@ export function AgentConfigurationPanel({
 
     try {
       setStatus(await stopRunnerAutoMode());
-      setNotice("Auto runner stopped. Current cycle, if any, may still finish.");
+      setNotice(
+        "Auto runner stopped. Current cycle, if any, may still finish.",
+      );
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : "Could not stop auto mode.",
       );
     } finally {
       setIsBusy(false);
+    }
+  };
+
+  const addAllowedContractAddress = () => {
+    const address = normalizeAddressInput(allowedContractAddressInput);
+
+    if (!address) {
+      setNotice("Enter a contract address.");
+      return;
+    }
+
+    if (!isHexAddress(address)) {
+      setNotice("Enter a valid 0x contract address.");
+      return;
+    }
+
+    setAllowedContractAddresses((current) => {
+      const normalized = address.toLowerCase();
+
+      if (
+        current.some(
+          (existingAddress) => existingAddress.toLowerCase() === normalized,
+        )
+      ) {
+        return current;
+      }
+
+      return [...current, address];
+    });
+    setAllowedContractAddressInput("");
+  };
+
+  const removeAllowedContractAddress = (address: string) => {
+    setAllowedContractAddresses((current) =>
+      current.filter(
+        (existingAddress) =>
+          existingAddress.toLowerCase() !== address.toLowerCase(),
+      ),
+    );
+  };
+
+  const linkAgentWallet = async () => {
+    if (!selectedAgentIdentityId) {
+      setNotice("Selected wallet has no ERC-8004 identity.");
+      return;
+    }
+
+    if (!selectedAgent?.walletAddress) {
+      setNotice("Select a deployed smart wallet before linking the local agent.");
+      return;
+    }
+
+    if (!executorAddress) {
+      setNotice("Runner key not configured.");
+      return;
+    }
+    const executor = asHexAddress(executorAddress);
+
+    if (!executor) {
+      setNotice("Runner executor address is invalid.");
+      return;
+    }
+
+    setIsBusy(true);
+    setIsLinkingWallet(true);
+    setNotice("Linking local agent to smart wallet...");
+
+    try {
+      await saveExecutorPolicyOnchain({
+        agentId: selectedAgentIdentityId,
+        dailyLimitMnt: "0.05",
+        enabled: true,
+        executor,
+        maxValuePerActionMnt: config.actionAmountMnt,
+        validForHours: 24,
+        walletAddress: selectedAgent.walletAddress,
+      });
+
+      const state = await readAutonomyStateOnchain({
+        agentId: selectedAgentIdentityId,
+        executor,
+        walletAddress: selectedAgent.walletAddress,
+      });
+      setAutonomyState(state);
+
+      if (
+        state?.enabled &&
+        state.reporterAuthorized &&
+        normalizeAddressValue(getAutonomyExecutorAddress(state)) ===
+          normalizeAddressValue(executorAddress)
+      ) {
+        setNotice(
+          `Linked ${selectedAgent.name} to local executor ${formatAddress(
+            executorAddress,
+          )}.`,
+        );
+      } else {
+        setNotice(
+          "Link transaction completed, but linked status could not be verified yet.",
+        );
+      }
+    } catch (error) {
+      setNotice(
+        error instanceof Error ? error.message : "Could not link agent wallet.",
+      );
+    } finally {
+      setIsBusy(false);
+      setIsLinkingWallet(false);
     }
   };
 
@@ -831,20 +1402,31 @@ export function AgentConfigurationPanel({
           <h2>Agent Configuration</h2>
 
           <p>
-            Configure the local runner that talks to Ollama, tool servers, and
-            your Mantle smart wallet.
+            Configure the local runner that talks to your wallet, model,
+            benchmark harness, and MCP tool servers.
           </p>
         </div>
       </div>
 
-      <RunnerControlCard
-        activeBenchmark={activeBenchmarkPreview}
+      <AgentWalletLinkCard
+        allowedContractAddressInput={allowedContractAddressInput}
+        allowedContractAddresses={allowedContractAddresses}
+        autonomyState={autonomyState}
+        agents={agents}
         config={config}
         isBusy={isBusy}
-        latestLog={latestLog}
-        onRunOnce={runOnce}
-        onStartAuto={startAuto}
-        onStopAuto={stopAuto}
+        isLinkingWallet={isLinkingWallet}
+        isLoadingWalletLink={isLoadingWalletLink}
+        onAddAllowedContractAddress={addAllowedContractAddress}
+        onAllowedContractAddressInputChange={setAllowedContractAddressInput}
+        onLinkAgentWallet={linkAgentWallet}
+        onRemoveAllowedContractAddress={removeAllowedContractAddress}
+        onSelectAgent={(agentId) =>
+          updateConfig({
+            ...config,
+            agentId,
+          })
+        }
         selectedAgent={selectedAgent}
         status={status}
       />
@@ -855,7 +1437,7 @@ export function AgentConfigurationPanel({
         <section className="summary-card">
           <div className="card-heading-row">
             <div>
-              <h3>Ollama</h3>
+              <h3>Local Model</h3>
 
               <span className={`runner-save-state runner-save-${saveState}`}>
                 {saveState === "saving"
@@ -883,30 +1465,8 @@ export function AgentConfigurationPanel({
           </div>
 
           <div className="form-grid">
-            {agents.length > 1 && (
-              <label>
-                <span>Smart Wallet</span>
-
-                <select
-                  onChange={(event) =>
-                    updateConfig({ ...config, agentId: event.target.value })
-                  }
-                  value={config.agentId}
-                >
-                  {agents.map((agent) => (
-                    <option
-                      key={agent.agentIdentityId ?? agent.id}
-                      value={agent.agentIdentityId ?? agent.id}
-                    >
-                      {agent.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
-
             <label>
-              <span>Model</span>
+              <span>Model name</span>
 
               <input
                 onChange={(event) =>
@@ -920,7 +1480,7 @@ export function AgentConfigurationPanel({
             </label>
 
             <label>
-              <span>Endpoint</span>
+              <span>Model endpoint</span>
 
               <input
                 onChange={(event) =>
@@ -954,124 +1514,30 @@ export function AgentConfigurationPanel({
             </label>
 
             <label>
-              <span>Auto Interval</span>
+              <span>Max tokens</span>
 
               <input
-                min="10"
+                min="128"
                 onChange={(event) =>
                   updateConfig({
                     ...config,
-                    autoIntervalSeconds: Number(event.target.value),
+                    model: {
+                      ...config.model,
+                      maxTokens: Number(event.target.value),
+                    },
                   })
                 }
                 type="number"
-                value={config.autoIntervalSeconds}
+                value={config.model.maxTokens}
               />
             </label>
-          </div>
-        </section>
-
-        <section className="summary-card">
-          <h3>MCP Servers</h3>
-
-          <p className="runner-note">
-            MCP servers are local or remote tool servers. They can expose data
-            like prices, positions, protocol metadata, or simulation tools to
-            the runner.
-          </p>
-
-          <div className="executor-form">
-            <label>
-              <span>Name</span>
-
-              <input
-                onChange={(event) => setMcpName(event.target.value)}
-                value={mcpName}
-              />
-            </label>
-
-            <label>
-              <span>URL</span>
-
-              <input
-                onChange={(event) => setMcpUrl(event.target.value)}
-                value={mcpUrl}
-              />
-            </label>
-
-            <button
-              className="secondary-action"
-              onClick={addMcpServer}
-              type="button"
-            >
-              Add
-            </button>
-          </div>
-
-          <div className="runner-mcp-list">
-            {config.mcpServers.map((server, index) => (
-              <div
-                className="runner-mcp-row"
-                key={`${server.name}-${server.url}`}
-              >
-                <div>
-                  <strong>{server.name}</strong>
-                  <span>{server.url}</span>
-                </div>
-
-                <button
-                  className="ghost-action"
-                  disabled={isBusy}
-                  onClick={async () => {
-                    setIsBusy(true);
-                    setNotice(`Testing ${server.name}...`);
-
-                    try {
-                      const result = await testRunnerMcp(server.url);
-
-                      await refresh({ syncConfig: false });
-
-                      setNotice(
-                        `${server.name} responded in ${result.latencyMs}ms.`,
-                      );
-                    } catch (error) {
-                      setNotice(
-                        error instanceof Error
-                          ? error.message
-                          : "MCP test failed.",
-                      );
-                    } finally {
-                      setIsBusy(false);
-                    }
-                  }}
-                  type="button"
-                >
-                  Test
-                </button>
-
-                <button
-                  className="ghost-action"
-                  onClick={() =>
-                    updateConfig({
-                      ...config,
-                      mcpServers: config.mcpServers.filter(
-                        (_, serverIndex) => serverIndex !== index,
-                      ),
-                    })
-                  }
-                  type="button"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
           </div>
         </section>
       </div>
 
       <section className="summary-card">
         <div className="card-heading-row">
-          <h3>Benchmark Harness</h3>
+          <h3>Benchmark </h3>
 
           <button
             className={`ghost-action benchmark-test-button benchmark-test-${benchmarkState}`}
@@ -1115,6 +1581,7 @@ export function AgentConfigurationPanel({
 
         {benchmarkState === "running" ? (
           <div className="runner-benchmark-result">
+            <strong>Testing {getBenchmarkName(activeBenchmarkPreview)}</strong>
             <span className="value-skeleton" />
             <span className="value-skeleton" />
             <span className="value-skeleton" />
@@ -1142,9 +1609,7 @@ export function AgentConfigurationPanel({
 
               <button
                 className="ghost-action benchmark-detail-toggle"
-                onClick={() =>
-                  setShowBenchmarkDetails((current) => !current)
-                }
+                onClick={() => setShowBenchmarkDetails((current) => !current)}
                 type="button"
               >
                 {showBenchmarkDetails ? "Hide Details" : "Show Details"}
@@ -1154,67 +1619,98 @@ export function AgentConfigurationPanel({
             {showBenchmarkDetails && (
               <>
                 <section className="runner-benchmark-report">
-                  <h4>Benchmark Tested</h4>
+                  <h4>
+                    Testing {getBenchmarkName(benchmarkResult.activeBenchmark)}
+                  </h4>
 
                   {benchmarkResult.activeBenchmark ? (
-                    <dl className="benchmark-debug-grid">
-                      <div>
-                        <dt>Benchmark ID</dt>
-                        <dd>#{benchmarkResult.activeBenchmark.benchmarkId}</dd>
-                      </div>
+                    <>
+                      <dl className="benchmark-debug-grid">
+                        <div>
+                          <dt>Active benchmark</dt>
+                          <dd>
+                            {getBenchmarkName(benchmarkResult.activeBenchmark)}
+                          </dd>
+                        </div>
 
-                      <div>
-                        <dt>Name</dt>
-                        <dd>
-                          {benchmarkResult.activeBenchmark.metadata?.name ??
-                            "—"}
-                        </dd>
-                      </div>
+                        <div>
+                          <dt>Benchmark ID</dt>
+                          <dd>
+                            #{benchmarkResult.activeBenchmark.benchmarkId}
+                          </dd>
+                        </div>
 
-                      <div>
-                        <dt>Description</dt>
-                        <dd>
-                          {benchmarkResult.activeBenchmark.metadata
-                            ?.description ?? "—"}
-                        </dd>
-                      </div>
+                        <div>
+                          <dt>Target contract</dt>
+                          <dd>
+                            {getTargetContract(
+                              benchmarkResult.activeBenchmark,
+                            ) ? (
+                              <span
+                                title={getTargetContract(
+                                  benchmarkResult.activeBenchmark,
+                                )}
+                              >
+                                {formatAddress(
+                                  getTargetContract(
+                                    benchmarkResult.activeBenchmark,
+                                  ),
+                                )}
+                              </span>
+                            ) : (
+                              "—"
+                            )}
+                          </dd>
+                        </div>
 
-                      <div>
-                        <dt>Hash</dt>
-                        <dd
-                          title={
-                            benchmarkResult.activeBenchmark.benchmarkHash
-                          }
-                        >
-                          {benchmarkResult.activeBenchmark.benchmarkHash.slice(
-                            0,
-                            10,
-                          )}
-                          ...
-                          {benchmarkResult.activeBenchmark.benchmarkHash.slice(
-                            -8,
-                          )}
-                        </dd>
-                      </div>
+                        <div>
+                          <dt>Benchmark hash</dt>
+                          <dd
+                            title={
+                              benchmarkResult.activeBenchmark.benchmarkHash
+                            }
+                          >
+                            {getBenchmarkHashLabel(
+                              benchmarkResult.activeBenchmark.benchmarkHash,
+                            )}
+                          </dd>
+                        </div>
+                      </dl>
 
-                      <div>
-                        <dt>Target contracts</dt>
-                        <dd>
-                          {benchmarkResult.activeBenchmark.targetContracts
-                            ?.length ? (
-                            benchmarkResult.activeBenchmark.targetContracts.map(
-                              (address) => (
-                                <span key={address} title={address}>
-                                  {formatAddress(address)}
-                                </span>
-                              ),
-                            )
-                          ) : (
-                            "—"
-                          )}
-                        </dd>
-                      </div>
-                    </dl>
+                      {(benchmarkResult.activeBenchmark.metadata?.description ||
+                        (benchmarkResult.activeBenchmark.targetContracts
+                          ?.length ?? 0) > 1) && (
+                        <details className="benchmark-model-response">
+                          <summary>Benchmark details</summary>
+
+                          <dl className="benchmark-debug-grid">
+                            <div>
+                              <dt>Description</dt>
+                              <dd>
+                                {benchmarkResult.activeBenchmark.metadata
+                                  ?.description ?? "—"}
+                              </dd>
+                            </div>
+
+                            <div>
+                              <dt>All target contracts</dt>
+                              <dd>
+                                {benchmarkResult.activeBenchmark.targetContracts
+                                  ?.length
+                                  ? benchmarkResult.activeBenchmark.targetContracts.map(
+                                      (address) => (
+                                        <span key={address} title={address}>
+                                          {formatAddress(address)}
+                                        </span>
+                                      ),
+                                    )
+                                  : "—"}
+                              </dd>
+                            </div>
+                          </dl>
+                        </details>
+                      )}
+                    </>
                   ) : (
                     <p className="runner-note">
                       Testing the default built-in benchmark because no active
@@ -1290,9 +1786,7 @@ export function AgentConfigurationPanel({
                     <tbody>
                       <tr>
                         <td>Selected vault</td>
-                        <td>
-                          {benchmarkResult.decision.selectedVault ?? "—"}
-                        </td>
+                        <td>{benchmarkResult.decision.selectedVault ?? "—"}</td>
                         <td>{expectedBenchmarkAnswer.selectedVault}</td>
                       </tr>
 
@@ -1361,34 +1855,159 @@ export function AgentConfigurationPanel({
       </section>
 
       <section className="summary-card">
-        <div className="card-heading-row">
-          <h3>Runner Logs</h3>
+        <h3>MCP Servers</h3>
+
+        <p className="runner-note">
+          MCP servers are local or remote tool servers. They can expose data like
+          prices, positions, protocol metadata, or simulation tools to the
+          runner.
+        </p>
+
+        <div className="executor-form">
+          <label>
+            <span>Name</span>
+
+            <input
+              onChange={(event) => setMcpName(event.target.value)}
+              value={mcpName}
+            />
+          </label>
+
+          <label>
+            <span>URL</span>
+
+            <input
+              onChange={(event) => setMcpUrl(event.target.value)}
+              value={mcpUrl}
+            />
+          </label>
 
           <button
-            className="ghost-action"
-            disabled={isBusy}
-            onClick={() => void refresh({ syncConfig: true })}
+            className="secondary-action"
+            onClick={addMcpServer}
             type="button"
           >
-            Refresh
+            Add
           </button>
         </div>
 
-        <div className="runner-log-list">
-          {logs.length === 0 ? (
-            <p>No runner logs yet.</p>
-          ) : (
-            logs.map((entry, index) => (
-              <div
-                className={`runner-log-row runner-log-${entry.level}`}
-                key={`${entry.timestamp}-${index}`}
-              >
-                <span>{formatTime(entry.timestamp)}</span>
-                <code>{entry.message}</code>
+        <div className="runner-mcp-list">
+          {config.mcpServers.map((server, index) => (
+            <div className="runner-mcp-row" key={`${server.name}-${server.url}`}>
+              <div>
+                <strong>{server.name}</strong>
+                <span>{server.url}</span>
               </div>
-            ))
-          )}
+
+              <button
+                className="ghost-action"
+                disabled={isBusy}
+                onClick={async () => {
+                  setIsBusy(true);
+                  setNotice(`Testing ${server.name}...`);
+
+                  try {
+                    const result = await testRunnerMcp(server.url);
+
+                    await refresh({ syncConfig: false });
+
+                    setNotice(
+                      `${server.name} responded in ${result.latencyMs}ms.`,
+                    );
+                  } catch (error) {
+                    setNotice(
+                      error instanceof Error
+                        ? error.message
+                        : "MCP test failed.",
+                    );
+                  } finally {
+                    setIsBusy(false);
+                  }
+                }}
+                type="button"
+              >
+                Test
+              </button>
+
+              <button
+                className="ghost-action"
+                onClick={() =>
+                  updateConfig({
+                    ...config,
+                    mcpServers: config.mcpServers.filter(
+                      (_, serverIndex) => serverIndex !== index,
+                    ),
+                  })
+                }
+                type="button"
+              >
+                Remove
+              </button>
+            </div>
+          ))}
         </div>
+      </section>
+
+      <RunnerControlCard
+        activeBenchmark={activeBenchmarkPreview}
+        config={config}
+        isBusy={isBusy}
+        latestLog={latestLog}
+        onConfigChange={updateConfig}
+        onRunOnce={runOnce}
+        onStartAuto={startAuto}
+        onStopAuto={stopAuto}
+        selectedAgent={selectedAgent}
+        status={status}
+      />
+
+      <section className="summary-card">
+        <div className="card-heading-row">
+          <h3>Runner Logs</h3>
+
+          <div className="runner-actions">
+            <button
+              className="ghost-action"
+              onClick={() => setShowRunnerLogs((current) => !current)}
+              type="button"
+            >
+              {showRunnerLogs ? "Hide Logs" : "Show Logs"}
+            </button>
+
+            {showRunnerLogs ? (
+              <button
+                className="ghost-action"
+                disabled={isBusy}
+                onClick={() => void refresh({ syncConfig: true })}
+                type="button"
+              >
+                Refresh
+              </button>
+            ) : null}
+          </div>
+        </div>
+
+        {showRunnerLogs ? (
+          <div className="runner-log-list">
+            {logs.length === 0 ? (
+              <p>No runner logs yet.</p>
+            ) : (
+              logs.map((entry, index) => (
+                <div
+                  className={`runner-log-row runner-log-${entry.level}`}
+                  key={`${entry.timestamp}-${index}`}
+                >
+                  <span>{formatTime(entry.timestamp)}</span>
+                  <code>{entry.message}</code>
+                </div>
+              ))
+            )}
+          </div>
+        ) : (
+          <p className="runner-note">
+            {latestLog ? `Latest: ${latestLog}` : "Logs are hidden."}
+          </p>
+        )}
       </section>
     </section>
   );

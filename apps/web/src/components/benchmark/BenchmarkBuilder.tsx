@@ -25,6 +25,14 @@ function shortHash(hash: string) {
   return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
 }
 
+function actionLabel(action: CustomBenchmarkDefinition["allowedActions"][number]) {
+  return typeof action === "string"
+    ? action
+    : action.signature
+      ? `${action.name} (${action.signature})`
+      : action.name;
+}
+
 export function BenchmarkBuilder() {
   const { isConnected } = useWalletConnection();
   const [protocolName, setProtocolName] = useState("Custom DEX");
@@ -161,7 +169,7 @@ export function BenchmarkBuilder() {
               <h3>Allowed</h3>
               <ul className="capability-list allowed">
                 {benchmark.allowedActions.map((action) => (
-                  <li key={action}>{action}</li>
+                  <li key={actionLabel(action)}>{actionLabel(action)}</li>
                 ))}
               </ul>
             </article>
