@@ -102,7 +102,9 @@ function formatTime(value?: string) {
   }).format(new Date(value));
 }
 
-function formatAddress(address: string) {
+function formatAddress(address?: string) {
+  if (!address) return "—";
+
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 }
 
@@ -217,6 +219,224 @@ function getScoreImpactLabel(benchmarkResult: BenchmarkReport) {
   return "Low score means the model did not satisfy the expected benchmark requirements.";
 }
 
+function getRunnerMode(status?: RunnerStatus) {
+  if (status?.autoMode) return "Auto running";
+  if (status?.running) return "Running once";
+  return "Stopped";
+}
+
+function getCurrentStep(status?: RunnerStatus, latestLog?: string) {
+  if (!status?.running) {
+    return status?.autoMode
+      ? "Waiting for the next scheduled cycle."
+      : "Idle. No runner cycle is active.";
+  }
+
+  const message = latestLog?.toLowerCase() ?? "";
+
+  if (
+    message.includes("active benchmark") ||
+    message.includes("benchmark tested")
+  ) {
+    return "Reading active benchmark from Mantle.";
+  }
+
+  if (
+    message.includes("model provider") ||
+    message.includes("model name") ||
+    message.includes("selected vault") ||
+    message.includes("rejected vault")
+  ) {
+    return "Asking Ollama/model to solve the benchmark.";
+  }
+
+  if (
+    message.includes("validation") ||
+    message.includes("recordvalidation") ||
+    message.includes("validation proof")
+  ) {
+    return "Recording validation on-chain.";
+  }
+
+  if (
+    message.includes("delegated execution") ||
+    message.includes("useroperation")
+  ) {
+    return "Trying delegated wallet execution.";
+  }
+
+  if (
+    message.includes("execution blocked") ||
+    message.includes("benchmark failed")
+  ) {
+    return "Execution blocked by benchmark or policy.";
+  }
+
+  return "Running benchmark, validation, and optional action cycle.";
+}
+
+function getLastRunLabel(status?: RunnerStatus) {
+  if (status?.running && status.runStartedAt) {
+    return `Running since ${formatTime(status.runStartedAt)}`;
+  }
+
+  if (!status?.lastRunFinishedAt) {
+    return "No completed run yet.";
+  }
+
+  if (status.lastRunExitCode === 0) {
+    return `Completed at ${formatTime(status.lastRunFinishedAt)}`;
+  }
+
+  return `Failed at ${formatTime(status.lastRunFinishedAt)}`;
+}
+
+function getBenchmarkLabel(benchmark?: OnchainBenchmark) {
+  if (!benchmark) {
+    return "Default built-in SafeVault benchmark";
+  }
+
+  const metadata = decodeBenchmarkMetadata(benchmark.metadataURI);
+
+  return metadata?.name
+    ? `#${benchmark.benchmarkId} · ${metadata.name}`
+    : `#${benchmark.benchmarkId}`;
+}
+
+function getTargetUsedLabel(benchmark?: OnchainBenchmark) {
+  const target = benchmark?.targetContracts[0];
+
+  if (!target) {
+    return "Fallback SafeVault target";
+  }
+
+  return formatAddress(target);
+}
+
+function RunnerControlCard({
+  activeBenchmark,
+  config,
+  isBusy,
+  latestLog,
+  onRunOnce,
+  onStartAuto,
+  onStopAuto,
+  selectedAgent,
+  status,
+}: {
+  activeBenchmark?: OnchainBenchmark;
+  config: RunnerConfig;
+  isBusy: boolean;
+  latestLog?: string;
+  onRunOnce: () => void;
+  onStartAuto: () => void;
+  onStopAuto: () => void;
+  selectedAgent?: AgentRecord;
+  status?: RunnerStatus;
+}) {
+  return (
+    <section className="summary-card runner-control-card">
+      <div className="card-heading-row">
+        <div>
+          <span
+            className={`status-pill ${
+              status?.online ? "status-ready" : "status-disconnected"
+            }`}
+          >
+            {status?.online ? "Runner online" : "Runner offline"}
+          </span>
+
+          <h3>Agent Runner</h3>
+
+          <p className="runner-note">
+            Run one benchmark, record validation on-chain, and execute only if
+            the result and wallet policy allow it.
+          </p>
+        </div>
+      </div>
+
+      <dl className="runner-control-details">
+        <div>
+          <dt>Selected wallet</dt>
+          <dd>{selectedAgent?.name ?? `#${config.agentId}`}</dd>
+        </div>
+
+        <div>
+          <dt>Benchmark</dt>
+          <dd>{getBenchmarkLabel(activeBenchmark)}</dd>
+        </div>
+
+        <div>
+          <dt>Target used</dt>
+          <dd>{getTargetUsedLabel(activeBenchmark)}</dd>
+        </div>
+
+        <div>
+          <dt>Mode</dt>
+          <dd>{getRunnerMode(status)}</dd>
+        </div>
+
+        <div>
+          <dt>Auto interval</dt>
+          <dd>{config.autoIntervalSeconds}s</dd>
+        </div>
+
+        <div>
+          <dt>Next action</dt>
+          <dd>Run benchmark, record validation, execute if allowed.</dd>
+        </div>
+
+        <div>
+          <dt>Current step</dt>
+          <dd>{getCurrentStep(status, latestLog)}</dd>
+        </div>
+
+        <div>
+          <dt>Last run</dt>
+          <dd>{getLastRunLabel(status)}</dd>
+        </div>
+      </dl>
+
+      <div className="runner-actions">
+        <button
+          className="primary-action"
+          disabled={isBusy || status?.running}
+          onClick={onRunOnce}
+          type="button"
+        >
+          {status?.running && !status?.autoMode ? "Running..." : "Run Once"}
+        </button>
+
+        <button
+          className="secondary-action"
+          disabled={isBusy || status?.autoMode}
+          onClick={onStartAuto}
+          type="button"
+        >
+          {status?.autoMode
+            ? `Running Every ${config.autoIntervalSeconds}s`
+            : "Start Auto"}
+        </button>
+
+        <button
+          className="ghost-action"
+          disabled={isBusy || !status?.autoMode}
+          onClick={onStopAuto}
+          type="button"
+        >
+          Stop Auto
+        </button>
+      </div>
+
+      <p className="runner-note">
+        Run Once starts one benchmark + optional action cycle. Start Auto repeats
+        that cycle every Auto Interval seconds. Stop Auto prevents future
+        scheduled cycles.
+      </p>
+    </section>
+  );
+}
+
 function BenchmarkUsedCard({
   benchmark,
   isLoading,
@@ -315,6 +535,7 @@ export function AgentConfigurationPanel({
   const [benchmarkState, setBenchmarkState] = useState<
     "idle" | "running" | "success" | "error"
   >("idle");
+  const [showBenchmarkDetails, setShowBenchmarkDetails] = useState(false);
   const [mcpName, setMcpName] = useState("");
   const [mcpUrl, setMcpUrl] = useState("");
   const [benchmarkResult, setBenchmarkResult] = useState<
@@ -330,6 +551,7 @@ export function AgentConfigurationPanel({
   const isDirtyRef = useRef(false);
 
   const logs = useMemo(() => status?.logs.slice(-80).reverse() ?? [], [status]);
+  const latestLog = logs[0]?.message;
 
   const selectedAgent = useMemo(
     () =>
@@ -348,6 +570,7 @@ export function AgentConfigurationPanel({
     setSaveState("saving");
     setModelTestState("idle");
     setBenchmarkState("idle");
+    setShowBenchmarkDetails(false);
   };
 
   const refresh = async (options: { syncConfig?: boolean } = {}) => {
@@ -387,6 +610,7 @@ export function AgentConfigurationPanel({
       setSaveState("saving");
       setModelTestState("idle");
       setBenchmarkState("idle");
+      setShowBenchmarkDetails(false);
 
       return { ...current, agentId: onlyAgentId };
     });
@@ -492,6 +716,7 @@ export function AgentConfigurationPanel({
       const report = normalizeBenchmarkResult(result);
 
       setBenchmarkResult(report);
+      setShowBenchmarkDetails(true);
       setBenchmarkState(report.passed ? "success" : "error");
 
       isDirtyRef.current = false;
@@ -526,6 +751,7 @@ export function AgentConfigurationPanel({
     setSaveState("saving");
     setModelTestState("idle");
     setBenchmarkState("idle");
+    setShowBenchmarkDetails(false);
 
     setConfig((current) => ({
       ...current,
@@ -546,14 +772,14 @@ export function AgentConfigurationPanel({
 
   const runOnce = async () => {
     setIsBusy(true);
-    setNotice("Starting one runner cycle...");
+    setNotice("Starting one benchmark + optional action cycle...");
 
     try {
       await saveRunnerConfig(config);
       const nextStatus = await runRunnerOnce();
 
       setStatus(nextStatus);
-      setNotice("Runner started.");
+      setNotice("One runner cycle started.");
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : "Could not start runner.",
@@ -565,12 +791,14 @@ export function AgentConfigurationPanel({
 
   const startAuto = async () => {
     setIsBusy(true);
-    setNotice("Starting auto mode...");
+    setNotice(`Starting auto runner every ${config.autoIntervalSeconds}s...`);
 
     try {
       await saveRunnerConfig(config);
       setStatus(await startRunnerAutoMode());
-      setNotice("Auto mode started.");
+      setNotice(
+        `Auto runner started. Cycle interval: ${config.autoIntervalSeconds}s.`,
+      );
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : "Could not start auto mode.",
@@ -582,11 +810,11 @@ export function AgentConfigurationPanel({
 
   const stopAuto = async () => {
     setIsBusy(true);
-    setNotice("Stopping auto mode...");
+    setNotice("Stopping future auto runner cycles...");
 
     try {
       setStatus(await stopRunnerAutoMode());
-      setNotice("Auto mode stopped.");
+      setNotice("Auto runner stopped. Current cycle, if any, may still finish.");
     } catch (error) {
       setNotice(
         error instanceof Error ? error.message : "Could not stop auto mode.",
@@ -600,14 +828,6 @@ export function AgentConfigurationPanel({
     <section className="runner-panel" aria-label="Agent configuration">
       <div className="runner-hero">
         <div>
-          <span
-            className={`status-pill ${
-              status?.online ? "status-ready" : "status-disconnected"
-            }`}
-          >
-            {status?.online ? "Runner online" : "Runner offline"}
-          </span>
-
           <h2>Agent Configuration</h2>
 
           <p>
@@ -615,62 +835,19 @@ export function AgentConfigurationPanel({
             your Mantle smart wallet.
           </p>
         </div>
-
-        <div className="runner-actions">
-          <button
-            className="primary-action"
-            disabled={isBusy || status?.running}
-            onClick={runOnce}
-            type="button"
-          >
-            {status?.running ? "Running..." : "Run Agent Now"}
-          </button>
-
-          <button
-            className="secondary-action"
-            disabled={isBusy || status?.autoMode}
-            onClick={startAuto}
-            type="button"
-          >
-            Start Agent Loop
-          </button>
-
-          <button
-            className="ghost-action"
-            disabled={isBusy || !status?.autoMode}
-            onClick={stopAuto}
-            type="button"
-          >
-            Stop Loop
-          </button>
-        </div>
       </div>
 
-      <div className="runner-status-grid">
-        <article>
-          <span>Smart Wallet</span>
-          <strong>{selectedAgent?.name ?? `#${config.agentId}`}</strong>
-        </article>
-
-        <article>
-          <span>Model</span>
-          <strong>{config.model.modelName}</strong>
-        </article>
-
-        <article>
-          <span>Executor</span>
-          <strong>
-            {status?.executorAddress
-              ? `${status.executorAddress.slice(0, 8)}...${status.executorAddress.slice(-6)}`
-              : "—"}
-          </strong>
-        </article>
-
-        <article>
-          <span>Agent Loop</span>
-          <strong>{status?.autoMode ? "Running" : "Stopped"}</strong>
-        </article>
-      </div>
+      <RunnerControlCard
+        activeBenchmark={activeBenchmarkPreview}
+        config={config}
+        isBusy={isBusy}
+        latestLog={latestLog}
+        onRunOnce={runOnce}
+        onStartAuto={startAuto}
+        onStopAuto={stopAuto}
+        selectedAgent={selectedAgent}
+        status={status}
+      />
 
       {notice && <p className="ownership-note runner-notice">{notice}</p>}
 
@@ -962,191 +1139,223 @@ export function AgentConfigurationPanel({
                   ? `${benchmarkResult.latencyMs}ms`
                   : "Latency unavailable"}
               </span>
+
+              <button
+                className="ghost-action benchmark-detail-toggle"
+                onClick={() =>
+                  setShowBenchmarkDetails((current) => !current)
+                }
+                type="button"
+              >
+                {showBenchmarkDetails ? "Hide Details" : "Show Details"}
+              </button>
             </div>
 
-            <section className="runner-benchmark-report">
-              <h4>Benchmark Tested</h4>
+            {showBenchmarkDetails && (
+              <>
+                <section className="runner-benchmark-report">
+                  <h4>Benchmark Tested</h4>
 
-              {benchmarkResult.activeBenchmark ? (
-                <dl className="benchmark-debug-grid">
-                  <div>
-                    <dt>Benchmark ID</dt>
-                    <dd>#{benchmarkResult.activeBenchmark.benchmarkId}</dd>
-                  </div>
+                  {benchmarkResult.activeBenchmark ? (
+                    <dl className="benchmark-debug-grid">
+                      <div>
+                        <dt>Benchmark ID</dt>
+                        <dd>#{benchmarkResult.activeBenchmark.benchmarkId}</dd>
+                      </div>
 
-                  <div>
-                    <dt>Name</dt>
-                    <dd>
-                      {benchmarkResult.activeBenchmark.metadata?.name ?? "—"}
-                    </dd>
-                  </div>
+                      <div>
+                        <dt>Name</dt>
+                        <dd>
+                          {benchmarkResult.activeBenchmark.metadata?.name ??
+                            "—"}
+                        </dd>
+                      </div>
 
-                  <div>
-                    <dt>Description</dt>
-                    <dd>
-                      {benchmarkResult.activeBenchmark.metadata?.description ??
-                        "—"}
-                    </dd>
-                  </div>
+                      <div>
+                        <dt>Description</dt>
+                        <dd>
+                          {benchmarkResult.activeBenchmark.metadata
+                            ?.description ?? "—"}
+                        </dd>
+                      </div>
 
-                  <div>
-                    <dt>Hash</dt>
-                    <dd title={benchmarkResult.activeBenchmark.benchmarkHash}>
-                      {benchmarkResult.activeBenchmark.benchmarkHash.slice(
-                        0,
-                        10,
-                      )}
-                      ...
-                      {benchmarkResult.activeBenchmark.benchmarkHash.slice(-8)}
-                    </dd>
-                  </div>
+                      <div>
+                        <dt>Hash</dt>
+                        <dd
+                          title={
+                            benchmarkResult.activeBenchmark.benchmarkHash
+                          }
+                        >
+                          {benchmarkResult.activeBenchmark.benchmarkHash.slice(
+                            0,
+                            10,
+                          )}
+                          ...
+                          {benchmarkResult.activeBenchmark.benchmarkHash.slice(
+                            -8,
+                          )}
+                        </dd>
+                      </div>
 
-                  <div>
-                    <dt>Target contracts</dt>
-                    <dd>
-                      {benchmarkResult.activeBenchmark.targetContracts
-                        ?.length ? (
-                        benchmarkResult.activeBenchmark.targetContracts.map(
-                          (address) => (
-                            <span key={address} title={address}>
-                              {formatAddress(address)}
-                            </span>
-                          ),
-                        )
-                      ) : (
-                        "—"
-                      )}
-                    </dd>
-                  </div>
-                </dl>
-              ) : (
-                <p className="runner-note">
-                  Testing the default built-in benchmark because no active
-                  benchmark is assigned to this smart wallet.
-                </p>
-              )}
-            </section>
-
-            <section className="runner-benchmark-report">
-              <h4>Model Answer</h4>
-
-              <dl className="benchmark-debug-grid">
-                <div>
-                  <dt>Selected vault</dt>
-                  <dd>{benchmarkResult.decision.selectedVault ?? "—"}</dd>
-                </div>
-
-                <div>
-                  <dt>Rejected vaults</dt>
-                  <dd>
-                    {formatRejectedVaults(
-                      benchmarkResult.decision.rejectedVaults,
-                    )}
-                  </dd>
-                </div>
-
-                <div>
-                  <dt>Reasoning</dt>
-                  <dd>{benchmarkResult.decision.reasoning ?? "—"}</dd>
-                </div>
-              </dl>
-            </section>
-
-            <section className="runner-benchmark-report">
-              <h4>Expected Answer</h4>
-
-              <dl className="benchmark-debug-grid">
-                <div>
-                  <dt>Selected vault</dt>
-                  <dd>{expectedBenchmarkAnswer.selectedVault}</dd>
-                </div>
-
-                <div>
-                  <dt>Rejected vaults</dt>
-                  <dd>{expectedBenchmarkAnswer.rejectedVaults.join(", ")}</dd>
-                </div>
-
-                <div>
-                  <dt>Reasoning</dt>
-                  <dd>{expectedBenchmarkAnswer.reasoning}</dd>
-                </div>
-              </dl>
-            </section>
-
-            <section className="runner-benchmark-report">
-              <h4>Score Impact</h4>
-
-              <p className="runner-note">
-                {getScoreImpactLabel(benchmarkResult)}
-              </p>
-
-              <table>
-                <thead>
-                  <tr>
-                    <th>Field</th>
-                    <th>Model Answer</th>
-                    <th>Expected Answer</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  <tr>
-                    <td>Selected vault</td>
-                    <td>{benchmarkResult.decision.selectedVault ?? "—"}</td>
-                    <td>{expectedBenchmarkAnswer.selectedVault}</td>
-                  </tr>
-
-                  <tr>
-                    <td>Rejected vaults</td>
-                    <td>
-                      {formatRejectedVaults(
-                        benchmarkResult.decision.rejectedVaults,
-                      )}
-                    </td>
-                    <td>{expectedBenchmarkAnswer.rejectedVaults.join(", ")}</td>
-                  </tr>
-
-                  <tr>
-                    <td>Reasoning</td>
-                    <td>{benchmarkResult.decision.reasoning ?? "—"}</td>
-                    <td>{expectedBenchmarkAnswer.reasoning}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </section>
-
-            <div className="benchmark-debug-section">
-              <h4>Rejected vault details</h4>
-
-              {benchmarkResult.decision.rejectedVaults?.length ? (
-                <ul className="benchmark-rejected-list">
-                  {benchmarkResult.decision.rejectedVaults.map(
-                    (vault, index) => (
-                      <li
-                        key={`${formatRejectedVaultName(vault, index)}-${index}`}
-                      >
-                        <strong>{formatRejectedVaultName(vault, index)}</strong>
-
-                        {formatRejectedVaultReason(vault) && (
-                          <span>{formatRejectedVaultReason(vault)}</span>
-                        )}
-                      </li>
-                    ),
+                      <div>
+                        <dt>Target contracts</dt>
+                        <dd>
+                          {benchmarkResult.activeBenchmark.targetContracts
+                            ?.length ? (
+                            benchmarkResult.activeBenchmark.targetContracts.map(
+                              (address) => (
+                                <span key={address} title={address}>
+                                  {formatAddress(address)}
+                                </span>
+                              ),
+                            )
+                          ) : (
+                            "—"
+                          )}
+                        </dd>
+                      </div>
+                    </dl>
+                  ) : (
+                    <p className="runner-note">
+                      Testing the default built-in benchmark because no active
+                      benchmark is assigned to this smart wallet.
+                    </p>
                   )}
-                </ul>
-              ) : (
-                <p className="runner-note">No rejected vaults returned.</p>
-              )}
-            </div>
+                </section>
 
-            <details className="benchmark-model-response">
-              <summary>Raw model response</summary>
+                <section className="runner-benchmark-report">
+                  <h4>Model Answer</h4>
 
-              <pre>
-                {benchmarkResult.modelResponse ??
-                  "No model response returned."}
-              </pre>
-            </details>
+                  <dl className="benchmark-debug-grid">
+                    <div>
+                      <dt>Selected vault</dt>
+                      <dd>{benchmarkResult.decision.selectedVault ?? "—"}</dd>
+                    </div>
+
+                    <div>
+                      <dt>Rejected vaults</dt>
+                      <dd>
+                        {formatRejectedVaults(
+                          benchmarkResult.decision.rejectedVaults,
+                        )}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Reasoning</dt>
+                      <dd>{benchmarkResult.decision.reasoning ?? "—"}</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section className="runner-benchmark-report">
+                  <h4>Expected Answer</h4>
+
+                  <dl className="benchmark-debug-grid">
+                    <div>
+                      <dt>Selected vault</dt>
+                      <dd>{expectedBenchmarkAnswer.selectedVault}</dd>
+                    </div>
+
+                    <div>
+                      <dt>Rejected vaults</dt>
+                      <dd>
+                        {expectedBenchmarkAnswer.rejectedVaults.join(", ")}
+                      </dd>
+                    </div>
+
+                    <div>
+                      <dt>Reasoning</dt>
+                      <dd>{expectedBenchmarkAnswer.reasoning}</dd>
+                    </div>
+                  </dl>
+                </section>
+
+                <section className="runner-benchmark-report">
+                  <h4>Score Impact</h4>
+
+                  <p className="runner-note">
+                    {getScoreImpactLabel(benchmarkResult)}
+                  </p>
+
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Field</th>
+                        <th>Model Answer</th>
+                        <th>Expected Answer</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      <tr>
+                        <td>Selected vault</td>
+                        <td>
+                          {benchmarkResult.decision.selectedVault ?? "—"}
+                        </td>
+                        <td>{expectedBenchmarkAnswer.selectedVault}</td>
+                      </tr>
+
+                      <tr>
+                        <td>Rejected vaults</td>
+                        <td>
+                          {formatRejectedVaults(
+                            benchmarkResult.decision.rejectedVaults,
+                          )}
+                        </td>
+                        <td>
+                          {expectedBenchmarkAnswer.rejectedVaults.join(", ")}
+                        </td>
+                      </tr>
+
+                      <tr>
+                        <td>Reasoning</td>
+                        <td>{benchmarkResult.decision.reasoning ?? "—"}</td>
+                        <td>{expectedBenchmarkAnswer.reasoning}</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </section>
+
+                <div className="benchmark-debug-section">
+                  <h4>Rejected vault details</h4>
+
+                  {benchmarkResult.decision.rejectedVaults?.length ? (
+                    <ul className="benchmark-rejected-list">
+                      {benchmarkResult.decision.rejectedVaults.map(
+                        (vault, index) => (
+                          <li
+                            key={`${formatRejectedVaultName(
+                              vault,
+                              index,
+                            )}-${index}`}
+                          >
+                            <strong>
+                              {formatRejectedVaultName(vault, index)}
+                            </strong>
+
+                            {formatRejectedVaultReason(vault) && (
+                              <span>{formatRejectedVaultReason(vault)}</span>
+                            )}
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  ) : (
+                    <p className="runner-note">No rejected vaults returned.</p>
+                  )}
+                </div>
+
+                <details className="benchmark-model-response">
+                  <summary>Raw model response</summary>
+
+                  <pre>
+                    {benchmarkResult.modelResponse ??
+                      "No model response returned."}
+                  </pre>
+                </details>
+              </>
+            )}
           </div>
         ) : null}
       </section>

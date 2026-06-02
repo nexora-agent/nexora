@@ -4131,3 +4131,7 @@ pre, code {
   border-color: rgba(239, 68, 68, 0.45);
   color: #fca5a5;
 }
+
+.benchmark-detail-toggle {
+  margin-left: auto;
+}

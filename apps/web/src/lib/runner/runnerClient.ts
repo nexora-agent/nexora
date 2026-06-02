@@ -54,22 +54,30 @@ function getRunnerApiBase() {
   return "http://127.0.0.1:4000";
 }
 
+function hasRequestBody(init?: RequestInit) {
+  return init?.body !== undefined && init.body !== null;
+}
+
 async function runnerRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${getRunnerApiBase()}${path}`, {
     ...init,
-    headers: {
-      "content-type": "application/json",
-      ...(init?.headers ?? {}),
-    },
+    headers: hasRequestBody(init)
+      ? {
+          "content-type": "application/json",
+          ...(init?.headers ?? {}),
+        }
+      : init?.headers,
   });
 
   const text = await response.text();
+
   let payload:
     | {
         error?: { message?: string } | string;
         message?: string;
       }
     | undefined;
+
   try {
     payload = text ? JSON.parse(text) : undefined;
   } catch {
@@ -79,7 +87,9 @@ async function runnerRequest<T>(path: string, init?: RequestInit): Promise<T> {
   if (!response.ok) {
     throw new Error(
       payload?.message ??
-        (typeof payload?.error === "object" ? payload.error.message : payload?.error) ??
+        (typeof payload?.error === "object"
+          ? payload.error.message
+          : payload?.error) ??
         text ??
         `Runner API returned ${response.status}`,
     );
@@ -100,7 +110,11 @@ export async function saveRunnerConfig(config: RunnerConfig) {
 }
 
 export async function testRunnerModel(config?: RunnerConfig) {
-  return runnerRequest<{ latencyMs: number; ok: boolean; response: string }>("/runner/test-model", {
+  return runnerRequest<{
+    latencyMs: number;
+    ok: boolean;
+    response: string;
+  }>("/runner/test-model", {
     body: config ? JSON.stringify(config) : undefined,
     method: "POST",
   });
@@ -108,9 +122,30 @@ export async function testRunnerModel(config?: RunnerConfig) {
 
 export async function testRunnerBenchmark(config?: RunnerConfig) {
   return runnerRequest<{
+    activeBenchmark?: {
+      benchmarkHash: string;
+      benchmarkId: string;
+      metadata?: {
+        description?: string;
+        expectedAnswer?: {
+          rejectedVaults?: string[];
+          reasoning?: string;
+          selectedVault?: string;
+        };
+        name?: string;
+      };
+      metadataURI?: string;
+      riskMode?: number;
+      targetContracts?: string[];
+    };
     decision: {
       reasoning?: string;
       rejectedVaults?: string[];
+      selectedVault?: string;
+    };
+    expectedAnswer?: {
+      rejectedVaults?: string[];
+      reasoning?: string;
       selectedVault?: string;
     };
     latencyMs: number;
@@ -125,20 +160,30 @@ export async function testRunnerBenchmark(config?: RunnerConfig) {
 }
 
 export async function testRunnerMcp(url: string) {
-  return runnerRequest<{ latencyMs: number; ok: boolean; response: string }>("/runner/test-mcp", {
+  return runnerRequest<{
+    latencyMs: number;
+    ok: boolean;
+    response: string;
+  }>("/runner/test-mcp", {
     body: JSON.stringify({ url }),
     method: "POST",
   });
 }
 
 export async function runRunnerOnce() {
-  return runnerRequest<RunnerStatus>("/runner/run-once", { method: "POST" });
+  return runnerRequest<RunnerStatus>("/runner/run-once", {
+    method: "POST",
+  });
 }
 
 export async function startRunnerAutoMode() {
-  return runnerRequest<RunnerStatus>("/runner/start", { method: "POST" });
+  return runnerRequest<RunnerStatus>("/runner/start", {
+    method: "POST",
+  });
 }
 
 export async function stopRunnerAutoMode() {
-  return runnerRequest<RunnerStatus>("/runner/stop", { method: "POST" });
+  return runnerRequest<RunnerStatus>("/runner/stop", {
+    method: "POST",
+  });
 }
