@@ -4163,3 +4163,118 @@ pre, code {
 .benchmark-detail-toggle {
   margin-left: auto;
 }
+
+/* ─── Benchmark Dashboard ─────────────────────────────────────── */
+
+.benchmark-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.benchmark-dashboard-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.benchmark-dashboard-header h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.benchmark-dashboard-header p {
+  color: var(--muted);
+  font-size: 0.875rem;
+  margin: 0;
+  max-width: 480px;
+}
+
+.benchmark-count-line {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.benchmark-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+.benchmark-card {
+  background: var(--surface-strong);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+}
+
+.benchmark-card-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 120px;
+}
+
+.benchmark-card-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.benchmark-meta {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.benchmark-card-dl {
+  display: grid;
+  gap: 8px;
+}
+
+.benchmark-card-dl > div {
+  align-items: baseline;
+  display: flex;
+  gap: 8px;
+}
+
+.benchmark-card-dl dt {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 600;
+  min-width: 64px;
+  text-transform: uppercase;
+}
+
+.benchmark-card-dl dd {
+  font-size: 0.85rem;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.benchmark-address {
+  background: var(--surface);
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.78rem;
+  margin-right: 4px;
+  padding: 2px 6px;
+}
+
+.benchmark-uri {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-style: italic;
+}
