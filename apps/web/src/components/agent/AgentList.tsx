@@ -52,22 +52,28 @@ function WalletBalanceCell({
   walletAddress,
   formattedBalance,
   isLoading,
+  isRefreshing,
+  isStale,
 }: {
   walletAddress?: string;
   formattedBalance?: string;
   isLoading: boolean;
+  isRefreshing: boolean;
+  isStale: boolean;
 }) {
   if (!walletAddress) {
     return <span>Not created</span>;
   }
 
+  if (isLoading) {
+    return <span aria-label="Loading balance" className="value-skeleton" />;
+  }
+
   return (
     <span>
-      {isLoading ? (
-        <span aria-label="Loading balance" className="value-skeleton" />
-      ) : (
-        formattedBalance ?? "—"
-      )}
+      {formattedBalance ?? "—"}
+      {isRefreshing && <span className="balance-indicator"> ↻</span>}
+      {isStale && !isRefreshing && <span className="balance-indicator balance-stale"> stale</span>}
     </span>
   );
 }
@@ -130,7 +136,7 @@ function AgentTableRow({
     status: ReturnType<typeof getAgentStatus>,
   ) => void;
 }) {
-  const { formattedBalance, isLoading } = useWalletBalance(
+  const { formattedBalance, isLoading, isRefreshing, isStale } = useWalletBalance(
     agent.walletAddress as `0x${string}` | undefined,
   );
 
@@ -213,6 +219,8 @@ function AgentTableRow({
           walletAddress={agent.walletAddress}
           formattedBalance={formattedBalance}
           isLoading={isLoading}
+          isRefreshing={isRefreshing}
+          isStale={isStale}
         />
       </td>
 

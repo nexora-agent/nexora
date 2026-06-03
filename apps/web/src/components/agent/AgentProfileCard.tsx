@@ -201,7 +201,7 @@ export function AgentProfileCard({
   const [byrealStatus, setByrealStatus] = useState(getByrealStatus);
   const latestByrealProposalRun = latestByrealRun(currentAgent);
   const latestExecution = latestRun?.execution;
-  const { formattedBalance, isLoading, isZeroBalance } = useWalletBalance(
+  const { formattedBalance, isLoading, isRefreshing, isStale, isZeroBalance } = useWalletBalance(
     currentAgent.walletAddress,
   );
   const funded = Boolean(
@@ -298,7 +298,11 @@ export function AgentProfileCard({
           {hasWallet && (
             <div>
               <dt>Balance</dt>
-              <dd>{isLoading ? "Checking" : formattedBalance}</dd>
+              <dd>
+                {isLoading
+                  ? <span className="balance-skeleton" />
+                  : <>{formattedBalance}{isRefreshing && <span className="balance-indicator"> checking...</span>}{isStale && !isRefreshing && <span className="balance-indicator balance-stale"> stale</span>}</>}
+              </dd>
             </div>
           )}
           <div>
@@ -411,7 +415,13 @@ export function AgentProfileCard({
                 </div>
                 <div>
                   <dt>Balance</dt>
-                  <dd>{currentAgent.walletAddress ? formattedBalance : "—"}</dd>
+                  <dd>
+                    {currentAgent.walletAddress
+                      ? isLoading
+                        ? <span className="balance-skeleton" />
+                        : <>{formattedBalance}{isRefreshing && <span className="balance-indicator"> checking...</span>}{isStale && !isRefreshing && <span className="balance-indicator balance-stale"> stale</span>}</>
+                      : "—"}
+                  </dd>
                 </div>
               </dl>
             </section>
@@ -457,7 +467,13 @@ export function AgentProfileCard({
                 </div>
                 <div>
                   <dt>Balance</dt>
-                  <dd>{currentAgent.walletAddress ? `${formattedBalance} · live balance` : "—"}</dd>
+                  <dd>
+                    {currentAgent.walletAddress
+                      ? isLoading
+                        ? <span className="balance-skeleton" />
+                        : <>{formattedBalance} · live{isRefreshing && <span className="balance-indicator"> checking...</span>}{isStale && !isRefreshing && <span className="balance-indicator balance-stale"> stale</span>}</>
+                      : "—"}
+                  </dd>
                 </div>
                 <div>
                   <dt>Execution</dt>

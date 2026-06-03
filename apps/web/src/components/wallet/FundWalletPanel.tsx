@@ -28,6 +28,7 @@ export function FundWalletPanel({ onFunded, walletAddress }: FundWalletPanelProp
     try {
       const hash = await fundSmartWallet(walletAddress, amount);
       setTransactionHash(hash);
+      window.dispatchEvent(new Event("nexora:wallet-balance-refresh"));
       onFunded?.(hash);
     } catch (caughtError) {
       setError(

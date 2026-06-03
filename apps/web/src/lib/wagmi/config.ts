@@ -7,7 +7,7 @@ export const wagmiConfig = createConfig({
   chains: [mantleSepolia, mainnet],
   connectors: [injected()],
   transports: {
-    [mantleSepolia.id]: http(),
+    [mantleSepolia.id]: http("https://mantle-sepolia.g.alchemy.com/v2/WUHHfgnpLvICz941qwVswahyQq1wGzXX"),
     [mainnet.id]: http(),
   },
 });

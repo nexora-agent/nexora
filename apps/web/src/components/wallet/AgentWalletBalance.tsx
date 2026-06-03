@@ -7,7 +7,7 @@ type AgentWalletBalanceProps = {
 };
 
 export function AgentWalletBalance({ walletAddress }: AgentWalletBalanceProps) {
-  const { formattedBalance, isLoading, isZeroBalance, refreshBalance } =
+  const { formattedBalance, isLoading, isRefreshing, isStale, isZeroBalance, refreshBalance } =
     useWalletBalance(walletAddress);
 
   return (
@@ -15,7 +15,17 @@ export function AgentWalletBalance({ walletAddress }: AgentWalletBalanceProps) {
       <dl>
         <div>
           <dt>Balance</dt>
-          <dd>{isLoading ? "Refreshing..." : formattedBalance}</dd>
+          <dd>
+            {isLoading ? (
+              <span className="balance-skeleton" />
+            ) : (
+              <>
+                {formattedBalance}
+                {isRefreshing && <span className="balance-indicator"> checking...</span>}
+                {isStale && !isRefreshing && <span className="balance-indicator balance-stale"> stale</span>}
+              </>
+            )}
+          </dd>
         </div>
       </dl>
       <span
@@ -29,11 +39,11 @@ export function AgentWalletBalance({ walletAddress }: AgentWalletBalanceProps) {
       </span>
       <button
         className="secondary-action"
-        disabled={!walletAddress || isLoading}
+        disabled={!walletAddress || isLoading || isRefreshing}
         onClick={refreshBalance}
         type="button"
       >
-        Refresh Balance
+        {isRefreshing ? "Checking..." : "Refresh Balance"}
       </button>
     </section>
   );
