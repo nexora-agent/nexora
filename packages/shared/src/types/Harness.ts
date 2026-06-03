@@ -5,7 +5,8 @@ export type StaticHarnessId =
   | "safe-approval"
   | "wallet-defense"
   | "safe-yield"
-  | "byreal-defi";
+  | "byreal-defi"
+  | "volatile-dex-trading";
 
 export type HarnessId = StaticHarnessId | `custom-${string}`;
 

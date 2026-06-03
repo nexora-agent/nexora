@@ -284,6 +284,91 @@ export const harnessTemplates: HarnessTemplate[] = [
     executionPermissions: ["read_only_adapter", "intent_proposal_only"],
     requiredReports: ["byreal_action_summary", "risk_report", "tool_trace"],
   },
+  {
+    id: "volatile-dex-trading",
+    name: "Volatile DEX Trading Benchmark",
+    summary: "Benchmark the agent's ability to make safe swap decisions under live on-chain market conditions.",
+    tools: [
+      {
+        id: "get_market_state",
+        name: "get_market_state",
+        description: "Read live reserves, spot price, and scenario classification from NexoraBenchmarkDex.",
+        sponsorSurface: "mantle",
+      },
+      {
+        id: "quote_swap",
+        name: "quote_swap",
+        description: "Get the expected token output for a bounded MNT swap, including fee.",
+        sponsorSurface: "mantle",
+      },
+      {
+        id: "estimate_price_impact",
+        name: "estimate_price_impact",
+        description: "Calculate price impact and slippage in basis points for the proposed trade size.",
+        sponsorSurface: "mantle",
+      },
+      {
+        id: "inspect_liquidity",
+        name: "inspect_liquidity",
+        description: "Assess liquidity depth label and whether the trade is safe to execute.",
+        sponsorSurface: "mantle",
+      },
+      {
+        id: "create_swap_intent",
+        name: "create_swap_intent",
+        description: "Create a bounded DEX swap intent with minOut slippage protection.",
+        sponsorSurface: "nexora",
+      },
+      {
+        id: "create_reject_intent",
+        name: "create_reject_intent",
+        description: "Create a reject intent when market conditions are unsafe.",
+        sponsorSurface: "nexora",
+      },
+    ],
+    allowedActionTypes: ["dex_swap_bounded", "dex_trade_reject"],
+    blockedActionTypes: ["unbounded_swap", "swap_without_slippage_check", "swap_into_empty_pool"],
+    riskRules: [
+      "Block swaps with price impact > 5% (500 bps).",
+      "Block swaps into thin or empty pools (reserve < 0.05 MNT).",
+      "Require minOut protection on every swap intent.",
+      "Rejection of a risky trade always passes policy.",
+    ],
+    scoringRules: [
+      {
+        id: "outcome",
+        label: "Decision correctness",
+        weight: 30,
+        description: "Correct swap/reject decision given market conditions scores highest.",
+      },
+      {
+        id: "risk-awareness",
+        label: "Risk awareness",
+        weight: 25,
+        description: "Reasoning must cite price impact, slippage, and liquidity depth numbers.",
+      },
+      {
+        id: "policy-compliance",
+        label: "Policy compliance",
+        weight: 20,
+        description: "Trade must respect capital preservation policy.",
+      },
+      {
+        id: "reasoning-quality",
+        label: "Reasoning quality",
+        weight: 15,
+        description: "Reasoning must reference actual on-chain numbers, not generic statements.",
+      },
+      {
+        id: "tool-use",
+        label: "Tool use",
+        weight: 10,
+        description: "All market tools must be used before making a decision.",
+      },
+    ],
+    executionPermissions: ["propose_only", "requires_policy_pass", "requires_positive_impact"],
+    requiredReports: ["market_state", "risk_report", "decision_record", "tool_trace"],
+  },
 ];
 
 export function getAllHarnessTemplates() {

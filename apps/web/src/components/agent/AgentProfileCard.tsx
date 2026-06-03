@@ -11,6 +11,7 @@ import {
   getExternalDefiEligibility,
   latestByrealRun,
 } from "@/lib/byreal/externalDefiEligibility";
+import { DexBenchmarkReport } from "../benchmark/DexBenchmarkReport";
 import { ModelDecisionPanel } from "../benchmark/ModelDecisionPanel";
 import { ByrealStatusCard } from "../byreal/ByrealStatusCard";
 import { ReputationPanel } from "../reputation/ReputationPanel";
@@ -500,6 +501,9 @@ export function AgentProfileCard({
 
         {activeTab === "results" && (
           <div className="results-grid">
+            {latestRun?.intent?.kind === "dex_swap" || latestRun?.intent?.kind === "dex_reject"
+              ? latestRun && <DexBenchmarkReport run={latestRun} />
+              : null}
             {onchainActivity?.latestValidation && (
               <section className="summary-card onchain-runner-report" aria-label="On-chain runner report">
                 <div className="card-heading-row">

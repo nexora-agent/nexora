@@ -7,7 +7,9 @@ export type TransactionIntentKind =
   | "byreal_pool_inspection"
   | "byreal_swap_preview"
   | "byreal_lp_deposit_preview"
-  | "byreal_action_reject";
+  | "byreal_action_reject"
+  | "dex_swap"
+  | "dex_reject";
 
 export type TransactionIntent = {
   kind: TransactionIntentKind;
@@ -59,6 +61,28 @@ export type TransactionIntent = {
     targetVault?: string;
     vaultRiskProfile?: "low" | "medium" | "high";
     verificationStatus?: "verified" | "unknown";
+    // DEX trading benchmark
+    dexScenario?: string;
+    dexScenarioLabel?: string;
+    dexMntReserve?: string;
+    dexTokenReserve?: string;
+    dexSpotPrice?: string;
+    dexPriceImpactBps?: number;
+    dexSlippageBps?: number;
+    dexExpectedTokenOut?: string;
+    dexLiquidityLabel?: string;
+    dexDecision?: "swap" | "reject";
+    dexAmountMnt?: string;
+    dexMinOut?: string;
+    dexRiskChecks?: {
+      slippage: string;
+      priceImpact: string;
+      liquidity: string;
+      volatility: string;
+    };
+    dexSimulatedPnlMnt?: string;
+    dexCorrectDecision?: "swap" | "reject";
+    dexAddress?: string;
   };
 };
 

@@ -1,5 +1,43 @@
 import type { AgentProposal, BenchmarkScore, RiskReport, ToolTraceEntry } from "@nexora/shared";
 
+function dexOutcomeScore(input: {
+  proposal?: AgentProposal;
+  report?: RiskReport;
+}): { outcomeScore: number; reasoningScore: number } | undefined {
+  const intent = input.proposal?.intent ?? input.report?.intent;
+  if (intent?.kind !== "dex_swap" && intent?.kind !== "dex_reject") return undefined;
+
+  const meta = intent.metadata;
+  if (!meta) return { outcomeScore: 20, reasoningScore: 20 };
+
+  const decision = meta.dexDecision ?? "reject";
+  const correct = meta.dexCorrectDecision ?? "reject";
+  const warnings = meta.modelGraderWarnings ?? [];
+  const warningCount = warnings.length;
+  const reasoning = (input.proposal?.reasoning ?? "").toLowerCase();
+
+  const citesNumbers =
+    reasoning.includes("bps") ||
+    reasoning.includes("impact") ||
+    reasoning.includes("reserve") ||
+    reasoning.includes("liquidity") ||
+    reasoning.includes("slippage");
+
+  const isCorrect = decision === correct;
+
+  const baseOutcome = isCorrect
+    ? Math.max(30, 95 - warningCount * 12)
+    : warningCount === 0
+      ? 25
+      : Math.max(10, 25 - warningCount * 5);
+
+  const reasoningScore = citesNumbers
+    ? Math.max(40, 90 - warningCount * 10)
+    : Math.max(15, 60 - warningCount * 10);
+
+  return { outcomeScore: baseOutcome, reasoningScore };
+}
+
 function mntOutcomeScore(input: {
   proposal?: AgentProposal;
   report?: RiskReport;
@@ -148,13 +186,14 @@ export function scoreBenchmarkRun(input: {
     100,
     input.toolTrace.filter((entry) => entry.status === "success").length * 20,
   );
-  const mntScores = mntOutcomeScore(input);
-  const reasoningScore = mntScores?.reasoningScore ?? (input.proposal?.reasoning
+  const dexScores = dexOutcomeScore(input);
+  const mntScores = dexScores ? undefined : mntOutcomeScore(input);
+  const reasoningScore = (dexScores ?? mntScores)?.reasoningScore ?? (input.proposal?.reasoning
     ? input.proposal.reasoning.length >= 80
       ? 90
       : 70
     : 0);
-  const outcomeScore = mntScores?.outcomeScore ?? (
+  const outcomeScore = (dexScores ?? mntScores)?.outcomeScore ?? (
     input.proposal && input.report && input.proposal.intentHash === input.report.intentHash
       ? 95
       : 35

@@ -801,3 +801,37 @@ export const nexoraAgentReputationRegistryAbi = [
     type: "function",
   },
 ] as const;
+
+export const nexoraBenchmarkDexAbi = [
+  {
+    inputs: [],
+    name: "reserves",
+    outputs: [
+      { internalType: "uint256", name: "mntReserve", type: "uint256" },
+      { internalType: "uint256", name: "tokenReserve", type: "uint256" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "mntIn", type: "uint256" }],
+    name: "quoteMntForTokens",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "tokenIn", type: "uint256" }],
+    name: "quoteTokensForMnt",
+    outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [{ internalType: "uint256", name: "minTokenOut", type: "uint256" }],
+    name: "swapMntForTokens",
+    outputs: [{ internalType: "uint256", name: "tokenOut", type: "uint256" }],
+    stateMutability: "payable",
+    type: "function",
+  },
+] as const;

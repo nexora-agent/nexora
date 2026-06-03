@@ -425,10 +425,25 @@ function selectByrealPoolForObjective(
   return rankedPools[0] ?? pools[0];
 }
 
+function isDexObjective(agent: AgentRecord, objective: string): boolean {
+  return (
+    getHarnessTemplate(agent.selectedHarnessId).id === "volatile-dex-trading" ||
+    objective.toLowerCase().includes("dex") ||
+    objective.toLowerCase().includes("swap") ||
+    objective.toLowerCase().includes("benchmarkdex") ||
+    objective.toLowerCase().includes("volatile dex")
+  );
+}
+
 export async function runObjectiveWithExternalTools(
   agent: AgentRecord,
   objective: string,
 ): Promise<ObjectiveRun> {
+  if (isDexObjective(agent, objective)) {
+    const { runDexBenchmark } = await import("@/lib/benchmark/runDexBenchmark");
+    return runDexBenchmark(agent);
+  }
+
   if (!isByrealObjective(agent, objective)) {
     return runObjectiveLocally(agent, objective);
   }
