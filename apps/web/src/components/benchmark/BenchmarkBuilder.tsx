@@ -287,11 +287,11 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
       setStep("preview");
       setNotice(`AI generated benchmark draft in ${result.latencyMs}ms. Review and edit before storing.`);
     } catch (caughtError) {
-      setError(
+      const base =
         caughtError instanceof Error
           ? caughtError.message
-          : "Could not generate benchmark with the local model.",
-      );
+          : "Could not generate benchmark with the local model.";
+      setError(`${base} Check the AI Setup card in the Benchmarks section if the error persists.`);
     } finally {
       setIsGenerating(false);
     }
@@ -804,14 +804,20 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
         )}
 
         {step === "scoring" && (
-          <button
-            className="primary-action"
-            disabled={isGenerating}
-            onClick={() => void generateBenchmark()}
-            type="button"
-          >
-            {isGenerating ? "Generating..." : "Generate Benchmark"}
-          </button>
+          <>
+            <p className="benchmark-builder-generate-hint">
+              Benchmark generation uses your local Ollama model. Test the connection in the{" "}
+              <strong>Benchmarks → AI Setup</strong> card if generation fails.
+            </p>
+            <button
+              className="primary-action"
+              disabled={isGenerating}
+              onClick={() => void generateBenchmark()}
+              type="button"
+            >
+              {isGenerating ? "Generating..." : "Generate Benchmark"}
+            </button>
+          </>
         )}
 
         {isPreview && (

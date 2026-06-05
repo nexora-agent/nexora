@@ -6,6 +6,7 @@ import {
   readBenchmarksOfOwner,
   type OnchainBenchmark,
 } from "@/lib/contracts/onchainBenchmarks";
+import { RunnerModelSetupCard } from "@/components/runner/RunnerModelSetupCard";
 
 type Props = {
   connectedAddress?: Address;
@@ -99,6 +100,12 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refres
           Create Benchmark
         </button>
       </div>
+
+      <RunnerModelSetupCard
+        compact
+        description="AI model used to generate and score benchmarks. Test the connection before creating a benchmark."
+        title="AI Setup"
+      />
 
       {!connectedAddress && (
         <section className="empty-state-card" aria-label="Connect wallet prompt">

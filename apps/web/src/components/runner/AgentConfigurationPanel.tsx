@@ -19,10 +19,10 @@ import {
   stopRunnerAutoMode,
   testRunnerBenchmark,
   testRunnerMcp,
-  testRunnerModel,
   type RunnerConfig,
   type RunnerStatus,
 } from "@/lib/runner/runnerClient";
+import { RunnerModelSetupCard } from "./RunnerModelSetupCard";
 
 const emptyConfig: RunnerConfig = {
   actionAmountMnt: "0.01",
@@ -971,9 +971,6 @@ export function AgentConfigurationPanel({
   );
   const [notice, setNotice] = useState("");
   const [isBusy, setIsBusy] = useState(false);
-  const [modelTestState, setModelTestState] = useState<
-    "idle" | "testing" | "success" | "error"
-  >("idle");
   const [benchmarkState, setBenchmarkState] = useState<
     "idle" | "running" | "success" | "error"
   >("idle");
@@ -1030,7 +1027,6 @@ export function AgentConfigurationPanel({
     setConfig(nextConfig);
     setIsDirty(true);
     setSaveState("saving");
-    setModelTestState("idle");
     setBenchmarkState("idle");
     setShowBenchmarkDetails(false);
   };
@@ -1070,7 +1066,6 @@ export function AgentConfigurationPanel({
       isDirtyRef.current = true;
       setIsDirty(true);
       setSaveState("saving");
-      setModelTestState("idle");
       setBenchmarkState("idle");
       setShowBenchmarkDetails(false);
 
@@ -1219,30 +1214,6 @@ export function AgentConfigurationPanel({
     };
   }, [executorAddress, selectedAgent?.walletAddress, selectedAgentIdentityId]);
 
-  const testModel = async () => {
-    setIsBusy(true);
-    setModelTestState("testing");
-    setNotice("Testing Ollama model...");
-
-    try {
-      const result = await testRunnerModel(config);
-
-      isDirtyRef.current = false;
-      setIsDirty(false);
-      setSaveState("saved");
-      setModelTestState("success");
-
-      await refresh({ syncConfig: true });
-
-      setNotice(`Ollama responded in ${result.latencyMs}ms.`);
-    } catch (error) {
-      setModelTestState("error");
-      setNotice(error instanceof Error ? error.message : "Model test failed.");
-    } finally {
-      setIsBusy(false);
-    }
-  };
-
   const testBenchmark = async () => {
     setIsBusy(true);
     setBenchmarkState("running");
@@ -1290,7 +1261,6 @@ export function AgentConfigurationPanel({
     isDirtyRef.current = true;
     setIsDirty(true);
     setSaveState("saving");
-    setModelTestState("idle");
     setBenchmarkState("idle");
     setShowBenchmarkDetails(false);
 
@@ -1513,107 +1483,11 @@ export function AgentConfigurationPanel({
 
       {notice && <p className="ownership-note runner-notice">{notice}</p>}
 
-      <div className="runner-grid">
-        <section className="summary-card">
-          <div className="card-heading-row">
-            <div>
-              <h3>Local Model</h3>
-
-              <span className={`runner-save-state runner-save-${saveState}`}>
-                {saveState === "saving"
-                  ? "Saving settings..."
-                  : saveState === "error"
-                    ? "Settings not saved"
-                    : "Settings saved"}
-              </span>
-            </div>
-
-            <button
-              className={`ghost-action model-test-button model-test-${modelTestState}`}
-              disabled={isBusy || saveState === "saving"}
-              onClick={testModel}
-              type="button"
-            >
-              {modelTestState === "testing"
-                ? "Testing..."
-                : modelTestState === "success"
-                  ? "Ollama Connected"
-                  : modelTestState === "error"
-                    ? "Test Failed"
-                    : "Test Ollama"}
-            </button>
-          </div>
-
-          <div className="form-grid">
-            <label>
-              <span>Model name</span>
-
-              <input
-                onChange={(event) =>
-                  updateConfig({
-                    ...config,
-                    model: { ...config.model, modelName: event.target.value },
-                  })
-                }
-                value={config.model.modelName}
-              />
-            </label>
-
-            <label>
-              <span>Model endpoint</span>
-
-              <input
-                onChange={(event) =>
-                  updateConfig({
-                    ...config,
-                    model: { ...config.model, endpointUrl: event.target.value },
-                  })
-                }
-                value={config.model.endpointUrl}
-              />
-            </label>
-
-            <label>
-              <span>Temperature</span>
-
-              <input
-                min="0"
-                onChange={(event) =>
-                  updateConfig({
-                    ...config,
-                    model: {
-                      ...config.model,
-                      temperature: Number(event.target.value),
-                    },
-                  })
-                }
-                step="0.1"
-                type="number"
-                value={config.model.temperature}
-              />
-            </label>
-
-            <label>
-              <span>Max tokens</span>
-
-              <input
-                min="128"
-                onChange={(event) =>
-                  updateConfig({
-                    ...config,
-                    model: {
-                      ...config.model,
-                      maxTokens: Number(event.target.value),
-                    },
-                  })
-                }
-                type="number"
-                value={config.model.maxTokens}
-              />
-            </label>
-          </div>
-        </section>
-      </div>
+      <RunnerModelSetupCard
+        description="Ollama endpoint and model used by the runner for benchmarks and agent decisions."
+        onSaved={(model) => setConfig((c) => ({ ...c, model }))}
+        title="Local Model"
+      />
 
       <section className="summary-card">
         <div className="card-heading-row">

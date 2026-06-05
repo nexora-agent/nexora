@@ -4211,6 +4211,174 @@ pre, code {
   margin-left: auto;
 }
 
+/* ─── Runner Model Setup Card ────────────────────────────────── */
+
+.runner-model-setup-card {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 20px;
+  transition: border-color 160ms;
+}
+
+.runner-model-setup-header {
+  align-items: flex-start;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.runner-model-setup-header h3 {
+  font-size: 1rem;
+  margin: 0 0 2px;
+}
+
+.runner-model-setup-desc {
+  margin: 2px 0 0;
+  max-width: 480px;
+}
+
+.runner-model-status-pills {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
+  gap: 6px;
+}
+
+.runner-model-provider-pill {
+  background: color-mix(in srgb, var(--accent) 10%, var(--surface-strong));
+  border: 1px solid color-mix(in srgb, var(--accent) 25%, var(--line));
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 4px 10px;
+}
+
+.runner-model-status-pill {
+  font-size: 0.75rem;
+  padding: 4px 10px;
+}
+
+/* field grid — default: 2-col */
+.runner-model-setup-fields {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr 1fr;
+}
+
+.runner-model-field {
+  display: grid;
+  gap: 6px;
+}
+
+.runner-model-field > span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.runner-model-field > input {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font: inherit;
+  font-size: 0.875rem;
+  min-height: 40px;
+  padding: 8px 12px;
+  width: 100%;
+}
+
+.runner-model-field > input:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.runner-model-field-narrow {
+  /* temperature / max-tokens — narrower columns in full layout */
+}
+
+/* compact variant — single-row field layout */
+.runner-model-setup-compact .runner-model-setup-fields {
+  grid-template-columns: 2fr 1fr 120px 120px;
+}
+
+.runner-model-setup-compact .runner-model-setup-header h3 {
+  font-size: 0.95rem;
+}
+
+.runner-model-test-result {
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.runner-model-test-failed {
+  color: var(--danger);
+}
+
+/* button row */
+.runner-model-setup-actions {
+  display: flex;
+  gap: 10px;
+}
+
+/* test button state tints */
+.runner-model-test-connected {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  border-color: color-mix(in srgb, var(--success) 40%, var(--line));
+  color: var(--success);
+}
+
+.runner-model-test-failed {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  border-color: color-mix(in srgb, var(--danger) 40%, var(--line));
+  color: var(--danger);
+}
+
+.runner-model-save-saved {
+  background: color-mix(in srgb, var(--success) 10%, transparent);
+  border-color: color-mix(in srgb, var(--success) 35%, var(--line));
+  color: var(--success);
+}
+
+.runner-model-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+/* pre-generate hint in BenchmarkBuilder */
+.benchmark-builder-generate-hint {
+  color: var(--muted);
+  font-size: 0.82rem;
+  line-height: 1.5;
+  margin: 0;
+  max-width: 480px;
+}
+
+.benchmark-builder-generate-hint strong {
+  color: var(--ink);
+}
+
+/* responsive: compact card stays single-col on small screens */
+@media (max-width: 860px) {
+  .runner-model-setup-compact .runner-model-setup-fields {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .runner-model-setup-fields,
+  .runner-model-setup-compact .runner-model-setup-fields {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ─── Benchmark Dashboard ─────────────────────────────────────── */
 
 .benchmark-dashboard {
