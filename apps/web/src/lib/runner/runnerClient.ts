@@ -125,8 +125,11 @@ export async function testRunnerModel(config?: RunnerConfig) {
 export async function testRunnerBenchmark(config?: RunnerConfig) {
   return runnerRequest<{
     activeBenchmark?: {
+      benchmarkDataJson?: string;
       benchmarkHash: string;
       benchmarkId: string;
+      benchmarkType?: string;
+      description?: string;
       metadata?: {
         description?: string;
         expectedAnswer?: {
@@ -142,6 +145,7 @@ export async function testRunnerBenchmark(config?: RunnerConfig) {
         benchmarkType?: string;
       };
       metadataURI?: string;
+      name?: string;
       riskMode?: number;
       targetContracts?: string[];
     };

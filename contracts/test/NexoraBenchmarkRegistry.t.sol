@@ -32,7 +32,15 @@ contract NexoraBenchmarkRegistryTest {
         targets[0] = address(0xCAFE);
 
         vm.prank(owner);
-        uint256 benchmarkId = registry.registerBenchmark(keccak256("benchmark"), "data:benchmark", targets, 0);
+        uint256 benchmarkId = registry.registerBenchmark(
+            "Test Benchmark",
+            "Stores full benchmark JSON on-chain.",
+            "dex-trading",
+            '{"name":"Test Benchmark"}',
+            targets,
+            0,
+            keccak256("benchmark")
+        );
 
         vm.prank(owner);
         registry.selectBenchmarkForAgent(agentId, benchmarkId);
@@ -41,6 +49,9 @@ contract NexoraBenchmarkRegistryTest {
         assert(benchmark.benchmarkId == benchmarkId);
         assert(benchmark.owner == owner);
         assert(benchmark.benchmarkHash == keccak256("benchmark"));
+        assert(keccak256(bytes(benchmark.name)) == keccak256(bytes("Test Benchmark")));
+        assert(keccak256(bytes(benchmark.benchmarkType)) == keccak256(bytes("dex-trading")));
+        assert(keccak256(bytes(benchmark.benchmarkDataJson)) == keccak256(bytes('{"name":"Test Benchmark"}')));
         assert(benchmark.targetContracts.length == 1);
         assert(benchmark.targetContracts[0] == address(0xCAFE));
     }
@@ -51,7 +62,15 @@ contract NexoraBenchmarkRegistryTest {
 
         address[] memory targets = new address[](0);
         vm.prank(owner);
-        uint256 benchmarkId = registry.registerBenchmark(keccak256("benchmark"), "data:benchmark", targets, 0);
+        uint256 benchmarkId = registry.registerBenchmark(
+            "Test Benchmark",
+            "Stores full benchmark JSON on-chain.",
+            "custom",
+            '{"name":"Test Benchmark"}',
+            targets,
+            0,
+            keccak256("benchmark")
+        );
 
         vm.prank(other);
         try registry.selectBenchmarkForAgent(agentId, benchmarkId) {
@@ -67,7 +86,15 @@ contract NexoraBenchmarkRegistryTest {
 
         address[] memory targets = new address[](0);
         vm.prank(owner);
-        uint256 benchmarkId = registry.registerBenchmark(keccak256("benchmark"), "data:benchmark", targets, 0);
+        uint256 benchmarkId = registry.registerBenchmark(
+            "Test Benchmark",
+            "Stores full benchmark JSON on-chain.",
+            "custom",
+            '{"name":"Test Benchmark"}',
+            targets,
+            0,
+            keccak256("benchmark")
+        );
 
         vm.prank(owner);
         registry.setBenchmarkActive(benchmarkId, false);

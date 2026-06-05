@@ -85,10 +85,10 @@ type BenchmarkMetadata = {
 };
 
 type ActiveBenchmark = {
+  benchmarkDataJson: string;
   benchmarkHash: Hex;
   benchmarkId: bigint;
   metadata: BenchmarkMetadata;
-  metadataURI: string;
   riskMode: number;
   targetContracts: Address[];
 };
@@ -155,9 +155,12 @@ const benchmarkRegistryAbi = [
         components: [
           { internalType: "uint256", name: "benchmarkId", type: "uint256" },
           { internalType: "address", name: "owner", type: "address" },
-          { internalType: "bytes32", name: "benchmarkHash", type: "bytes32" },
-          { internalType: "string", name: "metadataURI", type: "string" },
+          { internalType: "string", name: "name", type: "string" },
+          { internalType: "string", name: "description", type: "string" },
+          { internalType: "string", name: "benchmarkType", type: "string" },
+          { internalType: "string", name: "benchmarkDataJson", type: "string" },
           { internalType: "address[]", name: "targetContracts", type: "address[]" },
+          { internalType: "bytes32", name: "benchmarkHash", type: "bytes32" },
           { internalType: "uint8", name: "riskMode", type: "uint8" },
           { internalType: "bool", name: "active", type: "bool" },
           { internalType: "uint64", name: "createdAt", type: "uint64" },
@@ -627,22 +630,15 @@ function optionalContractAddress(
   return value as Address;
 }
 
-function decodeBenchmarkMetadataURI(metadataURI?: string) {
-  if (!metadataURI?.startsWith("data:application/json")) {
+function decodeBenchmarkDataJson(benchmarkDataJson?: string) {
+  if (!benchmarkDataJson) {
     return undefined;
   }
 
-  const [, payload] = metadataURI.split(",", 2);
-  if (!payload) return undefined;
-
   try {
-    return JSON.parse(decodeURIComponent(payload)) as Record<string, unknown>;
+    return JSON.parse(benchmarkDataJson) as Record<string, unknown>;
   } catch {
-    try {
-      return JSON.parse(Buffer.from(payload, "base64").toString("utf8")) as Record<string, unknown>;
-    } catch {
-      return undefined;
-    }
+    return undefined;
   }
 }
 
@@ -829,8 +825,14 @@ async function readActiveBenchmarkForConfiguredAgent() {
       functionName: "getBenchmark",
     });
 
+    if (keccak256(toBytes(benchmark.benchmarkDataJson)) !== benchmark.benchmarkHash) {
+      throw new Error(
+        `Benchmark data hash mismatch for benchmark ${benchmarkId.toString()}.`,
+      );
+    }
+
     const metadata = normalizeBenchmarkMetadata(
-      decodeBenchmarkMetadataURI(benchmark.metadataURI),
+      decodeBenchmarkDataJson(benchmark.benchmarkDataJson),
       {
         riskMode: Number(benchmark.riskMode),
         targetContracts: benchmark.targetContracts,
@@ -838,14 +840,21 @@ async function readActiveBenchmarkForConfiguredAgent() {
     );
 
     return {
+      benchmarkDataJson: benchmark.benchmarkDataJson,
       benchmarkHash: benchmark.benchmarkHash,
       benchmarkId,
       metadata,
-      metadataURI: benchmark.metadataURI,
       riskMode: Number(benchmark.riskMode),
       targetContracts: [...benchmark.targetContracts],
     } satisfies ActiveBenchmark;
   } catch (error) {
+    if (
+      error instanceof Error &&
+      error.message.includes("Benchmark data hash mismatch")
+    ) {
+      throw error;
+    }
+
     addLog(
       "error",
       error instanceof Error
@@ -1413,10 +1422,10 @@ export async function testBenchmark() {
   return {
     activeBenchmark: activeBenchmark
       ? {
+          benchmarkDataJson: activeBenchmark.benchmarkDataJson,
           benchmarkHash: activeBenchmark.benchmarkHash,
           benchmarkId: activeBenchmark.benchmarkId.toString(),
           metadata: activeBenchmark.metadata,
-          metadataURI: activeBenchmark.metadataURI,
           riskMode: activeBenchmark.riskMode,
           targetContracts: activeBenchmark.targetContracts,
         }

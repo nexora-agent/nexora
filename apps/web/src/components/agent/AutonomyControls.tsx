@@ -44,24 +44,8 @@ function formatAddress(address: string) {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 }
 
-function decodeBenchmarkMetadata(metadataURI: string) {
-  if (!metadataURI.startsWith("data:application/json")) return undefined;
-
-  const [, payload] = metadataURI.split(",", 2);
-  if (!payload) return undefined;
-
-  try {
-    return JSON.parse(decodeURIComponent(payload)) as {
-      description?: string;
-      name?: string;
-    };
-  } catch {
-    return undefined;
-  }
-}
-
 function benchmarkLabel(benchmark: OnchainBenchmark) {
-  return decodeBenchmarkMetadata(benchmark.metadataURI)?.name ?? `Benchmark #${benchmark.benchmarkId}`;
+  return benchmark.name || `Benchmark #${benchmark.benchmarkId}`;
 }
 
 function CardSkeleton() {

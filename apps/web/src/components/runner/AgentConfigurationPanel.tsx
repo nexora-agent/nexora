@@ -86,10 +86,14 @@ type BenchmarkMetadataReport = {
 };
 
 type ActiveBenchmarkReport = {
+  benchmarkDataJson?: string;
   benchmarkHash: string;
   benchmarkId: string;
+  benchmarkType?: string;
+  description?: string;
   metadata?: BenchmarkMetadataReport;
   metadataURI?: string;
+  name?: string;
   riskMode?: number;
   targetContracts?: string[];
 };
@@ -113,10 +117,14 @@ type BenchmarkReport = {
 };
 
 type BenchmarkDisplaySource = {
+  benchmarkDataJson?: string;
   benchmarkHash?: string;
   benchmarkId: bigint | number | string;
+  benchmarkType?: string;
+  description?: string;
   metadata?: BenchmarkMetadataReport;
   metadataURI?: string;
+  name?: string;
   targetContracts?: string[];
 };
 
@@ -150,7 +158,15 @@ function formatAddress(address?: string) {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 }
 
-function decodeBenchmarkMetadata(metadataURI?: string) {
+function decodeBenchmarkData(benchmarkDataJson?: string, metadataURI?: string) {
+  if (benchmarkDataJson) {
+    try {
+      return JSON.parse(benchmarkDataJson) as BenchmarkMetadataReport;
+    } catch {
+      return undefined;
+    }
+  }
+
   if (!metadataURI?.startsWith("data:application/json")) {
     return undefined;
   }
@@ -173,7 +189,7 @@ function decodeBenchmarkMetadata(metadataURI?: string) {
 }
 
 function getBenchmarkMetadata(benchmark?: BenchmarkDisplaySource) {
-  return benchmark?.metadata ?? decodeBenchmarkMetadata(benchmark?.metadataURI);
+  return benchmark?.metadata ?? decodeBenchmarkData(benchmark?.benchmarkDataJson, benchmark?.metadataURI);
 }
 
 function getBenchmarkName(benchmark?: BenchmarkDisplaySource) {
@@ -183,7 +199,7 @@ function getBenchmarkName(benchmark?: BenchmarkDisplaySource) {
 
   const metadata = getBenchmarkMetadata(benchmark);
 
-  return metadata?.name ?? `Benchmark #${benchmark.benchmarkId}`;
+  return benchmark.name ?? metadata?.name ?? `Benchmark #${benchmark.benchmarkId}`;
 }
 
 function getTargetContract(benchmark?: BenchmarkDisplaySource) {

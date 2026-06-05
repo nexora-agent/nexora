@@ -13,25 +13,7 @@ type Props = {
   refreshKey?: number;
 };
 
-function decodeBenchmarkMetadata(metadataURI: string) {
-  if (!metadataURI.startsWith("data:application/json")) return undefined;
-
-  const [, payload] = metadataURI.split(",", 2);
-  if (!payload) return undefined;
-
-  try {
-    return JSON.parse(decodeURIComponent(payload)) as {
-      benchmarkType?: string;
-      description?: string;
-      name?: string;
-    };
-  } catch {
-    return undefined;
-  }
-}
-
 function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
-  const metadata = decodeBenchmarkMetadata(benchmark.metadataURI);
   const createdDate = new Date(benchmark.createdAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -52,15 +34,15 @@ function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
         </div>
         <span className="benchmark-meta">#{benchmark.benchmarkId}</span>
       </div>
-      <h3>{metadata?.name ?? `Benchmark #${benchmark.benchmarkId}`}</h3>
-      {metadata?.description && (
-        <p className="benchmark-card-description">{metadata.description}</p>
+      <h3>{benchmark.name || `Benchmark #${benchmark.benchmarkId}`}</h3>
+      {benchmark.description && (
+        <p className="benchmark-card-description">{benchmark.description}</p>
       )}
       <dl className="benchmark-card-dl">
-        {metadata?.benchmarkType && (
+        {benchmark.benchmarkType && (
           <div>
             <dt>Type</dt>
-            <dd>{metadata.benchmarkType}</dd>
+            <dd>{benchmark.benchmarkType}</dd>
           </div>
         )}
         <div>

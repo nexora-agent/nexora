@@ -63,10 +63,6 @@ export function benchmarkHash(benchmark: CustomBenchmarkDefinition): Hex {
   return keccak256(stringToBytes(canonicalBenchmarkJson(benchmark)));
 }
 
-export function benchmarkMetadataUri(benchmark: CustomBenchmarkDefinition) {
-  return `data:application/json,${encodeURIComponent(JSON.stringify(benchmark))}`;
-}
-
 export function riskModeToChain(riskMode: BenchmarkRiskMode) {
   if (riskMode === "balanced") return 1;
   if (riskMode === "aggressive") return 2;

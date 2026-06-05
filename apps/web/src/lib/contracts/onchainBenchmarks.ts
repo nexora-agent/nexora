@@ -7,17 +7,20 @@ import { isBenchmarkRegistryReady, mantleSepoliaContracts } from "@/lib/contract
 import { wagmiConfig } from "@/lib/wagmi/config";
 import {
   benchmarkHash,
-  benchmarkMetadataUri,
+  canonicalBenchmarkJson,
   riskModeToChain,
   type CustomBenchmarkDefinition,
 } from "@/lib/benchmarks/benchmarkDefinition";
 
 export type OnchainBenchmark = {
   active: boolean;
+  benchmarkDataJson: string;
   benchmarkHash: Hex;
   benchmarkId: string;
+  benchmarkType: string;
   createdAt: string;
-  metadataURI: string;
+  description: string;
+  name: string;
   owner: Address;
   riskMode: number;
   targetContracts: Address[];
@@ -34,10 +37,13 @@ function requireBenchmarkRegistry() {
 function decodeBenchmark(record: Awaited<ReturnType<typeof readBenchmarkRaw>>): OnchainBenchmark {
   return {
     active: record.active,
+    benchmarkDataJson: record.benchmarkDataJson,
     benchmarkHash: record.benchmarkHash,
     benchmarkId: record.benchmarkId.toString(),
+    benchmarkType: record.benchmarkType,
     createdAt: new Date(Number(record.createdAt) * 1000).toISOString(),
-    metadataURI: record.metadataURI,
+    description: record.description,
+    name: record.name,
     owner: record.owner,
     riskMode: Number(record.riskMode),
     targetContracts: [...record.targetContracts],
@@ -69,14 +75,18 @@ async function waitForMantle(hash: `0x${string}`, label: string) {
 }
 
 export async function registerBenchmarkOnchain(benchmark: CustomBenchmarkDefinition) {
+  const benchmarkDataJson = canonicalBenchmarkJson(benchmark);
   const hash = await writeContract(wagmiConfig, {
     abi: nexoraBenchmarkRegistryAbi,
     address: requireBenchmarkRegistry(),
     args: [
-      benchmarkHash(benchmark),
-      benchmarkMetadataUri(benchmark),
+      benchmark.name,
+      benchmark.description,
+      benchmark.benchmarkType,
+      benchmarkDataJson,
       benchmark.targetContracts,
       riskModeToChain(benchmark.riskMode),
+      benchmarkHash(benchmark),
     ],
     chainId: mantleSepolia.id,
     functionName: "registerBenchmark",

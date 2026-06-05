@@ -14,9 +14,12 @@ contract NexoraBenchmarkRegistry {
     struct Benchmark {
         uint256 benchmarkId;
         address owner;
-        bytes32 benchmarkHash;
-        string metadataURI;
+        string name;
+        string description;
+        string benchmarkType;
+        string benchmarkDataJson;
         address[] targetContracts;
+        bytes32 benchmarkHash;
         uint8 riskMode;
         bool active;
         uint64 createdAt;
@@ -32,7 +35,8 @@ contract NexoraBenchmarkRegistry {
         uint256 indexed benchmarkId,
         address indexed owner,
         bytes32 indexed benchmarkHash,
-        string metadataURI,
+        string name,
+        string benchmarkType,
         uint8 riskMode
     );
     event BenchmarkStatusUpdated(uint256 indexed benchmarkId, bool active);
@@ -40,7 +44,8 @@ contract NexoraBenchmarkRegistry {
 
     error BenchmarkNotFound();
     error EmptyBenchmarkHash();
-    error EmptyMetadataURI();
+    error EmptyBenchmarkData();
+    error EmptyBenchmarkName();
     error NotAgentOwner();
     error NotBenchmarkOwner();
     error InactiveBenchmark();
@@ -50,17 +55,24 @@ contract NexoraBenchmarkRegistry {
     }
 
     function registerBenchmark(
-        bytes32 benchmarkHash,
-        string calldata metadataURI,
+        string calldata name,
+        string calldata description,
+        string calldata benchmarkType,
+        string calldata benchmarkDataJson,
         address[] calldata targetContracts,
-        uint8 riskMode
+        uint8 riskMode,
+        bytes32 benchmarkHash
     ) external returns (uint256 benchmarkId) {
         if (benchmarkHash == bytes32(0)) {
             revert EmptyBenchmarkHash();
         }
 
-        if (bytes(metadataURI).length == 0) {
-            revert EmptyMetadataURI();
+        if (bytes(name).length == 0) {
+            revert EmptyBenchmarkName();
+        }
+
+        if (bytes(benchmarkDataJson).length == 0) {
+            revert EmptyBenchmarkData();
         }
 
         benchmarkId = _nextBenchmarkId++;
@@ -72,16 +84,19 @@ contract NexoraBenchmarkRegistry {
         _benchmarks[benchmarkId] = Benchmark({
             benchmarkId: benchmarkId,
             owner: msg.sender,
-            benchmarkHash: benchmarkHash,
-            metadataURI: metadataURI,
+            name: name,
+            description: description,
+            benchmarkType: benchmarkType,
+            benchmarkDataJson: benchmarkDataJson,
             targetContracts: targets,
+            benchmarkHash: benchmarkHash,
             riskMode: riskMode,
             active: true,
             createdAt: uint64(block.timestamp)
         });
         _benchmarksOfOwner[msg.sender].push(benchmarkId);
 
-        emit BenchmarkRegistered(benchmarkId, msg.sender, benchmarkHash, metadataURI, riskMode);
+        emit BenchmarkRegistered(benchmarkId, msg.sender, benchmarkHash, name, benchmarkType, riskMode);
     }
 
     function setBenchmarkActive(uint256 benchmarkId, bool active) external {
