@@ -540,7 +540,65 @@ function extractJsonValue(text: string) {
     throw new Error("Model did not return benchmark JSON.");
   }
 
-  return JSON.parse(candidate.slice(start, end + 1)) as Record<string, unknown>;
+  return parseLooseJsonObject(candidate.slice(start, end + 1));
+}
+
+function stripJsonComments(value: string) {
+  let output = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index++) {
+    const current = value[index];
+    const next = value[index + 1];
+
+    if (inString) {
+      output += current;
+
+      if (escaped) {
+        escaped = false;
+      } else if (current === "\\") {
+        escaped = true;
+      } else if (current === "\"") {
+        inString = false;
+      }
+
+      continue;
+    }
+
+    if (current === "\"") {
+      inString = true;
+      output += current;
+      continue;
+    }
+
+    if (current === "/" && next === "/") {
+      while (index < value.length && value[index] !== "\n") {
+        index++;
+      }
+      output += "\n";
+      continue;
+    }
+
+    if (current === "/" && next === "*") {
+      index += 2;
+      while (index < value.length && !(value[index] === "*" && value[index + 1] === "/")) {
+        index++;
+      }
+      index++;
+      continue;
+    }
+
+    output += current;
+  }
+
+  return output;
+}
+
+function parseLooseJsonObject(value: string) {
+  const withoutComments = stripJsonComments(value);
+  const withoutTrailingCommas = withoutComments.replace(/,\s*([}\]])/g, "$1");
+  return JSON.parse(withoutTrailingCommas) as Record<string, unknown>;
 }
 
 function listFromUnknown(value: unknown) {

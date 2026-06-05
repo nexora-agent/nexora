@@ -82,6 +82,64 @@ function actionLabel(action: CustomBenchmarkDefinition["allowedActions"][number]
       : action.name;
 }
 
+function stripJsonComments(value: string) {
+  let output = "";
+  let inString = false;
+  let escaped = false;
+
+  for (let index = 0; index < value.length; index++) {
+    const current = value[index];
+    const next = value[index + 1];
+
+    if (inString) {
+      output += current;
+
+      if (escaped) {
+        escaped = false;
+      } else if (current === "\\") {
+        escaped = true;
+      } else if (current === "\"") {
+        inString = false;
+      }
+
+      continue;
+    }
+
+    if (current === "\"") {
+      inString = true;
+      output += current;
+      continue;
+    }
+
+    if (current === "/" && next === "/") {
+      while (index < value.length && value[index] !== "\n") {
+        index++;
+      }
+      output += "\n";
+      continue;
+    }
+
+    if (current === "/" && next === "*") {
+      index += 2;
+      while (index < value.length && !(value[index] === "*" && value[index + 1] === "/")) {
+        index++;
+      }
+      index++;
+      continue;
+    }
+
+    output += current;
+  }
+
+  return output;
+}
+
+function parseEditableBenchmarkJson(value: string) {
+  const withoutComments = stripJsonComments(value);
+  const withoutTrailingCommas = withoutComments.replace(/,\s*([}\]])/g, "$1");
+  return JSON.parse(withoutTrailingCommas) as CustomBenchmarkDefinition;
+}
+
 export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
   const { isConnected } = useWalletConnection();
   const [step, setStep] = useState<BenchmarkBuilderStep>("target");
@@ -243,7 +301,7 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
     setError("");
     setNotice("");
     try {
-      const parsed = JSON.parse(benchmarkJson) as CustomBenchmarkDefinition;
+      const parsed = parseEditableBenchmarkJson(benchmarkJson);
       applyBenchmarkDraft({
         ...parsed,
         createdAt: parsed.createdAt ?? new Date().toISOString(),
