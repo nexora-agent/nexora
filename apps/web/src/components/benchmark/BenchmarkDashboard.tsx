@@ -31,24 +31,31 @@ function decodeBenchmarkMetadata(metadataURI: string) {
 }
 
 function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
-  const shortOwner = `${benchmark.owner.slice(0, 6)}...${benchmark.owner.slice(-4)}`;
   const metadata = decodeBenchmarkMetadata(benchmark.metadataURI);
   const createdDate = new Date(benchmark.createdAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
     day: "numeric",
   });
+  const isExecutable = benchmark.targetContracts.length > 0;
 
   return (
     <article className="benchmark-card">
       <div className="benchmark-card-header">
-        <span className={`status-pill ${benchmark.active ? "status-ready" : "status-disconnected"}`}>
-          {benchmark.active ? "Active" : "Inactive"}
-        </span>
+        <div className="benchmark-card-pills">
+          <span className={`status-pill ${benchmark.active ? "status-ready" : "status-disconnected"}`}>
+            {benchmark.active ? "Active" : "Inactive"}
+          </span>
+          <span className={`status-pill ${isExecutable ? "status-running" : "status-idle"}`}>
+            {isExecutable ? "Executable" : "ABI-only"}
+          </span>
+        </div>
         <span className="benchmark-meta">#{benchmark.benchmarkId}</span>
       </div>
       <h3>{metadata?.name ?? `Benchmark #${benchmark.benchmarkId}`}</h3>
-      {metadata?.description && <p>{metadata.description}</p>}
+      {metadata?.description && (
+        <p className="benchmark-card-description">{metadata.description}</p>
+      )}
       <dl className="benchmark-card-dl">
         {metadata?.benchmarkType && (
           <div>
@@ -57,19 +64,15 @@ function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
           </div>
         )}
         <div>
-          <dt>Owner</dt>
-          <dd>{shortOwner}</dd>
-        </div>
-        <div>
           <dt>Created</dt>
           <dd>{createdDate}</dd>
         </div>
-        {benchmark.targetContracts.length > 0 && (
+        {isExecutable && (
           <div>
             <dt>Target{benchmark.targetContracts.length > 1 ? "s" : ""}</dt>
             <dd>
               {benchmark.targetContracts.map((addr) => (
-                <span key={addr} className="benchmark-address">
+                <span className="benchmark-address" key={addr}>
                   {`${addr.slice(0, 6)}...${addr.slice(-4)}`}
                 </span>
               ))}
