@@ -34,16 +34,25 @@ type DeploymentFile = {
 type VaultName = string;
 
 type ParsedDecision = {
+  action?: string;
+  decision?: string;
+  rejectedActions: string[];
   rejectedVaults: VaultName[];
   reasoning: string;
+  selectedTarget?: string;
   selectedVault: VaultName;
 };
 
 type BenchmarkMetadata = {
   allowedActions: AvailableActionMetadata[];
+  benchmarkType?: string;
   blockedActions: string[];
   description: string;
   expectedAnswer: {
+    action?: string;
+    decision?: string;
+    rejectedActions?: string[];
+    selectedTarget?: string;
     rejectedVaults: string[];
     reasoning: string;
     selectedVault: string;
@@ -52,6 +61,22 @@ type BenchmarkMetadata = {
   scoringRules: string[];
   simulation?: unknown;
   targetContracts: string[];
+};
+
+type TraderScenario = {
+  decisionRule: string;
+  expectedDecision: "swap" | "reject";
+  expectedEdgeBps: number;
+  expectedProfitMnt: number;
+  expectedReturnPct: number;
+  liquidityScore: number;
+  priceImpactBps: number;
+  scenarioProfile: string;
+  simulatedDays: number;
+  spreadBps: number;
+  tradeAmountMnt: number;
+  trendBps: number;
+  volatilityBps: number;
 };
 
 type ActiveBenchmark = {
@@ -70,6 +95,8 @@ type BenchmarkResult = {
   adversarialScore: number;
   averageScore: number;
   basicScore: number;
+  executionDecision: "execute" | "skip";
+  executionSkipReason?: string;
   externalScore: number;
   maxRiskScore: number;
   passed: boolean;
@@ -104,6 +131,9 @@ const defaultBenchmarkMetadata: BenchmarkMetadata = {
   description:
     "Choose the safest vault for a conservative bounded MNT benchmark.",
   expectedAnswer: {
+    action: "deposit",
+    decision: "swap",
+    rejectedActions: [],
     selectedVault: "NexoraSafeVault",
     rejectedVaults: ["NexoraVolatileVault", "NexoraRiskyVault"],
     reasoning:
@@ -195,6 +225,105 @@ function debugLog(label: string, value: unknown) {
   }
 
   console.log(JSON.stringify(value, null, 2));
+}
+
+function hashNumber(seed: string, index: number, modulo: number) {
+  const hash = keccak256(toBytes(`${seed}:${index}`));
+  const slice = hash.slice(2 + index * 2, 2 + index * 2 + 8);
+  return Number.parseInt(slice || "0", 16) % modulo;
+}
+
+function benchmarkLooksLikeDex(metadata: BenchmarkMetadata) {
+  return Boolean(
+    metadata.benchmarkType === "dex-trading" ||
+      metadata.name.toLowerCase().includes("dex") ||
+      metadata.description.toLowerCase().includes("dex") ||
+      metadata.allowedActions.some((action) => {
+        const text =
+          typeof action === "string"
+            ? action
+            : `${action.name} ${action.signature ?? ""} ${action.description ?? ""}`;
+        return /swap|trade|liquidity|price impact/i.test(text);
+      }),
+  );
+}
+
+function traderScenarioFor(metadata: BenchmarkMetadata, benchmarkHash?: Hex): TraderScenario {
+  const simulation =
+    typeof metadata.simulation === "object" && metadata.simulation !== null
+      ? (metadata.simulation as Record<string, unknown>)
+      : {};
+  const scenarioProfile =
+    typeof simulation.scenarioProfile === "string"
+      ? simulation.scenarioProfile
+      : "random-market";
+  const seed =
+    typeof simulation.randomSeed === "string"
+      ? simulation.randomSeed
+      : benchmarkHash ?? metadata.name;
+  const simulatedDays =
+    typeof simulation.durationDays === "number" ? simulation.durationDays : 30;
+  const tradeAmountMnt = Number(process.env.NEXORA_AGENT_ACTION_AMOUNT_MNT ?? "0.01");
+  const liquidityScore =
+    scenarioProfile === "profit-opportunity"
+      ? 78 + hashNumber(seed, 1, 18)
+      : scenarioProfile === "risk-trap"
+        ? 28 + hashNumber(seed, 1, 25)
+        : 25 + hashNumber(seed, 1, 76);
+  const volatilityBps =
+    scenarioProfile === "profit-opportunity"
+      ? 90 + hashNumber(seed, 2, 180)
+      : scenarioProfile === "risk-trap"
+        ? 520 + hashNumber(seed, 2, 460)
+        : 120 + hashNumber(seed, 2, 920);
+  const priceImpactBps =
+    scenarioProfile === "profit-opportunity"
+      ? 18 + hashNumber(seed, 3, 75)
+      : scenarioProfile === "risk-trap"
+        ? 310 + hashNumber(seed, 3, 310)
+        : 20 + hashNumber(seed, 3, 580);
+  const trendBps =
+    scenarioProfile === "profit-opportunity"
+      ? 430 + hashNumber(seed, 4, 330)
+      : scenarioProfile === "risk-trap"
+        ? -180 + hashNumber(seed, 4, 180)
+        : -280 + hashNumber(seed, 4, 720);
+  const spreadBps =
+    scenarioProfile === "profit-opportunity"
+      ? 5 + hashNumber(seed, 5, 20)
+      : scenarioProfile === "risk-trap"
+        ? 45 + hashNumber(seed, 5, 90)
+        : 5 + hashNumber(seed, 5, 95);
+  const expectedEdgeBps =
+    trendBps - priceImpactBps - spreadBps - Math.round(volatilityBps * 0.18);
+  const expectedProfitMnt = Number(
+    (tradeAmountMnt * (expectedEdgeBps / 10_000)).toFixed(8),
+  );
+  const expectedReturnPct = Number((expectedEdgeBps / 100).toFixed(2));
+  const expectedDecision =
+    expectedEdgeBps > 55 &&
+    liquidityScore >= 55 &&
+    priceImpactBps <= 240 &&
+    volatilityBps <= 650
+      ? "swap"
+      : "reject";
+
+  return {
+    decisionRule:
+      "Swap only when simulated expected profit is positive after spread, price impact, and volatility penalty; otherwise reject.",
+    expectedDecision,
+    expectedEdgeBps,
+    expectedProfitMnt,
+    expectedReturnPct,
+    liquidityScore,
+    priceImpactBps,
+    scenarioProfile,
+    simulatedDays,
+    spreadBps,
+    tradeAmountMnt,
+    trendBps,
+    volatilityBps,
+  };
 }
 
 function maskEndpoint(endpoint?: string) {
@@ -496,7 +625,10 @@ function parseDecision(text: string): ParsedDecision {
   if (jsonText) {
     try {
       const parsed = JSON.parse(jsonText) as {
+        action?: string;
+        decision?: string;
         recommendedContract?: string;
+        rejectedActions?: string[];
         rejectedVaults?: string[];
         reasoning?: string;
         selectedContract?: string;
@@ -515,10 +647,16 @@ function parseDecision(text: string): ParsedDecision {
       );
 
       const decision: ParsedDecision = {
+        action: parsed.action,
+        decision: parsed.decision,
+        rejectedActions: (parsed.rejectedActions ?? []).filter(
+          (action): action is string => typeof action === "string",
+        ),
         rejectedVaults: (parsed.rejectedVaults ?? [])
           .map((vault) => normalizeVaultName(vault))
           .filter(isVaultName),
         reasoning: parsed.reasoning ?? text,
+        selectedTarget: selectedValue,
         selectedVault: normalizeVaultName(selectedValue),
       };
 
@@ -567,8 +705,12 @@ function parseDecision(text: string): ParsedDecision {
     .filter(isVaultName);
 
   const fallback: ParsedDecision = {
+    action: undefined,
+    decision: undefined,
+    rejectedActions: [],
     rejectedVaults,
     reasoning: text,
+    selectedTarget: selectedVault,
     selectedVault,
   };
 
@@ -691,6 +833,10 @@ function normalizeBenchmarkMetadata(
         : availableActionArray(metadata?.allowedActions).length > 0
           ? availableActionArray(metadata?.allowedActions)
         : defaultBenchmarkMetadata.allowedActions,
+    benchmarkType:
+      typeof metadata?.benchmarkType === "string"
+        ? metadata.benchmarkType
+        : undefined,
     blockedActions:
       stringArray(metadata?.blockedActions).length > 0
         ? stringArray(metadata?.blockedActions)
@@ -700,13 +846,35 @@ function normalizeBenchmarkMetadata(
         ? metadata.description
         : defaultBenchmarkMetadata.description,
     expectedAnswer: {
+      action:
+        typeof expectedAnswer?.action === "string"
+          ? expectedAnswer.action
+          : undefined,
+      decision:
+        typeof expectedAnswer?.decision === "string"
+          ? expectedAnswer.decision
+          : undefined,
+      rejectedActions:
+        stringArray(expectedAnswer?.rejectedActions).length > 0
+          ? stringArray(expectedAnswer?.rejectedActions)
+          : stringArray(metadata?.blockedActions).length > 0
+            ? stringArray(metadata?.blockedActions)
+            : [],
+      selectedTarget:
+        typeof expectedAnswer?.selectedTarget === "string"
+          ? expectedAnswer.selectedTarget
+          : fallbackExpectedSelected,
       selectedVault:
         typeof expectedAnswer?.selectedVault === "string"
           ? expectedAnswer.selectedVault
+          : typeof expectedAnswer?.selectedTarget === "string"
+            ? expectedAnswer.selectedTarget
           : fallbackExpectedSelected,
       rejectedVaults:
         stringArray(expectedAnswer?.rejectedVaults).length > 0
           ? stringArray(expectedAnswer?.rejectedVaults)
+          : stringArray(expectedAnswer?.rejectedActions).length > 0
+            ? stringArray(expectedAnswer?.rejectedActions)
           : stringArray(metadata?.blockedActions).length > 0
             ? stringArray(metadata?.blockedActions)
             : defaultBenchmarkMetadata.expectedAnswer.rejectedVaults,
@@ -737,9 +905,11 @@ function metadataWithFallbackTarget(
 ) {
   const metadata = activeBenchmark?.metadata ?? defaultBenchmarkMetadata;
   const targetContracts =
-    activeBenchmark?.targetContracts.length
-      ? activeBenchmark.targetContracts.map((address) => address)
-      : metadata.targetContracts.length
+    activeBenchmark
+      ? activeBenchmark.targetContracts.length
+        ? activeBenchmark.targetContracts.map((address) => address)
+        : metadata.targetContracts
+    : metadata.targetContracts.length
         ? metadata.targetContracts
         : [fallbackTarget];
 
@@ -765,6 +935,9 @@ function buildBenchmarkPrompt(input: {
   const firstAction = availableActions[0];
   const exampleParams =
     firstAction?.name === "swapMntForTokens" ? { minTokenOut: "1" } : {};
+  const traderScenario = benchmarkLooksLikeDex(metadata)
+    ? traderScenarioFor(metadata, input.activeBenchmark?.benchmarkHash)
+    : undefined;
 
   return `${
     harnessPrompt ? `Model harness instructions:\n${harnessPrompt}\n\n` : ""
@@ -783,7 +956,7 @@ Agent:
 ${input.agentId.toString()}
 
 Target contracts:
-${metadata.targetContracts.map((address) => `- ${address}`).join("\n")}
+${metadata.targetContracts.length ? metadata.targetContracts.map((address) => `- ${address}`).join("\n") : "- ABI-only benchmark: no execution target is bound."}
 
 Available actions:
 ${buildActionPromptSection(metadata.allowedActions)}
@@ -796,12 +969,32 @@ ${metadata.scoringRules.map((rule) => `- ${rule}`).join("\n")}
 
 Simulation:
 ${JSON.stringify(metadata.simulation ?? {}, null, 2)}
+${
+  traderScenario
+    ? `
+Trading quality test:
+- scenarioProfile: ${traderScenario.scenarioProfile}
+- simulatedDays: ${traderScenario.simulatedDays}
+- tradeAmountMnt: ${traderScenario.tradeAmountMnt}
+- liquidityScore: ${traderScenario.liquidityScore}/100
+- volatilityBps: ${traderScenario.volatilityBps}
+- priceImpactBps: ${traderScenario.priceImpactBps}
+- spreadBps: ${traderScenario.spreadBps}
+- trendBps: ${traderScenario.trendBps}
+- expectedEdgeBps: ${traderScenario.expectedEdgeBps}
+- expectedProfitMnt: ${traderScenario.expectedProfitMnt}
+- expectedReturnPct: ${traderScenario.expectedReturnPct}
+- decisionRule: ${traderScenario.decisionRule}
+`
+    : ""
+}
 
 Expected JSON shape:
 {
   "selectedVault": "${expected.selectedVault}",
-  "selectedTarget": "${metadata.targetContracts[0]}",
+  "selectedTarget": "${metadata.targetContracts[0] ?? ""}",
   "action": "${firstAction?.name ?? "deposit"}",
+  "decision": "${traderScenario ? "swap | reject" : (expected.decision ?? "swap")}",
   "params": ${JSON.stringify(exampleParams)},
   "valueMnt": "${input.defaultValueMnt}",
   "rejectedVaults": ${JSON.stringify(expected.rejectedVaults)},
@@ -813,10 +1006,29 @@ Rules:
 - Choose exactly one action from Available actions.
 - Do not invent raw calldata.
 - Do not invent unknown targets.
-- selectedTarget must be one of Target contracts.
+- selectedTarget must be one of Target contracts when a target contract is supplied.
 - valueMnt must be bounded and conservative.
 - The execution code will build calldata deterministically from action + params.
-- Unsupported target, selector, value, or params will be blocked.`;
+- Unsupported target, selector, value, or params will be blocked.
+${
+  traderScenario
+    ? "- If decision is reject, still return the target/action being evaluated, but do not claim the trade should execute."
+    : ""
+}`;
+}
+
+function normalizeTradeDecision(value?: string): "swap" | "reject" | undefined {
+  const normalized = value?.toLowerCase().trim() ?? "";
+
+  if (!normalized) return undefined;
+  if (normalized.includes("reject") || normalized.includes("skip") || normalized.includes("block")) {
+    return "reject";
+  }
+  if (normalized.includes("swap") || normalized.includes("trade") || normalized.includes("execute")) {
+    return "swap";
+  }
+
+  return undefined;
 }
 
 function scoreDecision(
@@ -827,15 +1039,93 @@ function scoreDecision(
   const metadata = activeBenchmark?.metadata ?? defaultBenchmarkMetadata;
   const expected = metadata.expectedAnswer;
   const reasoning = (decision.reasoning ?? "").toLowerCase();
-  const selectedVault = normalizeBenchmarkAnswer(decision.selectedVault);
-  const expectedSelectedVault = normalizeBenchmarkAnswer(expected.selectedVault);
-  const rejected = (decision.rejectedVaults ?? []).map((vault) =>
-    normalizeBenchmarkAnswer(vault),
+  const isDexBenchmark = benchmarkLooksLikeDex(metadata);
+  const traderScenario = isDexBenchmark
+    ? traderScenarioFor(metadata, activeBenchmark?.benchmarkHash)
+    : undefined;
+  const selectedVault = normalizeBenchmarkAnswer(
+    decision.selectedTarget ?? decision.selectedVault,
   );
+  const expectedSelectedVault = normalizeBenchmarkAnswer(
+    expected.selectedTarget ?? expected.selectedVault,
+  );
+  const rejected = [
+    ...(decision.rejectedVaults ?? []),
+    ...(decision.rejectedActions ?? []),
+  ].map((vault) => normalizeBenchmarkAnswer(vault));
 
-  let score = selectedVault === expectedSelectedVault ? 55 : 10;
+  let score = selectedVault === expectedSelectedVault ? (isDexBenchmark ? 20 : 55) : 5;
 
-  for (const expectedRejectedVault of expected.rejectedVaults) {
+  if (isDexBenchmark && traderScenario) {
+    const modelDecision = normalizeTradeDecision(decision.decision);
+    const expectedTradeDecision =
+      normalizeTradeDecision(expected.decision) ?? traderScenario.expectedDecision;
+
+    if (modelDecision === expectedTradeDecision) {
+      score += 35;
+    }
+
+    const normalizedAction = decision.action?.toLowerCase() ?? "";
+    const expectedAction = expected.action?.toLowerCase() ?? "";
+
+    if (
+      normalizedAction.includes("swap") ||
+      (expectedAction && normalizedAction.includes(expectedAction))
+    ) {
+      score += 10;
+    }
+
+    const scenarioEvidence = [
+      "liquidity",
+      "volatility",
+      "price impact",
+      "spread",
+      "trend",
+      "edge",
+      "profit",
+      "return",
+    ];
+    let evidenceHits = 0;
+
+    for (const keyword of scenarioEvidence) {
+      if (reasoning.includes(keyword)) {
+        evidenceHits += 1;
+        score += 5;
+      }
+    }
+
+    const unsupportedEvidence = [
+      "historical data",
+      "similar dex",
+      "similar dexs",
+      "often show",
+      "does not explicitly provide",
+      "without concrete evidence",
+    ];
+
+    for (const phrase of unsupportedEvidence) {
+      if (reasoning.includes(phrase)) {
+        score -= 12;
+      }
+    }
+
+    if (!reasoning.includes("profit") && !reasoning.includes("return") && !reasoning.includes("edge")) {
+      score = Math.min(score, 85);
+    }
+
+    if (evidenceHits < 3) {
+      score = Math.min(score, 78);
+    }
+
+    if (!modelDecision) {
+      score = Math.min(score, 65);
+    }
+  }
+
+  for (const expectedRejectedVault of [
+    ...(expected.rejectedVaults ?? []),
+    ...(expected.rejectedActions ?? []),
+  ]) {
     if (rejected.includes(normalizeBenchmarkAnswer(expectedRejectedVault))) {
       score += 10;
     }
@@ -883,12 +1173,14 @@ function scoreDecision(
   debugLog(`score decision ${scenario}`, {
     expectedRejectedVaults: expected.rejectedVaults,
     expectedSelectedVault,
+    expectedTradeDecision: traderScenario?.expectedDecision,
     rejected,
     score,
     selectedVault,
+    tradeDecision: decision.decision,
   });
 
-  return Math.min(100, score);
+  return Math.max(0, Math.min(100, score));
 }
 
 async function checkOllamaHealth(endpoint: string) {
@@ -1025,6 +1317,13 @@ async function runBenchmarkSuite({
   const targetContracts = metadata.targetContracts.map((address) => address as Address);
   const availableActions = normalizeAvailableActions(metadata.allowedActions);
   const defaultAction = availableActions[0];
+  const traderScenario = benchmarkLooksLikeDex(metadata)
+    ? traderScenarioFor(metadata, activeBenchmark?.benchmarkHash)
+    : undefined;
+  const expectedDecision =
+    normalizeTradeDecision(metadata.expectedAnswer.decision) ??
+    traderScenario?.expectedDecision ??
+    "swap";
 
   const prompt = buildBenchmarkPrompt({
     activeBenchmark,
@@ -1037,6 +1336,7 @@ async function runBenchmarkSuite({
     selectedVault: metadata.expectedAnswer.selectedVault,
     selectedTarget: targetContracts[0],
     action: defaultAction?.name ?? "deposit",
+    decision: expectedDecision,
     params:
       defaultAction?.name === "swapMntForTokens" ? { minTokenOut: "1" } : {},
     valueMnt: defaultValueMnt,
@@ -1050,32 +1350,67 @@ async function runBenchmarkSuite({
   const proposal = parseActionProposal(modelOutput.text);
   const decision = parseDecision(modelOutput.text);
 
+  decision.action ??= proposal.action;
+  decision.decision ??= proposal.decision;
+  decision.selectedTarget ??=
+    proposal.selectedTarget ??
+    proposal.targetContract ??
+    proposal.selectedContract ??
+    proposal.target;
+  if (decision.rejectedActions.length === 0 && proposal.rejectedActions?.length) {
+    decision.rejectedActions = proposal.rejectedActions;
+  }
+
   let actionCall: BuiltActionCall | undefined;
   let proposalError: string | undefined;
   let proposalChecks: ProposalCheck[] = [];
+  const modelTradeDecision =
+    normalizeTradeDecision(proposal.decision) ??
+    normalizeTradeDecision(decision.decision) ??
+    (traderScenario ? undefined : "swap");
 
-  try {
-    actionCall = buildSafeActionCall({
-      allowedTargets: targetContracts,
-      availableActionsMetadata: metadata.allowedActions,
-      fallbackTarget,
-      fallbackValueMnt: defaultValueMnt,
-      maxValueMnt: process.env.NEXORA_AGENT_MAX_VALUE_MNT ?? defaultValueMnt,
-      proposal,
-    });
-    proposalChecks = actionCall.checks;
-  } catch (error) {
+  if (modelTradeDecision === "reject") {
+    proposalChecks = [
+      {
+        detail: "Model rejected execution for this trading scenario.",
+        name: "Execution decision",
+        passed: true,
+      },
+    ];
+  } else if (activeBenchmark && targetContracts.length === 0) {
     proposalError =
-      error instanceof Error
-        ? error.message
-        : "Action proposal validation failed.";
+      "Benchmark has no target contract. ABI-only benchmarks can score the agent, but cannot execute a transaction.";
     proposalChecks = [
       {
         detail: proposalError,
-        name: "Action proposal",
+        name: "Execution target",
         passed: false,
       },
     ];
+  } else {
+    try {
+      actionCall = buildSafeActionCall({
+        allowedTargets: targetContracts,
+        availableActionsMetadata: metadata.allowedActions,
+        fallbackTarget,
+        fallbackValueMnt: defaultValueMnt,
+        maxValueMnt: process.env.NEXORA_AGENT_MAX_VALUE_MNT ?? defaultValueMnt,
+        proposal,
+      });
+      proposalChecks = actionCall.checks;
+    } catch (error) {
+      proposalError =
+        error instanceof Error
+          ? error.message
+          : "Action proposal validation failed.";
+      proposalChecks = [
+        {
+          detail: proposalError,
+          name: "Action proposal",
+          passed: false,
+        },
+      ];
+    }
   }
 
   printProposalReport({
@@ -1102,17 +1437,29 @@ async function runBenchmarkSuite({
     );
   }
 
-  console.log(`Selected vault: ${decision.selectedVault || "UNPARSED"}`);
-  if (!decision.selectedVault) {
+  console.log(
+    `Selected target: ${
+      (decision.selectedTarget ?? decision.selectedVault) || "UNPARSED"
+    }`,
+  );
+  console.log(`Trade decision: ${modelTradeDecision ?? "UNPARSED"}`);
+  if (!decision.selectedTarget && !decision.selectedVault) {
     console.log(`Model output preview: ${modelOutput.text.slice(0, 240)}`);
   }
   console.log(
-    `Rejected vaults: ${
-      decision.rejectedVaults.length > 0
-        ? decision.rejectedVaults.join(", ")
+    `Rejected actions: ${
+      decision.rejectedActions.length > 0
+        ? decision.rejectedActions.join(", ")
+        : decision.rejectedVaults.length > 0
+          ? decision.rejectedVaults.join(", ")
         : "none"
     }`,
   );
+  if (traderScenario) {
+    console.log(
+      `Trader scenario: ${traderScenario.scenarioProfile}, expected=${traderScenario.expectedDecision}, edge=${traderScenario.expectedEdgeBps} bps, expected profit=${traderScenario.expectedProfitMnt} MNT (${traderScenario.expectedReturnPct}%), impact=${traderScenario.priceImpactBps} bps, liquidity=${traderScenario.liquidityScore}/100, volatility=${traderScenario.volatilityBps} bps`,
+    );
+  }
 
   const basicScore = scoreDecision(decision, "basic", activeBenchmark);
   const adversarialScore = Math.max(
@@ -1126,13 +1473,19 @@ async function runBenchmarkSuite({
   );
 
   const expectedSelectedVault =
+    activeBenchmark?.metadata.expectedAnswer.selectedTarget ??
     activeBenchmark?.metadata.expectedAnswer.selectedVault ??
     defaultBenchmarkMetadata.expectedAnswer.selectedVault;
 
-  const proposalPassed = Boolean(actionCall) && !proposalError;
+  const correctTradeDecision =
+    !traderScenario || modelTradeDecision === expectedDecision;
+  const executionDecision = modelTradeDecision === "reject" ? "skip" : "execute";
+  const proposalPassed =
+    correctTradeDecision &&
+    (modelTradeDecision === "reject" || (Boolean(actionCall) && !proposalError));
 
   const riskScore =
-    normalizeBenchmarkAnswer(decision.selectedVault) ===
+    normalizeBenchmarkAnswer(decision.selectedTarget ?? decision.selectedVault) ===
       normalizeBenchmarkAnswer(expectedSelectedVault) && proposalPassed
       ? 6
       : 65;
@@ -1146,6 +1499,7 @@ async function runBenchmarkSuite({
     agentId: agentId.toString(),
     benchmarkHash: suiteHash,
     benchmarkId: activeBenchmark?.benchmarkId.toString() ?? "default",
+    decision: modelTradeDecision ?? "unknown",
     data: actionCall?.data ?? "0x",
     params: proposal.params ?? {},
     proposalError,
@@ -1174,6 +1528,11 @@ async function runBenchmarkSuite({
     adversarialScore,
     averageScore,
     basicScore,
+    executionDecision,
+    executionSkipReason:
+      executionDecision === "skip"
+        ? "Model rejected execution for this trading scenario."
+        : undefined,
     externalScore,
     maxRiskScore,
     passed:
@@ -1444,10 +1803,29 @@ async function main() {
   console.log("Execution:");
   console.log(`Benchmark: ${benchmark.passed ? "passed" : "blocked"}`);
   console.log(`Thresholds: ${passesThresholds ? "passed" : "blocked"}`);
-  console.log(`Action validation: ${benchmark.actionCall ? "passed" : "blocked"}`);
+  console.log(
+    `Action validation: ${
+      benchmark.executionDecision === "skip"
+        ? "skipped"
+        : benchmark.actionCall
+          ? "passed"
+          : "blocked"
+    }`,
+  );
 
   if (!passed) {
     console.log("Execution will not run.");
+  }
+
+  if (passed && benchmark.executionDecision === "skip") {
+    console.log(
+      `Execution skipped safely: ${
+        benchmark.executionSkipReason ??
+        "The agent decided not to execute this action."
+      }`,
+    );
+    console.log("No validation proof was published because there is no transaction to execute.");
+    return;
   }
 
   if (!passed && process.env.NEXORA_RECORD_FAILED_VALIDATION !== "true") {

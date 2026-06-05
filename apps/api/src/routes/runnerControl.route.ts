@@ -1,5 +1,6 @@
 import type { FastifyInstance } from "fastify";
 import {
+  generateBenchmarkDraft,
   getRunnerConfig,
   getRunnerLogs,
   getRunnerStatus,
@@ -10,6 +11,7 @@ import {
   testMcpServer,
   testOllamaModel,
   updateRunnerConfig,
+  type BenchmarkDraftInput,
   type RunnerConfig,
 } from "../runner/runnerControlService";
 
@@ -40,6 +42,14 @@ export async function runnerControlRoute(app: FastifyInstance) {
     try {
       if (request.body) updateRunnerConfig(request.body);
       return await testBenchmark();
+    } catch (error) {
+      return reply.code(400).send(badRequest(error));
+    }
+  });
+
+  app.post<{ Body: BenchmarkDraftInput }>("/runner/generate-benchmark", async (request, reply) => {
+    try {
+      return await generateBenchmarkDraft(request.body ?? {});
     } catch (error) {
       return reply.code(400).send(badRequest(error));
     }

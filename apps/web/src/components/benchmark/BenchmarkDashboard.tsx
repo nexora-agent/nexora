@@ -10,11 +10,29 @@ import {
 type Props = {
   connectedAddress?: Address;
   onCreateBenchmark: () => void;
+  refreshKey?: number;
 };
 
+function decodeBenchmarkMetadata(metadataURI: string) {
+  if (!metadataURI.startsWith("data:application/json")) return undefined;
+
+  const [, payload] = metadataURI.split(",", 2);
+  if (!payload) return undefined;
+
+  try {
+    return JSON.parse(decodeURIComponent(payload)) as {
+      benchmarkType?: string;
+      description?: string;
+      name?: string;
+    };
+  } catch {
+    return undefined;
+  }
+}
+
 function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
-  const shortHash = `${benchmark.benchmarkHash.slice(0, 10)}...${benchmark.benchmarkHash.slice(-8)}`;
   const shortOwner = `${benchmark.owner.slice(0, 6)}...${benchmark.owner.slice(-4)}`;
+  const metadata = decodeBenchmarkMetadata(benchmark.metadataURI);
   const createdDate = new Date(benchmark.createdAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -29,11 +47,15 @@ function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
         </span>
         <span className="benchmark-meta">#{benchmark.benchmarkId}</span>
       </div>
+      <h3>{metadata?.name ?? `Benchmark #${benchmark.benchmarkId}`}</h3>
+      {metadata?.description && <p>{metadata.description}</p>}
       <dl className="benchmark-card-dl">
-        <div>
-          <dt>Hash</dt>
-          <dd title={benchmark.benchmarkHash}>{shortHash}</dd>
-        </div>
+        {metadata?.benchmarkType && (
+          <div>
+            <dt>Type</dt>
+            <dd>{metadata.benchmarkType}</dd>
+          </div>
+        )}
         <div>
           <dt>Owner</dt>
           <dd>{shortOwner}</dd>
@@ -54,18 +76,12 @@ function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
             </dd>
           </div>
         )}
-        {benchmark.metadataURI && (
-          <div>
-            <dt>Metadata</dt>
-            <dd className="benchmark-uri">{benchmark.metadataURI.slice(0, 40)}{benchmark.metadataURI.length > 40 ? "…" : ""}</dd>
-          </div>
-        )}
       </dl>
     </article>
   );
 }
 
-export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark }: Props) {
+export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refreshKey = 0 }: Props) {
   const [benchmarks, setBenchmarks] = useState<OnchainBenchmark[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +98,7 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark }: Prop
         setError(err instanceof Error ? err.message : "Failed to load benchmarks.");
       })
       .finally(() => setIsLoading(false));
-  }, [connectedAddress]);
+  }, [connectedAddress, refreshKey]);
 
   return (
     <div className="benchmark-dashboard">
@@ -91,7 +107,7 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark }: Prop
           <h2>Benchmarks</h2>
           <p>
             Custom on-chain benchmarks define what your smart wallet is tested against.
-            Each benchmark stores a hash on Mantle Sepolia.
+            Use them to decide which checks the local runner must pass before acting.
           </p>
         </div>
         <button className="primary-action" onClick={onCreateBenchmark} type="button">
@@ -102,7 +118,7 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark }: Prop
       {!connectedAddress && (
         <section className="empty-state-card" aria-label="Connect wallet prompt">
           <h3>Connect your wallet to view benchmarks</h3>
-          <p>Benchmarks are stored on-chain and linked to your wallet address.</p>
+          <p>Benchmarks are linked to your connected wallet on Mantle Sepolia.</p>
         </section>
       )}
 
@@ -127,7 +143,7 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark }: Prop
           <h3>No benchmarks yet</h3>
           <p>
             Create a custom benchmark to define what your smart wallet is tested against.
-            The benchmark hash is stored on Mantle Sepolia.
+            The runner can then use it as the active test for your agent.
           </p>
           <button className="primary-action" onClick={onCreateBenchmark} type="button">
             Create Benchmark

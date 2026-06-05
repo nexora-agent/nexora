@@ -1,6 +1,6 @@
 "use client";
 
-import { buildReportEnvelope, type AgentRecord } from "@nexora/shared";
+import type { AgentRecord } from "@nexora/shared";
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useOnchainRunnerActivity } from "@/hooks/useOnchainRunnerActivity";
@@ -196,9 +196,6 @@ export function AgentProfileCard({
     agentId: agentIdentityId,
     walletAddress: currentAgent.walletAddress,
   });
-  const latestReportEnvelope = latestRun
-    ? (latestRun.reportEnvelope ?? buildReportEnvelope(latestRun))
-    : undefined;
   const [byrealStatus, setByrealStatus] = useState(getByrealStatus);
   const latestByrealProposalRun = latestByrealRun(currentAgent);
   const latestExecution = latestRun?.execution;
@@ -230,10 +227,6 @@ export function AgentProfileCard({
   const latestBenchmarkLabel =
     latestRun?.intent?.metadata?.benchmarkName ??
     (latestValidation ? "On-chain runner validation" : undefined);
-  const latestReportHash =
-    latestValidation?.reportHash ?? latestReportEnvelope?.reportHash;
-  const latestToolTraceHash =
-    latestReportEnvelope?.toolTraceHash ?? latestValidation?.suiteHash;
 
   useEffect(() => {
     let active = true;
@@ -534,18 +527,6 @@ export function AgentProfileCard({
                     <dd>{onchainActivity.latestValidation.passed ? "Passed" : "Failed"}</dd>
                   </div>
                   <div>
-                    <dt>Report Hash</dt>
-                    <dd title={onchainActivity.latestValidation.reportHash}>
-                      {formatHash(onchainActivity.latestValidation.reportHash)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Action Intent</dt>
-                    <dd title={onchainActivity.latestValidation.actionIntentHash}>
-                      {formatHash(onchainActivity.latestValidation.actionIntentHash)}
-                    </dd>
-                  </div>
-                  <div>
                     <dt>Validation Tx</dt>
                     <dd title={onchainActivity.latestValidation.txHash}>
                       {onchainActivity.latestValidation.txHash
@@ -556,18 +537,6 @@ export function AgentProfileCard({
                   <div>
                     <dt>Recorded At</dt>
                     <dd>{formatUnixTimestamp(onchainActivity.latestValidation.timestamp)}</dd>
-                  </div>
-                  <div>
-                    <dt>Model Hash</dt>
-                    <dd title={onchainActivity.latestValidation.modelHash}>
-                      {formatHash(onchainActivity.latestValidation.modelHash)}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Tools Hash</dt>
-                    <dd title={onchainActivity.latestValidation.toolsHash}>
-                      {formatHash(onchainActivity.latestValidation.toolsHash)}
-                    </dd>
                   </div>
                   <div>
                     <dt>Execution</dt>
@@ -640,14 +609,6 @@ export function AgentProfileCard({
             <section className="summary-card">
               <h3>Execution Eligibility</h3>
               <p>{onchainActivity?.latestExecution?.status ?? latestRun?.execution?.status ?? "No execution decision yet"}</p>
-            </section>
-            <section className="summary-card">
-              <h3>Report Hash</h3>
-              <p title={latestReportHash}>{formatHash(latestReportHash)}</p>
-            </section>
-            <section className="summary-card">
-              <h3>Suite / Trace Hash</h3>
-              <p title={latestToolTraceHash}>{formatHash(latestToolTraceHash)}</p>
             </section>
             <section className="summary-card">
               <h3>External DeFi Eligibility</h3>

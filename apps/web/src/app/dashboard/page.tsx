@@ -73,6 +73,7 @@ export default function DashboardPage() {
   const { agents, loaded, refreshAgents } = useAgents();
   const { address } = useWalletConnection();
   const [activeView, setActiveView] = useState<ActiveView>("wallets");
+  const [benchmarkRefreshKey, setBenchmarkRefreshKey] = useState(0);
   const [modal, setModal] = useState<DashboardModal>(null);
   const [selectedAgent, setSelectedAgent] = useState<AgentRecord | undefined>();
 
@@ -104,6 +105,13 @@ export default function DashboardPage() {
     window.location.href = `/wallets/${agent.id}`;
   };
 
+  const handleBenchmarkCreated = () => {
+    setActiveView("benchmarks");
+    setBenchmarkRefreshKey((value) => value + 1);
+    setModal(null);
+    setSelectedAgent(undefined);
+  };
+
   return (
     <main>
       <Header />
@@ -128,21 +136,24 @@ export default function DashboardPage() {
               onClick={() => setActiveView("wallets")}
               type="button"
             >
-              Smart Wallets
+              <strong>Smart Wallets</strong>
+              <span>Wallets, balances, and status</span>
             </button>
             <button
               className={activeView === "agent-config" ? "dashboard-view-tab-active" : ""}
               onClick={() => setActiveView("agent-config")}
               type="button"
             >
-              Agent Configuration
+              <strong>Agent Configuration</strong>
+              <span>Model, runner, and tools</span>
             </button>
             <button
               className={activeView === "benchmarks" ? "dashboard-view-tab-active" : ""}
               onClick={() => setActiveView("benchmarks")}
               type="button"
             >
-              Benchmarks
+              <strong>Benchmarks</strong>
+              <span>Custom tests and gates</span>
             </button>
           </div>
 
@@ -164,6 +175,7 @@ export default function DashboardPage() {
             <BenchmarkDashboard
               connectedAddress={address}
               onCreateBenchmark={() => setModal("benchmark")}
+              refreshKey={benchmarkRefreshKey}
             />
           )}
         </div>
@@ -177,7 +189,7 @@ export default function DashboardPage() {
 
       {modal === "benchmark" && (
         <DashboardModalShell label="Create Benchmark" onClose={closeModal}>
-          <BenchmarkBuilder />
+          <BenchmarkBuilder onCreated={handleBenchmarkCreated} />
         </DashboardModalShell>
       )}
 

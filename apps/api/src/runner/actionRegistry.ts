@@ -19,6 +19,7 @@ export type AvailableActionMetadata =
 
 export type ActionProposal = {
   action?: string;
+  decision?: string;
   params?: Record<string, unknown>;
   reason?: string;
   reasoning?: string;
@@ -302,6 +303,7 @@ export function parseActionProposal(text: string): ActionProposal {
         : typeof parsed.tool === "string"
           ? parsed.tool
           : undefined,
+    decision: typeof parsed.decision === "string" ? parsed.decision : undefined,
     params: recordValue(parsed.params ?? parsed.parameters),
     reason:
       typeof parsed.reason === "string"

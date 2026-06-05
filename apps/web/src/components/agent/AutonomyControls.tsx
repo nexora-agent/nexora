@@ -44,6 +44,26 @@ function formatAddress(address: string) {
   return `${address.slice(0, 8)}...${address.slice(-6)}`;
 }
 
+function decodeBenchmarkMetadata(metadataURI: string) {
+  if (!metadataURI.startsWith("data:application/json")) return undefined;
+
+  const [, payload] = metadataURI.split(",", 2);
+  if (!payload) return undefined;
+
+  try {
+    return JSON.parse(decodeURIComponent(payload)) as {
+      description?: string;
+      name?: string;
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function benchmarkLabel(benchmark: OnchainBenchmark) {
+  return decodeBenchmarkMetadata(benchmark.metadataURI)?.name ?? `Benchmark #${benchmark.benchmarkId}`;
+}
+
 function CardSkeleton() {
   return (
     <section className="summary-card skeleton-card" aria-label="Loading">
@@ -515,16 +535,8 @@ export function AutonomyControls({
             {activeBenchmark ? (
               <dl>
                 <div>
-                  <dt>Benchmark ID</dt>
-                  <dd>#{activeBenchmark.benchmarkId}</dd>
-                </div>
-
-                <div>
-                  <dt>Benchmark hash</dt>
-                  <dd title={activeBenchmark.benchmarkHash}>
-                    {activeBenchmark.benchmarkHash.slice(0, 10)}...
-                    {activeBenchmark.benchmarkHash.slice(-8)}
-                  </dd>
+                  <dt>Benchmark</dt>
+                  <dd>{benchmarkLabel(activeBenchmark)}</dd>
                 </div>
 
                 <div>
@@ -564,8 +576,7 @@ export function AutonomyControls({
                   key={String(benchmark.benchmarkId)}
                   value={String(benchmark.benchmarkId)}
                 >
-                  #{benchmark.benchmarkId}{" "}
-                  {benchmark.benchmarkHash.slice(0, 10)}...
+                  {benchmarkLabel(benchmark)}
                 </option>
               ))}
             </select>

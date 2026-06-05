@@ -22,14 +22,6 @@ type BenchmarkTestLabProps = {
   onViewReports?: () => void;
 };
 
-function shortHash(hash?: `0x${string}`) {
-  if (!hash) {
-    return "Not generated";
-  }
-
-  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
-}
-
 export function BenchmarkTestLab({
   agent,
   isOwner,
@@ -158,7 +150,6 @@ export function BenchmarkTestLab({
     : undefined;
   const latestPreflight = latestRun?.preflight;
   const selectedVault = latestRun?.intent?.metadata?.targetVault ?? "Not tested";
-  const reportHash = shortHash(latestRun?.reportEnvelope?.reportHash);
   const scenarioResults = benchmarkScenarios.map((scenario) => {
     const run = displayedSuiteRuns.find(
       (candidate) => candidate.intent?.metadata?.benchmarkLevel === scenario.id,
@@ -239,9 +230,13 @@ export function BenchmarkTestLab({
               <small>{latestRun.riskReport?.policyDecision ?? "Not tested"}</small>
             </article>
             <article>
-              <strong>Report Hash</strong>
-              <span>{reportHash}</span>
-              <small>{latestPreflight?.passed ? "Benchmark passed configured thresholds" : latestPreflight?.blockedReason ?? "Local report"}</small>
+              <strong>Result</strong>
+              <span>{latestPreflight?.passed ? "Passed" : "Needs review"}</span>
+              <small>
+                {latestPreflight?.passed
+                  ? "Benchmark passed configured thresholds"
+                  : latestPreflight?.blockedReason ?? "Local benchmark result"}
+              </small>
             </article>
           </div>
         </section>

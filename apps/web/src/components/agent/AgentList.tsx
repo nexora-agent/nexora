@@ -325,6 +325,25 @@ export function AgentList({
 
   return (
     <section className="agent-table-card" aria-label="Smart wallets table">
+      <div className="benchmark-dashboard-header">
+        <div>
+          <h2>Smart Wallets</h2>
+          <p>AI-controlled wallets linked to an agent identity and local runner.</p>
+        </div>
+        {onCreateSmartWallet ? (
+          <button
+            className="primary-action"
+            onClick={onCreateSmartWallet}
+            type="button"
+          >
+            Create Smart Wallet
+          </button>
+        ) : (
+          <Link className="primary-action" href="/create-wallet">
+            Create Smart Wallet
+          </Link>
+        )}
+      </div>
       <div className="agent-table-scroll">
         <table>
           <thead>

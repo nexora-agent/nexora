@@ -1,5 +1,7 @@
 "use client";
 
+import type { CustomBenchmarkDefinition } from "@/lib/benchmarks/benchmarkDefinition";
+
 export type RunnerMcpServerConfig = {
   enabled: boolean;
   name: string;
@@ -128,24 +130,37 @@ export async function testRunnerBenchmark(config?: RunnerConfig) {
       metadata?: {
         description?: string;
         expectedAnswer?: {
+          action?: string;
+          decision?: string;
+          rejectedActions?: string[];
           rejectedVaults?: string[];
           reasoning?: string;
+          selectedTarget?: string;
           selectedVault?: string;
         };
         name?: string;
+        benchmarkType?: string;
       };
       metadataURI?: string;
       riskMode?: number;
       targetContracts?: string[];
     };
     decision: {
+      action?: string;
+      decision?: string;
       reasoning?: string;
+      rejectedActions?: string[];
       rejectedVaults?: string[];
+      selectedTarget?: string;
       selectedVault?: string;
     };
     expectedAnswer?: {
+      action?: string;
+      decision?: string;
+      rejectedActions?: string[];
       rejectedVaults?: string[];
       reasoning?: string;
+      selectedTarget?: string;
       selectedVault?: string;
     };
     latencyMs: number;
@@ -155,6 +170,31 @@ export async function testRunnerBenchmark(config?: RunnerConfig) {
     score: number;
   }>("/runner/test-benchmark", {
     body: config ? JSON.stringify(config) : undefined,
+    method: "POST",
+  });
+}
+
+export async function generateRunnerBenchmarkDraft(input: {
+  allowedActions?: string;
+  benchmarkName?: string;
+  benchmarkType?: CustomBenchmarkDefinition["benchmarkType"];
+  blockedActions?: string;
+  contractAddress?: string;
+  interfaceAbi?: string;
+  objective?: string;
+  protocolName?: string;
+  riskMode?: CustomBenchmarkDefinition["riskMode"];
+  scenarioProfile?: CustomBenchmarkDefinition["simulation"]["scenarioProfile"];
+  scenarioText?: string;
+  scoringRules?: string;
+}) {
+  return runnerRequest<{
+    draft: CustomBenchmarkDefinition;
+    latencyMs: number;
+    modelResponse: string;
+    ok: boolean;
+  }>("/runner/generate-benchmark", {
+    body: JSON.stringify(input),
     method: "POST",
   });
 }

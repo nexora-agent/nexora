@@ -44,6 +44,8 @@ const emptyConfig: RunnerConfig = {
 
 const fallbackExpectedBenchmarkAnswer = {
   selectedVault: "NexoraSafeVault",
+  selectedTarget: "NexoraSafeVault",
+  rejectedActions: ["NexoraVolatileVault", "NexoraRiskyVault"],
   rejectedVaults: ["NexoraVolatileVault", "NexoraRiskyVault"],
   reasoning:
     "SafeVault is the conservative choice because it has high liquidity, low volatility, and no owner risk. VolatileVault is rejected because medium/high volatility is not appropriate for conservative capital preservation. RiskyVault is rejected because low liquidity, high volatility, upgradeable strategy, and opaque yield source outweigh higher APR.",
@@ -59,16 +61,25 @@ type RejectedVault =
     };
 
 type BenchmarkDecisionReport = {
+  action?: string;
+  decision?: string;
   reasoning?: string;
+  rejectedActions?: RejectedVault[];
   rejectedVaults?: RejectedVault[];
+  selectedTarget?: string;
   selectedVault?: string;
 };
 
 type BenchmarkMetadataReport = {
+  benchmarkType?: string;
   description?: string;
   expectedAnswer?: {
+    action?: string;
+    decision?: string;
+    rejectedActions?: string[];
     rejectedVaults?: string[];
     reasoning?: string;
+    selectedTarget?: string;
     selectedVault?: string;
   };
   name?: string;
@@ -87,8 +98,12 @@ type BenchmarkReport = {
   activeBenchmark?: ActiveBenchmarkReport;
   decision: BenchmarkDecisionReport;
   expectedAnswer?: {
+    action?: string;
+    decision?: string;
+    rejectedActions?: string[];
     rejectedVaults?: string[];
     reasoning?: string;
+    selectedTarget?: string;
     selectedVault?: string;
   };
   latencyMs?: number;
@@ -171,14 +186,6 @@ function getBenchmarkName(benchmark?: BenchmarkDisplaySource) {
   return metadata?.name ?? `Benchmark #${benchmark.benchmarkId}`;
 }
 
-function getBenchmarkHashLabel(benchmarkHash?: string) {
-  if (!benchmarkHash) {
-    return "—";
-  }
-
-  return `${benchmarkHash.slice(0, 10)}...${benchmarkHash.slice(-8)}`;
-}
-
 function getTargetContract(benchmark?: BenchmarkDisplaySource) {
   return benchmark?.targetContracts?.[0];
 }
@@ -191,8 +198,12 @@ function normalizeBenchmarkResult(
   return {
     activeBenchmark: report.activeBenchmark,
     decision: {
+      action: report.decision?.action,
+      decision: report.decision?.decision,
       reasoning: report.decision?.reasoning,
+      rejectedActions: report.decision?.rejectedActions ?? [],
       rejectedVaults: report.decision?.rejectedVaults ?? [],
+      selectedTarget: report.decision?.selectedTarget,
       selectedVault: report.decision?.selectedVault,
     },
     expectedAnswer: report.expectedAnswer,
@@ -201,6 +212,41 @@ function normalizeBenchmarkResult(
     passed: report.passed,
     score: report.score,
   };
+}
+
+function isDexBenchmarkReport(benchmarkResult?: BenchmarkReport) {
+  const metadata = benchmarkResult?.activeBenchmark?.metadata;
+
+  return Boolean(
+    metadata?.benchmarkType === "dex-trading" ||
+      metadata?.name?.toLowerCase().includes("dex") ||
+      metadata?.description?.toLowerCase().includes("dex") ||
+      benchmarkResult?.decision.action?.toLowerCase().includes("swap"),
+  );
+}
+
+function primaryAnswerLabel(benchmarkResult?: BenchmarkReport) {
+  return isDexBenchmarkReport(benchmarkResult) ? "Selected target" : "Selected vault";
+}
+
+function rejectedAnswerLabel(benchmarkResult?: BenchmarkReport) {
+  return isDexBenchmarkReport(benchmarkResult) ? "Rejected actions" : "Rejected vaults";
+}
+
+function primaryAnswerValue(answer?: {
+  selectedTarget?: string;
+  selectedVault?: string;
+}) {
+  return answer?.selectedTarget ?? answer?.selectedVault ?? "—";
+}
+
+function rejectedAnswerValues(answer?: {
+  rejectedActions?: RejectedVault[];
+  rejectedVaults?: RejectedVault[];
+}) {
+  return answer?.rejectedActions?.length
+    ? answer.rejectedActions
+    : answer?.rejectedVaults;
 }
 
 function formatRejectedVaultName(vault: RejectedVault, index: number) {
@@ -231,11 +277,31 @@ function formatRejectedVaults(vaults?: RejectedVault[]) {
 
 function getExpectedBenchmarkAnswer(benchmarkResult?: BenchmarkReport) {
   return {
+    action:
+      benchmarkResult?.expectedAnswer?.action ??
+      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer?.action,
+    decision:
+      benchmarkResult?.expectedAnswer?.decision ??
+      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer?.decision,
+    selectedTarget:
+      benchmarkResult?.expectedAnswer?.selectedTarget ??
+      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer?.selectedTarget ??
+      benchmarkResult?.expectedAnswer?.selectedVault ??
+      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer?.selectedVault ??
+      fallbackExpectedBenchmarkAnswer.selectedTarget,
     selectedVault:
       benchmarkResult?.expectedAnswer?.selectedVault ??
       benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer
         ?.selectedVault ??
       fallbackExpectedBenchmarkAnswer.selectedVault,
+    rejectedActions:
+      benchmarkResult?.expectedAnswer?.rejectedActions ??
+      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer
+        ?.rejectedActions ??
+      benchmarkResult?.expectedAnswer?.rejectedVaults ??
+      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer
+        ?.rejectedVaults ??
+      fallbackExpectedBenchmarkAnswer.rejectedActions,
     rejectedVaults:
       benchmarkResult?.expectedAnswer?.rejectedVaults ??
       benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer
@@ -838,12 +904,6 @@ function BenchmarkUsedCard({
               </dd>
             </div>
 
-            <div>
-              <dt>Benchmark hash</dt>
-              <dd title={benchmark.benchmarkHash}>
-                {getBenchmarkHashLabel(benchmark.benchmarkHash)}
-              </dd>
-            </div>
           </dl>
 
           {(metadata?.description || benchmark.targetContracts.length > 1) && (
@@ -1186,11 +1246,15 @@ export function AgentConfigurationPanel({
 
       await refresh({ syncConfig: true });
 
-      setNotice(
-        `Benchmark test ${report.passed ? "passed" : "needs work"}: score ${
-          report.score
-        }, selected ${report.decision.selectedVault ?? "unknown"}.`,
-      );
+	      setNotice(
+	        `Benchmark test ${report.passed ? "passed" : "needs work"}: score ${
+	          report.score
+	        }, selected ${
+	          report.decision.selectedTarget ??
+	          report.decision.selectedVault ??
+	          "unknown"
+	        }.`,
+	      );
     } catch (error) {
       setBenchmarkState("error");
       setNotice(
@@ -1663,18 +1727,6 @@ export function AgentConfigurationPanel({
                           </dd>
                         </div>
 
-                        <div>
-                          <dt>Benchmark hash</dt>
-                          <dd
-                            title={
-                              benchmarkResult.activeBenchmark.benchmarkHash
-                            }
-                          >
-                            {getBenchmarkHashLabel(
-                              benchmarkResult.activeBenchmark.benchmarkHash,
-                            )}
-                          </dd>
-                        </div>
                       </dl>
 
                       {(benchmarkResult.activeBenchmark.metadata?.description ||
@@ -1722,23 +1774,36 @@ export function AgentConfigurationPanel({
                 <section className="runner-benchmark-report">
                   <h4>Model Answer</h4>
 
-                  <dl className="benchmark-debug-grid">
-                    <div>
-                      <dt>Selected vault</dt>
-                      <dd>{benchmarkResult.decision.selectedVault ?? "—"}</dd>
-                    </div>
+	                  <dl className="benchmark-debug-grid">
+	                    <div>
+	                      <dt>{primaryAnswerLabel(benchmarkResult)}</dt>
+	                      <dd>{primaryAnswerValue(benchmarkResult.decision)}</dd>
+	                    </div>
 
-                    <div>
-                      <dt>Rejected vaults</dt>
-                      <dd>
-                        {formatRejectedVaults(
-                          benchmarkResult.decision.rejectedVaults,
-                        )}
-                      </dd>
-                    </div>
+	                    <div>
+	                      <dt>{rejectedAnswerLabel(benchmarkResult)}</dt>
+	                      <dd>
+	                        {formatRejectedVaults(
+	                          rejectedAnswerValues(benchmarkResult.decision),
+	                        )}
+	                      </dd>
+	                    </div>
 
-                    <div>
-                      <dt>Reasoning</dt>
+	                    {isDexBenchmarkReport(benchmarkResult) && (
+	                      <>
+	                        <div>
+	                          <dt>Action</dt>
+	                          <dd>{benchmarkResult.decision.action ?? "—"}</dd>
+	                        </div>
+	                        <div>
+	                          <dt>Decision</dt>
+	                          <dd>{benchmarkResult.decision.decision ?? "—"}</dd>
+	                        </div>
+	                      </>
+	                    )}
+
+	                    <div>
+	                      <dt>Reasoning</dt>
                       <dd>{benchmarkResult.decision.reasoning ?? "—"}</dd>
                     </div>
                   </dl>
@@ -1747,18 +1812,33 @@ export function AgentConfigurationPanel({
                 <section className="runner-benchmark-report">
                   <h4>Expected Answer</h4>
 
-                  <dl className="benchmark-debug-grid">
-                    <div>
-                      <dt>Selected vault</dt>
-                      <dd>{expectedBenchmarkAnswer.selectedVault}</dd>
-                    </div>
+	                  <dl className="benchmark-debug-grid">
+	                    <div>
+	                      <dt>{primaryAnswerLabel(benchmarkResult)}</dt>
+	                      <dd>{primaryAnswerValue(expectedBenchmarkAnswer)}</dd>
+	                    </div>
 
-                    <div>
-                      <dt>Rejected vaults</dt>
-                      <dd>
-                        {expectedBenchmarkAnswer.rejectedVaults.join(", ")}
-                      </dd>
-                    </div>
+	                    <div>
+	                      <dt>{rejectedAnswerLabel(benchmarkResult)}</dt>
+	                      <dd>
+	                        {formatRejectedVaults(
+	                          rejectedAnswerValues(expectedBenchmarkAnswer),
+	                        )}
+	                      </dd>
+	                    </div>
+
+	                    {isDexBenchmarkReport(benchmarkResult) && (
+	                      <>
+	                        <div>
+	                          <dt>Action</dt>
+	                          <dd>{expectedBenchmarkAnswer.action ?? "—"}</dd>
+	                        </div>
+	                        <div>
+	                          <dt>Decision</dt>
+	                          <dd>{expectedBenchmarkAnswer.decision ?? "swap or reject"}</dd>
+	                        </div>
+	                      </>
+	                    )}
 
                     <div>
                       <dt>Reasoning</dt>
@@ -1783,24 +1863,34 @@ export function AgentConfigurationPanel({
                       </tr>
                     </thead>
 
-                    <tbody>
-                      <tr>
-                        <td>Selected vault</td>
-                        <td>{benchmarkResult.decision.selectedVault ?? "—"}</td>
-                        <td>{expectedBenchmarkAnswer.selectedVault}</td>
-                      </tr>
+	                    <tbody>
+	                      <tr>
+	                        <td>{primaryAnswerLabel(benchmarkResult)}</td>
+	                        <td>{primaryAnswerValue(benchmarkResult.decision)}</td>
+	                        <td>{primaryAnswerValue(expectedBenchmarkAnswer)}</td>
+	                      </tr>
 
-                      <tr>
-                        <td>Rejected vaults</td>
-                        <td>
-                          {formatRejectedVaults(
-                            benchmarkResult.decision.rejectedVaults,
-                          )}
-                        </td>
-                        <td>
-                          {expectedBenchmarkAnswer.rejectedVaults.join(", ")}
-                        </td>
-                      </tr>
+	                      <tr>
+	                        <td>{rejectedAnswerLabel(benchmarkResult)}</td>
+	                        <td>
+	                          {formatRejectedVaults(
+	                            rejectedAnswerValues(benchmarkResult.decision),
+	                          )}
+	                        </td>
+	                        <td>
+	                          {formatRejectedVaults(
+	                            rejectedAnswerValues(expectedBenchmarkAnswer),
+	                          )}
+	                        </td>
+	                      </tr>
+
+	                      {isDexBenchmarkReport(benchmarkResult) && (
+	                        <tr>
+	                          <td>Action</td>
+	                          <td>{benchmarkResult.decision.action ?? "—"}</td>
+	                          <td>{expectedBenchmarkAnswer.action ?? "—"}</td>
+	                        </tr>
+	                      )}
 
                       <tr>
                         <td>Reasoning</td>
@@ -1811,13 +1901,13 @@ export function AgentConfigurationPanel({
                   </table>
                 </section>
 
-                <div className="benchmark-debug-section">
-                  <h4>Rejected vault details</h4>
+	                <div className="benchmark-debug-section">
+	                  <h4>{rejectedAnswerLabel(benchmarkResult)} details</h4>
 
-                  {benchmarkResult.decision.rejectedVaults?.length ? (
-                    <ul className="benchmark-rejected-list">
-                      {benchmarkResult.decision.rejectedVaults.map(
-                        (vault, index) => (
+	                  {rejectedAnswerValues(benchmarkResult.decision)?.length ? (
+	                    <ul className="benchmark-rejected-list">
+	                      {rejectedAnswerValues(benchmarkResult.decision)?.map(
+	                        (vault, index) => (
                           <li
                             key={`${formatRejectedVaultName(
                               vault,

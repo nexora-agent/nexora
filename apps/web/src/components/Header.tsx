@@ -11,10 +11,10 @@ export function Header() {
         Nexora
       </Link>
       <nav aria-label="Primary navigation">
-        <Link href="/dashboard" prefetch={false}>Dashboard</Link>
+        {/* <Link href="/dashboard" prefetch={false}>Dashboard</Link>
         <Link href="/create-wallet" prefetch={false}>Create Smart Wallet</Link>
         <Link href="/harnesses" prefetch={false}>Harnesses</Link>
-        <Link href="/arena" prefetch={false}>Arena</Link>
+        <Link href="/arena" prefetch={false}>Arena</Link> */}
         <ThemeToggle />
         <ConnectWalletButton variant="compact" />
       </nav>
