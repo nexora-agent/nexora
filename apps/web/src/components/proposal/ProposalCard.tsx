@@ -30,13 +30,13 @@ export function ProposalCard({ proposal }: ProposalCardProps) {
         </div>
         {proposal.targetVault && (
           <div>
-            <dt>Selected Vault</dt>
+            <dt>Selected Target</dt>
             <dd>{proposal.targetVault}</dd>
           </div>
         )}
         {proposal.rejectedOptions?.length ? (
           <div>
-            <dt>Rejected Vaults</dt>
+            <dt>Rejected Actions</dt>
             <dd>
               {proposal.rejectedOptions
                 .map((option) => `${option.name}: ${option.reason}`)

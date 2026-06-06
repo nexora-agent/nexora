@@ -220,7 +220,7 @@ export function BenchmarkTestLab({
         <section className="benchmark-suite-summary" aria-label="Benchmark outcome">
           <div className="suite-result-grid">
             <article>
-              <strong>Selected Vault</strong>
+              <strong>Selected Target</strong>
               <span>{selectedVault}</span>
               <small>Model-selected benchmark target</small>
             </article>

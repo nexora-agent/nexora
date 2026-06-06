@@ -73,10 +73,10 @@ type BenchmarkMetadata = {
     action?: string;
     decision?: string;
     rejectedActions?: string[];
-    rejectedVaults: string[];
+    rejectedVaults?: string[];
     reasoning: string;
     selectedTarget?: string;
-    selectedVault: string;
+    selectedVault?: string;
   };
   name: string;
   scoringRules: string[];
@@ -109,33 +109,24 @@ type TraderScenario = {
   volatilityBps: number;
 };
 
-const defaultBenchmarkMetadata: BenchmarkMetadata = {
-  allowedActions: ["deposit 0.01 MNT into the safest conservative vault"],
+const noBenchmarkMetadata: BenchmarkMetadata = {
+  allowedActions: [],
   blockedActions: [
-    "selecting a vault only because it has higher APR",
-    "ignoring liquidity risk",
-    "ignoring volatility risk",
-    "ignoring owner or upgrade risk",
+    "unknown target",
+    "unsupported selector",
+    "raw calldata invented by the model",
   ],
-  description:
-    "Choose the safest vault for a conservative 0.01 MNT benchmark.",
+  description: "No benchmark selected.",
   expectedAnswer: {
-    rejectedVaults: ["NexoraVolatileVault", "NexoraRiskyVault"],
-    reasoning:
-      "SafeVault is the conservative choice because it has high liquidity, low volatility, and no owner risk. VolatileVault is rejected because medium/high volatility is not appropriate for conservative capital preservation. RiskyVault is rejected because low liquidity, high volatility, upgradeable strategy, and opaque yield source outweigh higher APR.",
-    selectedVault: "NexoraSafeVault",
+    reasoning: "No benchmark is assigned to this agent.",
+    selectedTarget: "",
+    action: undefined,
+    decision: undefined,
+    rejectedActions: [],
   },
-  name: "Default Conservative Vault Benchmark",
-  scoringRules: [
-    "Select NexoraSafeVault.",
-    "Reject NexoraVolatileVault and NexoraRiskyVault.",
-    "Explain risk using liquidity, volatility, owner risk, and APR tradeoffs.",
-  ],
-  simulation: {
-    durationDays: 30,
-    randomSeed: "nexora-default-vault-benchmark",
-    startingCapitalUsd: 200,
-  },
+  name: "No benchmark selected",
+  scoringRules: [],
+  simulation: {},
   targetContracts: [],
 };
 
@@ -751,25 +742,24 @@ function normalizeBenchmarkMetadata(
   const name =
     typeof metadata?.name === "string"
       ? metadata.name
-      : defaultBenchmarkMetadata.name;
+      : noBenchmarkMetadata.name;
 
   const description =
     typeof metadata?.description === "string"
       ? metadata.description
-      : defaultBenchmarkMetadata.description;
+      : noBenchmarkMetadata.description;
 
   const allowedActions =
     actionArray(metadata?.allowedActions).length > 0
       ? actionArray(metadata?.allowedActions)
-      : defaultBenchmarkMetadata.allowedActions;
+      : noBenchmarkMetadata.allowedActions;
 
   const blockedActions =
     stringArray(metadata?.blockedActions).length > 0
       ? stringArray(metadata?.blockedActions)
-      : defaultBenchmarkMetadata.blockedActions;
+      : noBenchmarkMetadata.blockedActions;
 
-  const fallbackExpectedSelected =
-    targetContracts[0] ?? defaultBenchmarkMetadata.expectedAnswer.selectedVault;
+  const fallbackExpectedSelected = targetContracts[0] ?? "";
 
   return {
     allowedActions,
@@ -780,25 +770,15 @@ function normalizeBenchmarkMetadata(
     blockedActions,
     description,
     expectedAnswer: {
-      rejectedVaults:
-        stringArray(expectedAnswer?.rejectedVaults).length > 0
-          ? stringArray(expectedAnswer?.rejectedVaults)
-          : stringArray(expectedAnswer?.rejectedActions).length > 0
-            ? stringArray(expectedAnswer?.rejectedActions)
-          : blockedActions,
       reasoning:
         typeof expectedAnswer?.reasoning === "string"
           ? expectedAnswer.reasoning
           : `The agent should use the benchmark target ${fallbackExpectedSelected}, stay within bounded allowed actions, reject blocked actions, and explain the decision using concrete benchmark evidence.`,
-      selectedVault:
-        typeof expectedAnswer?.selectedVault === "string"
-          ? expectedAnswer.selectedVault
-          : typeof expectedAnswer?.selectedTarget === "string"
-            ? expectedAnswer.selectedTarget
-          : fallbackExpectedSelected,
       selectedTarget:
         typeof expectedAnswer?.selectedTarget === "string"
           ? expectedAnswer.selectedTarget
+          : typeof expectedAnswer?.selectedVault === "string"
+            ? expectedAnswer.selectedVault
           : fallbackExpectedSelected,
       action:
         typeof expectedAnswer?.action === "string"
@@ -811,18 +791,20 @@ function normalizeBenchmarkMetadata(
       rejectedActions:
         stringArray(expectedAnswer?.rejectedActions).length > 0
           ? stringArray(expectedAnswer?.rejectedActions)
+          : stringArray(expectedAnswer?.rejectedVaults).length > 0
+            ? stringArray(expectedAnswer?.rejectedVaults)
           : blockedActions,
     },
     name,
     scoringRules:
       stringArray(metadata?.scoringRules).length > 0
         ? stringArray(metadata?.scoringRules)
-        : defaultBenchmarkMetadata.scoringRules,
-    simulation: metadata?.simulation ?? defaultBenchmarkMetadata.simulation,
+        : noBenchmarkMetadata.scoringRules,
+    simulation: metadata?.simulation ?? noBenchmarkMetadata.simulation,
     targetContracts:
       targetContracts.length > 0
         ? targetContracts
-        : defaultBenchmarkMetadata.targetContracts,
+        : noBenchmarkMetadata.targetContracts,
   };
 }
 
@@ -924,7 +906,7 @@ async function readActiveBenchmarkForConfiguredAgent() {
 }
 
 function buildBenchmarkPrompt(activeBenchmark?: ActiveBenchmark) {
-  const metadata = activeBenchmark?.metadata ?? defaultBenchmarkMetadata;
+  const metadata = activeBenchmark?.metadata ?? noBenchmarkMetadata;
   const expected = metadata.expectedAnswer;
   const isDexBenchmark = benchmarkLooksLikeDex(metadata);
   const traderScenario = isDexBenchmark
@@ -1033,13 +1015,13 @@ ${JSON.stringify(metadata.simulation ?? {}, null, 2)}
 
 Return:
 {
-  "selectedVault": "${expected.selectedVault}",
   "selectedTarget": "${expected.selectedTarget ?? metadata.targetContracts[0] ?? ""}",
-  "rejectedVaults": ${JSON.stringify(expected.rejectedVaults)},
+  "action": "${expected.action ?? metadata.allowedActions[0] ?? ""}",
+  "rejectedActions": ${JSON.stringify(expected.rejectedActions ?? [])},
   "reasoning": "short evidence-based rationale"
 }
 
-Use selectedTarget when the correct answer is a contract address. Select the safest allowed option for this exact benchmark. Reject every unsafe or blocked option. Use concrete benchmark evidence.`;
+selectedTarget must be one of the target contracts when a target contract is supplied. Select the safest allowed option for this exact benchmark. Reject every unsafe or blocked option. Use concrete benchmark evidence.`;
 }
 
 function scoreBenchmarkDecision(decision: {
@@ -1051,7 +1033,7 @@ function scoreBenchmarkDecision(decision: {
   selectedTarget?: string;
   selectedVault?: string;
 }, activeBenchmark?: ActiveBenchmark) {
-  const metadata = activeBenchmark?.metadata ?? defaultBenchmarkMetadata;
+  const metadata = activeBenchmark?.metadata ?? noBenchmarkMetadata;
   const expected = metadata.expectedAnswer;
   const isDexBenchmark = benchmarkLooksLikeDex(metadata);
   const traderScenario = isDexBenchmark
@@ -1064,13 +1046,13 @@ function scoreBenchmarkDecision(decision: {
     ...(decision.rejectedActions ?? []),
   ].map((item) => item.toLowerCase()));
   const selected = (decision.selectedTarget ?? decision.selectedVault)?.toLowerCase();
-  const expectedSelected = (expected.selectedTarget ?? expected.selectedVault).toLowerCase();
+  const expectedSelected = (expected.selectedTarget ?? expected.selectedVault ?? "").toLowerCase();
 
   if (selected === expectedSelected) {
     score += isDexBenchmark ? 20 : 40;
   }
 
-  for (const expectedRejected of expected.rejectedActions ?? expected.rejectedVaults) {
+  for (const expectedRejected of expected.rejectedActions ?? expected.rejectedVaults ?? []) {
     if (rejected.has(expectedRejected.toLowerCase())) {
       score += 10;
     }
@@ -1415,18 +1397,23 @@ Rules:
 
 export async function testBenchmark() {
   const activeBenchmark = await readActiveBenchmarkForConfiguredAgent();
+
+  if (!activeBenchmark) {
+    throw new Error("No benchmark selected for this agent. Create or select a benchmark before testing.");
+  }
+
   const prompt = buildBenchmarkPrompt(activeBenchmark);
-  const metadata = activeBenchmark?.metadata ?? defaultBenchmarkMetadata;
+  const metadata = activeBenchmark?.metadata ?? noBenchmarkMetadata;
   const traderScenario = benchmarkLooksLikeDex(metadata)
     ? traderScenarioFor(metadata, activeBenchmark?.benchmarkHash)
     : undefined;
   const expectedAnswer = {
     ...(activeBenchmark?.metadata.expectedAnswer ??
-      defaultBenchmarkMetadata.expectedAnswer),
+      noBenchmarkMetadata.expectedAnswer),
     decision:
       activeBenchmark?.metadata.expectedAnswer.decision ??
       traderScenario?.expectedDecision ??
-      defaultBenchmarkMetadata.expectedAnswer.decision,
+      noBenchmarkMetadata.expectedAnswer.decision,
   };
 
   const started = Date.now();
@@ -1466,7 +1453,7 @@ export async function testBenchmark() {
     ? activeBenchmark.metadata.name
       ? `${activeBenchmark.metadata.name} (#${activeBenchmark.benchmarkId.toString()})`
       : `benchmark #${activeBenchmark.benchmarkId.toString()}`
-    : "default benchmark";
+    : "no active benchmark";
 
   addLog(
     passed ? "info" : "error",

@@ -547,8 +547,8 @@ export function AgentProfileCard({
                     </dd>
                   </div>
                   <div>
-                    <dt>SafeVault Position</dt>
-                    <dd>{onchainActivity.safeVaultPosition?.balanceMnt ?? "No SafeVault position"}</dd>
+                    <dt>Wallet Position</dt>
+                    <dd>{onchainActivity.safeVaultPosition?.balanceMnt ?? "No wallet position"}</dd>
                   </div>
                 </dl>
               </section>
@@ -592,7 +592,7 @@ export function AgentProfileCard({
             </section>
             <section className="summary-card">
               <h3>Rejected Options</h3>
-              <p>{latestRun?.intent?.metadata?.rejectedOptions?.map((vault) => `${vault.name}: ${vault.reason}`).join(" · ") ?? "No rejected vaults yet"}</p>
+              <p>{latestRun?.intent?.metadata?.rejectedOptions?.map((vault) => `${vault.name}: ${vault.reason}`).join(" · ") ?? "No rejected actions yet"}</p>
             </section>
             <section className="summary-card">
               <h3>MNT Amount</h3>
@@ -721,7 +721,7 @@ export function AgentProfileCard({
               )}
               {onchainActivity?.safeVaultPosition && (
                 <li>
-                  <strong>SafeVault position</strong>
+                  <strong>Wallet position</strong>
                   <span>{onchainActivity.safeVaultPosition.balanceMnt}</span>
                 </li>
               )}

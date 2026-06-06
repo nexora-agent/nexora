@@ -59,12 +59,9 @@ const emptyConfig: RunnerConfig = {
 };
 
 const fallbackExpectedBenchmarkAnswer = {
-  selectedVault: "NexoraSafeVault",
-  selectedTarget: "NexoraSafeVault",
-  rejectedActions: ["NexoraVolatileVault", "NexoraRiskyVault"],
-  rejectedVaults: ["NexoraVolatileVault", "NexoraRiskyVault"],
-  reasoning:
-    "SafeVault is the conservative choice because it has high liquidity, low volatility, and no owner risk. VolatileVault is rejected because medium/high volatility is not appropriate for conservative capital preservation. RiskyVault is rejected because low liquidity, high volatility, upgradeable strategy, and opaque yield source outweigh higher APR.",
+  selectedTarget: "",
+  rejectedActions: [] as string[],
+  reasoning: "No benchmark is assigned to this agent.",
 };
 
 const thresholdPresetIds: PreflightPresetId[] = [
@@ -236,7 +233,7 @@ function getBenchmarkMetadata(benchmark?: BenchmarkDisplaySource) {
 
 function getBenchmarkName(benchmark?: BenchmarkDisplaySource) {
   if (!benchmark) {
-    return "Default built-in SafeVault benchmark";
+    return "No benchmark selected";
   }
 
   const metadata = getBenchmarkMetadata(benchmark);
@@ -283,12 +280,12 @@ function isDexBenchmarkReport(benchmarkResult?: BenchmarkReport) {
   );
 }
 
-function primaryAnswerLabel(benchmarkResult?: BenchmarkReport) {
-  return isDexBenchmarkReport(benchmarkResult) ? "Selected target" : "Selected vault";
+function primaryAnswerLabel(_benchmarkResult?: BenchmarkReport) {
+  return "Selected target";
 }
 
-function rejectedAnswerLabel(benchmarkResult?: BenchmarkReport) {
-  return isDexBenchmarkReport(benchmarkResult) ? "Rejected actions" : "Rejected vaults";
+function rejectedAnswerLabel(_benchmarkResult?: BenchmarkReport) {
+  return "Rejected actions";
 }
 
 function primaryAnswerValue(answer?: {
@@ -347,24 +344,12 @@ function getExpectedBenchmarkAnswer(benchmarkResult?: BenchmarkReport) {
       benchmarkResult?.expectedAnswer?.selectedVault ??
       benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer?.selectedVault ??
       fallbackExpectedBenchmarkAnswer.selectedTarget,
-    selectedVault:
-      benchmarkResult?.expectedAnswer?.selectedVault ??
-      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer
-        ?.selectedVault ??
-      fallbackExpectedBenchmarkAnswer.selectedVault,
     rejectedActions:
       benchmarkResult?.expectedAnswer?.rejectedActions ??
-      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer
-        ?.rejectedActions ??
+      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer?.rejectedActions ??
       benchmarkResult?.expectedAnswer?.rejectedVaults ??
-      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer
-        ?.rejectedVaults ??
+      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer?.rejectedVaults ??
       fallbackExpectedBenchmarkAnswer.rejectedActions,
-    rejectedVaults:
-      benchmarkResult?.expectedAnswer?.rejectedVaults ??
-      benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer
-        ?.rejectedVaults ??
-      fallbackExpectedBenchmarkAnswer.rejectedVaults,
     reasoning:
       benchmarkResult?.expectedAnswer?.reasoning ??
       benchmarkResult?.activeBenchmark?.metadata?.expectedAnswer?.reasoning ??
@@ -406,7 +391,9 @@ function getCurrentStep(status?: RunnerStatus, latestLog?: string) {
     message.includes("model provider") ||
     message.includes("model name") ||
     message.includes("selected vault") ||
-    message.includes("rejected vault")
+    message.includes("selected target") ||
+    message.includes("rejected vault") ||
+    message.includes("rejected action")
   ) {
     return "Asking Ollama/model to solve the benchmark.";
   }
@@ -460,7 +447,7 @@ function getTargetUsedLabel(benchmark?: OnchainBenchmark) {
   const target = getTargetContract(benchmark);
 
   if (!target) {
-    return "Fallback SafeVault target";
+    return "No target contract";
   }
 
   return formatAddress(target);
@@ -1231,8 +1218,7 @@ function BenchmarkUsedCard({
         </>
       ) : (
         <p className="runner-note">
-          No active benchmark is assigned to this smart wallet. The runner will
-          use the default built-in SafeVault benchmark fallback.
+          No active benchmark is assigned to this smart wallet. Select a benchmark before running the agent.
         </p>
       )}
     </section>
@@ -2140,8 +2126,7 @@ export function AgentConfigurationPanel({
                     </>
                   ) : (
                     <p className="runner-note">
-                      Testing the default built-in benchmark because no active
-                      benchmark is assigned to this smart wallet.
+                      No active benchmark assigned. Select a benchmark before testing.
                     </p>
                   )}
                 </section>
@@ -2301,7 +2286,7 @@ export function AgentConfigurationPanel({
                       )}
                     </ul>
                   ) : (
-                    <p className="runner-note">No rejected vaults returned.</p>
+                    <p className="runner-note">No rejected actions returned.</p>
                   )}
                 </div>
 
