@@ -25,6 +25,7 @@ import {
   type BuiltActionCall,
   type ProposalCheck,
 } from "./actionRegistry";
+import { normalizeBenchmarkJson, type NormalizedBenchmark } from "./benchmarkJson";
 
 type DeploymentFile = {
   contracts?: Record<string, string>;
@@ -636,6 +637,28 @@ function riskModeLabel(riskMode?: number) {
     default:
       return "unspecified";
   }
+}
+
+function normalizedToMetadata(n: NormalizedBenchmark): BenchmarkMetadata {
+  return {
+    allowedActions: n.allowedActions,
+    benchmarkType: n.benchmarkType !== "custom" ? n.benchmarkType : undefined,
+    blockedActions: n.blockedActions,
+    description: n.description,
+    expectedAnswer: {
+      action: n.expectedAnswer.action,
+      decision: n.expectedAnswer.decision,
+      reasoning: n.expectedAnswer.reasoning ?? `Use benchmark target, stay within allowed actions, reject blocked actions.`,
+      rejectedActions: n.expectedAnswer.rejectedActions,
+      rejectedVaults: [],
+      selectedTarget: n.expectedAnswer.selectedTarget,
+      selectedVault: n.expectedAnswer.selectedTarget ?? "",
+    },
+    name: n.name,
+    scoringRules: n.scoringRules,
+    simulation: n.simulation,
+    targetContracts: n.targetContracts,
+  };
 }
 
 function decodeBenchmarkDataJson(benchmarkDataJson?: string) {
@@ -1544,18 +1567,32 @@ async function readActiveBenchmark({
       );
     }
 
-    const metadata = normalizeBenchmarkMetadata(
-      decodeBenchmarkDataJson(benchmark.benchmarkDataJson),
-      {
-        riskMode: Number(benchmark.riskMode),
-        targetContracts: benchmark.targetContracts,
-      },
+    const normalized = normalizeBenchmarkJson(
+      benchmark.benchmarkDataJson,
+      [...benchmark.targetContracts],
     );
+    const metadata = normalizedToMetadata(normalized);
 
+    console.log(`Active benchmark source: Mantle`);
+    console.log(`Active benchmark id: #${benchmarkId.toString()}`);
+    console.log(`Active benchmark name: ${normalized.name}`);
+    console.log(`Benchmark JSON hash verified: yes`);
     console.log(
-      `Active benchmark: #${benchmarkId.toString()} ${benchmark.benchmarkHash}`,
+      `Benchmark JSON targets: ${normalized.targetContracts.length > 0 ? normalized.targetContracts.join(", ") : "none"}`,
     );
-    console.log(`Active benchmark metadata: ${metadata.name}`);
+    console.log(
+      `Contract-level targets: ${benchmark.targetContracts.length > 0 ? benchmark.targetContracts.join(", ") : "none"}`,
+    );
+    console.log(
+      `Normalized targets used by runner: ${normalized.targetContracts.length > 0 ? normalized.targetContracts.join(", ") : "none"}`,
+    );
+    const normalizedActions = normalizeAvailableActions(normalized.allowedActions);
+    console.log(
+      `Allowed actions used by runner: ${normalizedActions.length > 0 ? normalizedActions.map((a) => a.name).join(", ") : "none"}`,
+    );
+    console.log(
+      `Expected decision used by runner: ${normalized.expectedAnswer.decision ?? "not specified"} / target: ${normalized.expectedAnswer.selectedTarget ?? "none"}`,
+    );
 
     return {
       benchmarkDataJson: benchmark.benchmarkDataJson,
@@ -1794,6 +1831,40 @@ async function main() {
   console.log(
     `Scores basic=${benchmark.basicScore} adversarial=${benchmark.adversarialScore} external=${benchmark.externalScore} average=${benchmark.averageScore} risk=${benchmark.riskScore}`,
   );
+
+  if (process.env.NEXORA_RUNNER_TEST_ONLY === "true") {
+    const testResult = {
+      activeBenchmark: {
+        benchmarkDataJson: activeBenchmark.benchmarkDataJson,
+        benchmarkHash: activeBenchmark.benchmarkHash,
+        benchmarkId: activeBenchmark.benchmarkId.toString(),
+        metadata: activeBenchmark.metadata,
+        riskMode: activeBenchmark.riskMode,
+        targetContracts: activeBenchmark.targetContracts,
+      },
+      adversarialScore: benchmark.adversarialScore,
+      averageScore: benchmark.averageScore,
+      basicScore: benchmark.basicScore,
+      decision: {
+        action: benchmark.actionProposal.action,
+        decision: benchmark.actionProposal.decision,
+        reasoning: benchmark.actionProposal.reasoning,
+        rejectedActions: benchmark.actionProposal.rejectedActions ?? [],
+        selectedTarget:
+          benchmark.actionProposal.selectedTarget ??
+          benchmark.actionProposal.selectedVault,
+      },
+      expectedAnswer: activeBenchmark.metadata.expectedAnswer,
+      externalScore: benchmark.externalScore,
+      latencyMs: 0,
+      modelResponse: undefined as string | undefined,
+      passed: benchmark.passed,
+      proposalChecks: benchmark.proposalChecks,
+      score: benchmark.averageScore,
+    };
+    console.log(`NEXORA_BENCHMARK_RESULT: ${JSON.stringify(testResult)}`);
+    return;
+  }
 
   const thresholds = await publicClient.readContract({
     abi: validationAbi,

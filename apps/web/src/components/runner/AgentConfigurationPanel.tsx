@@ -2059,6 +2059,11 @@ export function AgentConfigurationPanel({
                         </div>
 
                         <div>
+                          <dt>Source</dt>
+                          <dd>Mantle</dd>
+                        </div>
+
+                        <div>
                           <dt>Benchmark ID</dt>
                           <dd>
                             #{benchmarkResult.activeBenchmark.benchmarkId}
@@ -2140,6 +2145,16 @@ export function AgentConfigurationPanel({
 	                      <dd>{primaryAnswerValue(benchmarkResult.decision)}</dd>
 	                    </div>
 
+                      <div>
+                        <dt>Selected action</dt>
+                        <dd>{benchmarkResult.decision.action ?? "—"}</dd>
+                      </div>
+
+                      <div>
+                        <dt>Decision</dt>
+                        <dd>{benchmarkResult.decision.decision ?? "—"}</dd>
+                      </div>
+
 	                    <div>
 	                      <dt>{rejectedAnswerLabel(benchmarkResult)}</dt>
 	                      <dd>
@@ -2148,19 +2163,6 @@ export function AgentConfigurationPanel({
 	                        )}
 	                      </dd>
 	                    </div>
-
-	                    {isDexBenchmarkReport(benchmarkResult) && (
-	                      <>
-	                        <div>
-	                          <dt>Action</dt>
-	                          <dd>{benchmarkResult.decision.action ?? "—"}</dd>
-	                        </div>
-	                        <div>
-	                          <dt>Decision</dt>
-	                          <dd>{benchmarkResult.decision.decision ?? "—"}</dd>
-	                        </div>
-	                      </>
-	                    )}
 
 	                    <div>
 	                      <dt>Reasoning</dt>
@@ -2178,6 +2180,16 @@ export function AgentConfigurationPanel({
 	                      <dd>{primaryAnswerValue(expectedBenchmarkAnswer)}</dd>
 	                    </div>
 
+                      <div>
+                        <dt>Expected action</dt>
+                        <dd>{expectedBenchmarkAnswer.action ?? "—"}</dd>
+                      </div>
+
+                      <div>
+                        <dt>Expected decision</dt>
+                        <dd>{expectedBenchmarkAnswer.decision ?? "—"}</dd>
+                      </div>
+
 	                    <div>
 	                      <dt>{rejectedAnswerLabel(benchmarkResult)}</dt>
 	                      <dd>
@@ -2186,19 +2198,6 @@ export function AgentConfigurationPanel({
 	                        )}
 	                      </dd>
 	                    </div>
-
-	                    {isDexBenchmarkReport(benchmarkResult) && (
-	                      <>
-	                        <div>
-	                          <dt>Action</dt>
-	                          <dd>{expectedBenchmarkAnswer.action ?? "—"}</dd>
-	                        </div>
-	                        <div>
-	                          <dt>Decision</dt>
-	                          <dd>{expectedBenchmarkAnswer.decision ?? "swap or reject"}</dd>
-	                        </div>
-	                      </>
-	                    )}
 
                     <div>
                       <dt>Reasoning</dt>

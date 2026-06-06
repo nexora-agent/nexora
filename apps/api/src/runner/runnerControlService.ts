@@ -13,6 +13,7 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { normalizeBenchmarkJson } from "./benchmarkJson.js";
 
 export type RunnerMcpServerConfig = {
   enabled: boolean;
@@ -722,6 +723,30 @@ function actionArray(value: unknown) {
     .filter((item): item is string => Boolean(item));
 }
 
+function normalizedToServiceMetadata(n: { allowedActions: unknown[]; benchmarkType: string; blockedActions: string[]; description: string; expectedAnswer: { action?: string; decision?: string; reasoning?: string; rejectedActions: string[]; selectedTarget?: string }; name: string; scoringRules: string[]; simulation: Record<string, unknown>; targetContracts: string[] }): BenchmarkMetadata {
+  return {
+    allowedActions: n.allowedActions.map((a) => {
+      if (typeof a === "string") return a;
+      const obj = a as Record<string, unknown>;
+      return [obj.name, obj.signature, obj.description].filter(Boolean).join(" - ");
+    }),
+    benchmarkType: n.benchmarkType !== "custom" ? n.benchmarkType : undefined,
+    blockedActions: n.blockedActions,
+    description: n.description,
+    expectedAnswer: {
+      action: n.expectedAnswer.action,
+      decision: n.expectedAnswer.decision,
+      reasoning: n.expectedAnswer.reasoning ?? `Use benchmark target, stay within allowed actions, reject blocked actions.`,
+      rejectedActions: n.expectedAnswer.rejectedActions,
+      selectedTarget: n.expectedAnswer.selectedTarget,
+    },
+    name: n.name,
+    scoringRules: n.scoringRules,
+    simulation: n.simulation,
+    targetContracts: n.targetContracts,
+  };
+}
+
 function normalizeBenchmarkMetadata(
   metadata: Record<string, unknown> | undefined,
   benchmark?: {
@@ -871,12 +896,19 @@ async function readActiveBenchmarkForConfiguredAgent() {
       );
     }
 
-    const metadata = normalizeBenchmarkMetadata(
-      decodeBenchmarkDataJson(benchmark.benchmarkDataJson),
-      {
-        riskMode: Number(benchmark.riskMode),
-        targetContracts: benchmark.targetContracts,
-      },
+    const normalized = normalizeBenchmarkJson(
+      benchmark.benchmarkDataJson,
+      [...benchmark.targetContracts],
+    );
+    const metadata = normalizedToServiceMetadata(normalized);
+
+    addLog("info", `Active benchmark source: Mantle`);
+    addLog("info", `Active benchmark id: #${benchmarkId.toString()}`);
+    addLog("info", `Active benchmark name: ${normalized.name}`);
+    addLog("info", `Benchmark JSON hash verified: yes`);
+    addLog(
+      "info",
+      `Normalized targets used by runner: ${normalized.targetContracts.length > 0 ? normalized.targetContracts.join(", ") : "none"}`,
     );
 
     return {
@@ -1395,94 +1427,146 @@ Rules:
   };
 }
 
-export async function testBenchmark() {
-  const activeBenchmark = await readActiveBenchmarkForConfiguredAgent();
-
-  if (!activeBenchmark) {
-    throw new Error("No benchmark selected for this agent. Create or select a benchmark before testing.");
-  }
-
-  const prompt = buildBenchmarkPrompt(activeBenchmark);
-  const metadata = activeBenchmark?.metadata ?? noBenchmarkMetadata;
-  const traderScenario = benchmarkLooksLikeDex(metadata)
-    ? traderScenarioFor(metadata, activeBenchmark?.benchmarkHash)
-    : undefined;
-  const expectedAnswer = {
-    ...(activeBenchmark?.metadata.expectedAnswer ??
-      noBenchmarkMetadata.expectedAnswer),
-    decision:
-      activeBenchmark?.metadata.expectedAnswer.decision ??
-      traderScenario?.expectedDecision ??
-      noBenchmarkMetadata.expectedAnswer.decision,
+export async function testBenchmark(): Promise<{
+  activeBenchmark?: {
+    benchmarkDataJson: string;
+    benchmarkHash: Hex;
+    benchmarkId: string;
+    metadata: BenchmarkMetadata;
+    riskMode: number;
+    targetContracts: Address[];
   };
-
+  adversarialScore: number;
+  averageScore: number;
+  basicScore: number;
+  decision: {
+    action?: string;
+    decision?: string;
+    reasoning?: string;
+    rejectedActions: string[];
+    selectedTarget?: string;
+  };
+  expectedAnswer: BenchmarkMetadata["expectedAnswer"];
+  externalScore: number;
+  latencyMs: number;
+  modelResponse?: string;
+  ok: boolean;
+  passed: boolean;
+  score: number;
+}> {
   const started = Date.now();
-  const endpoint = normalizedOllamaGenerateEndpoint(config.model.endpointUrl);
-  const response = await fetch(endpoint, {
-    body: JSON.stringify({
-      model: config.model.modelName,
-      options: {
-        num_predict: config.model.maxTokens,
-        temperature: config.model.temperature,
+
+  return new Promise((resolve, reject) => {
+    const logs: string[] = [];
+    let resultJson: string | undefined;
+
+    const child = spawn("pnpm", ["--filter", "@nexora/api", "agent:runner"], {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        NEXORA_AGENT_ACTION_AMOUNT_MNT: config.actionAmountMnt,
+        NEXORA_MCP_SERVERS: JSON.stringify(config.mcpServers.filter((s) => s.enabled)),
+        NEXORA_MODEL_HARNESS_PROMPT: config.modelHarness.prompt,
+        NEXORA_MODEL_ENDPOINT_URL: config.model.endpointUrl,
+        NEXORA_MODEL_MAX_TOKENS: String(config.model.maxTokens),
+        NEXORA_MODEL_NAME: config.model.modelName,
+        NEXORA_MODEL_PROVIDER: "ollama",
+        NEXORA_MODEL_TEMPERATURE: String(config.model.temperature),
+        NEXORA_RUNNER_TEST_ONLY: "true",
+        NEXORA_SMART_WALLET_ID: config.agentId,
       },
-      prompt,
-      stream: false,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+    });
 
-  const raw = await response.text();
-  if (!response.ok) {
-    addLog("error", `Benchmark test failed: HTTP ${response.status} ${raw}`);
-    throw new Error(
-      `Benchmark test failed at ${endpoint}: HTTP ${response.status}. ${raw.slice(
-        0,
-        500,
-      )}`,
-    );
-  }
+    const timeout = setTimeout(() => {
+      child.kill();
+      reject(new Error("Benchmark test timed out after 120 seconds."));
+    }, 120_000);
 
-  const payload = JSON.parse(raw) as { response?: string };
-  const modelText = payload.response ?? raw;
-  const decision = extractJsonObject(modelText);
-  const score = scoreBenchmarkDecision(decision, activeBenchmark);
-  const passed = score >= 80;
+    child.stdout.on("data", (chunk: Buffer) => {
+      const text = chunk.toString();
+      addLog("info", text);
+      logs.push(text);
 
-  const benchmarkName = activeBenchmark
-    ? activeBenchmark.metadata.name
-      ? `${activeBenchmark.metadata.name} (#${activeBenchmark.benchmarkId.toString()})`
-      : `benchmark #${activeBenchmark.benchmarkId.toString()}`
-    : "no active benchmark";
-
-  addLog(
-    passed ? "info" : "error",
-    `Benchmark test ${
-      passed ? "passed" : "needs work"
-    }: ${benchmarkName}, score ${score}, selected ${
-      decision.selectedTarget ?? decision.selectedVault ?? "unknown"
-    }.`,
-  );
-
-  return {
-    activeBenchmark: activeBenchmark
-      ? {
-          benchmarkDataJson: activeBenchmark.benchmarkDataJson,
-          benchmarkHash: activeBenchmark.benchmarkHash,
-          benchmarkId: activeBenchmark.benchmarkId.toString(),
-          metadata: activeBenchmark.metadata,
-          riskMode: activeBenchmark.riskMode,
-          targetContracts: activeBenchmark.targetContracts,
+      const lines = text.split("\n");
+      for (const line of lines) {
+        const match = line.match(/^NEXORA_BENCHMARK_RESULT: (.+)$/);
+        if (match) {
+          resultJson = match[1];
         }
-      : undefined,
-    decision,
-    expectedAnswer,
-    latencyMs: Date.now() - started,
-    modelResponse: modelText.slice(0, 2000),
-    ok: true,
-    passed,
-    score,
-  };
+      }
+    });
+
+    child.stderr.on("data", (chunk: Buffer) => {
+      addLog("error", chunk.toString());
+    });
+
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      addLog("error", error.message);
+      reject(error);
+    });
+
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+
+      if (!resultJson) {
+        const logPreview = logs.join("").slice(-800);
+        reject(
+          new Error(
+            code !== 0
+              ? `Benchmark test runner exited with code ${code ?? "unknown"}. No benchmark result found.`
+              : `Benchmark runner exited but did not produce a result. Logs: ${logPreview}`,
+          ),
+        );
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(resultJson) as {
+          activeBenchmark?: {
+            benchmarkDataJson: string;
+            benchmarkHash: Hex;
+            benchmarkId: string;
+            metadata: BenchmarkMetadata;
+            riskMode: number;
+            targetContracts: Address[];
+          };
+          adversarialScore: number;
+          averageScore: number;
+          basicScore: number;
+          decision: {
+            action?: string;
+            decision?: string;
+            reasoning?: string;
+            rejectedActions: string[];
+            selectedTarget?: string;
+          };
+          expectedAnswer: BenchmarkMetadata["expectedAnswer"];
+          externalScore: number;
+          passed: boolean;
+          score: number;
+        };
+
+        const benchmarkName = parsed.activeBenchmark?.metadata.name
+          ? `${parsed.activeBenchmark.metadata.name} (#${parsed.activeBenchmark.benchmarkId})`
+          : "benchmark";
+
+        addLog(
+          parsed.passed ? "info" : "error",
+          `Benchmark test ${parsed.passed ? "passed" : "needs work"}: ${benchmarkName}, score ${parsed.score}, selected ${parsed.decision?.selectedTarget ?? "unknown"}.`,
+        );
+
+        resolve({
+          ...parsed,
+          latencyMs: Date.now() - started,
+          modelResponse: undefined,
+          ok: true,
+        });
+      } catch {
+        reject(new Error("Failed to parse benchmark test result."));
+      }
+    });
+  });
 }
 export async function testMcpServer(url: string) {
   const started = Date.now();

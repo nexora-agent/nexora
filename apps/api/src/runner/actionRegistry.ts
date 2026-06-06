@@ -405,7 +405,7 @@ export function buildSafeActionCall({
     createCheck(
       "Action",
       true,
-      `${action.name} is listed in benchmark availableActions.`,
+      `Execution validation source: benchmark JSON. Allowed action matched: ${action.name} (${action.signature}).`,
     ),
   );
 
@@ -424,7 +424,7 @@ export function buildSafeActionCall({
 
   if (!targetAllowed) {
     throw new Error(
-      `Selected target ${selectedTarget} is not one of the wallet allowed execution targets.`,
+      `Selected target ${selectedTarget} is not one of the wallet allowed execution targets. Execution validation source: benchmark JSON.`,
     );
   }
 
@@ -432,7 +432,7 @@ export function buildSafeActionCall({
     createCheck(
       "Target",
       true,
-      `${selectedTarget} is an allowed wallet execution target.`,
+      `Execution validation source: benchmark JSON. Allowed target matched: ${selectedTarget}.`,
     ),
   );
 
@@ -477,7 +477,7 @@ export function buildSafeActionCall({
     createCheck(
       "Selector",
       true,
-      `${selector} matches ${action.signature}.`,
+      `Built selector: ${selector} matches ${action.signature}.`,
     ),
   );
 
