@@ -249,6 +249,41 @@ export async function setAllowedAddressOnchain({
   return allowAutonomousTargetOnchain({ allowed, target, walletAddress });
 }
 
+export async function setAllowedSelectorOnchain({
+  allowed,
+  selector,
+  target,
+  walletAddress,
+}: {
+  allowed: boolean;
+  selector: `0x${string}`;
+  target: Address;
+  walletAddress?: `0x${string}`;
+}) {
+  const current = await readContractOrDefault(
+    () =>
+      readContract(wagmiConfig, {
+        abi: nexora4337AgentWalletAbi,
+        address: requireAgentWallet(walletAddress),
+        args: [target, selector],
+        chainId: mantleSepolia.id,
+        functionName: "allowedTargetSelectors",
+      }),
+    false,
+  );
+
+  if (current === allowed) {
+    return undefined;
+  }
+
+  return allowAutonomousSelectorOnchain({
+    allowed,
+    selector,
+    target,
+    walletAddress,
+  });
+}
+
 export async function saveExecutorPolicyOnchain({
   agentId,
   dailyLimitMnt,

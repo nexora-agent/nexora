@@ -424,12 +424,16 @@ export function buildSafeActionCall({
 
   if (!targetAllowed) {
     throw new Error(
-      `Selected target ${selectedTarget} is not one of the active benchmark targets.`,
+      `Selected target ${selectedTarget} is not one of the wallet allowed execution targets.`,
     );
   }
 
   checks.push(
-    createCheck("Target", true, `${selectedTarget} is an active benchmark target.`),
+    createCheck(
+      "Target",
+      true,
+      `${selectedTarget} is an allowed wallet execution target.`,
+    ),
   );
 
   const valueMnt = proposal.valueMnt ?? fallbackValueMnt;

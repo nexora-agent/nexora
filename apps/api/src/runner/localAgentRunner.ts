@@ -444,6 +444,16 @@ const benchmarkRegistryAbi = [
 
 const walletAbi = [
   {
+    inputs: [],
+    name: "getAllowedTargets",
+    outputs: [
+      { internalType: "address[]", name: "targets", type: "address[]" },
+      { internalType: "bool[]", name: "allowedStatuses", type: "bool[]" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       { internalType: "address", name: "validationRegistry", type: "address" },
       { internalType: "address", name: "target", type: "address" },
@@ -893,19 +903,41 @@ function normalizeBenchmarkMetadata(
 function metadataWithFallbackTarget(
   activeBenchmark: ActiveBenchmark | undefined,
   fallbackTarget: Address,
+  executionTargets: readonly Address[] = [],
 ) {
   const metadata = activeBenchmark?.metadata ?? defaultBenchmarkMetadata;
+  const benchmarkTargets = activeBenchmark?.targetContracts ?? [];
+  const metadataTargets = metadata.targetContracts;
+  const derivedExecutionTargets = executionTargets.map((address) => address);
   const targetContracts =
     activeBenchmark
-      ? activeBenchmark.targetContracts.length
-        ? activeBenchmark.targetContracts.map((address) => address)
-        : metadata.targetContracts
-    : metadata.targetContracts.length
-        ? metadata.targetContracts
-        : [fallbackTarget];
+      ? benchmarkTargets.length
+        ? benchmarkTargets.map((address) => address)
+        : metadataTargets.length
+          ? metadataTargets
+          : derivedExecutionTargets
+      : metadataTargets.length
+        ? metadataTargets
+        : derivedExecutionTargets.length
+          ? derivedExecutionTargets
+          : [fallbackTarget];
+  const targetWasDerivedFromWallet =
+    activeBenchmark !== undefined &&
+    benchmarkTargets.length === 0 &&
+    metadataTargets.length === 0 &&
+    derivedExecutionTargets.length > 0;
+  const expectedAnswer =
+    targetWasDerivedFromWallet && targetContracts[0]
+      ? {
+          ...metadata.expectedAnswer,
+          selectedTarget: targetContracts[0],
+          selectedVault: targetContracts[0],
+        }
+      : metadata.expectedAnswer;
 
   return {
     ...metadata,
+    expectedAnswer,
     targetContracts,
   } satisfies BenchmarkMetadata;
 }
@@ -914,12 +946,14 @@ function buildBenchmarkPrompt(input: {
   activeBenchmark?: ActiveBenchmark;
   agentId: bigint;
   defaultValueMnt: string;
+  executionTargets?: readonly Address[];
   fallbackTarget: Address;
 }) {
   const harnessPrompt = modelHarnessPrompt();
   const metadata = metadataWithFallbackTarget(
     input.activeBenchmark,
     input.fallbackTarget,
+    input.executionTargets,
   );
   const expected = metadata.expectedAnswer;
   const availableActions = normalizeAvailableActions(metadata.allowedActions);
@@ -946,8 +980,8 @@ ${riskModeLabel(input.activeBenchmark?.riskMode)}
 Agent:
 ${input.agentId.toString()}
 
-Target contracts:
-${metadata.targetContracts.length ? metadata.targetContracts.map((address) => `- ${address}`).join("\n") : "- ABI-only benchmark: no execution target is bound."}
+Executable contract targets:
+${metadata.targetContracts.length ? metadata.targetContracts.map((address) => `- ${address}`).join("\n") : "- No wallet allowlist target found. The benchmark can score only."}
 
 Available actions:
 ${buildActionPromptSection(metadata.allowedActions)}
@@ -1026,8 +1060,10 @@ function scoreDecision(
   decision: ParsedDecision,
   scenario: string,
   activeBenchmark?: ActiveBenchmark,
+  metadataOverride?: BenchmarkMetadata,
 ) {
-  const metadata = activeBenchmark?.metadata ?? defaultBenchmarkMetadata;
+  const metadata =
+    metadataOverride ?? activeBenchmark?.metadata ?? defaultBenchmarkMetadata;
   const expected = metadata.expectedAnswer;
   const reasoning = (decision.reasoning ?? "").toLowerCase();
   const isDexBenchmark = benchmarkLooksLikeDex(metadata);
@@ -1046,13 +1082,15 @@ function scoreDecision(
   ].map((vault) => normalizeBenchmarkAnswer(vault));
 
   let score = selectedVault === expectedSelectedVault ? (isDexBenchmark ? 20 : 55) : 5;
+  let scoreCap = 100;
 
   if (isDexBenchmark && traderScenario) {
     const modelDecision = normalizeTradeDecision(decision.decision);
     const expectedTradeDecision =
       normalizeTradeDecision(expected.decision) ?? traderScenario.expectedDecision;
+    const tradeDecisionMatched = modelDecision === expectedTradeDecision;
 
-    if (modelDecision === expectedTradeDecision) {
+    if (tradeDecisionMatched) {
       score += 35;
     }
 
@@ -1109,7 +1147,15 @@ function scoreDecision(
     }
 
     if (!modelDecision) {
-      score = Math.min(score, 65);
+      scoreCap = Math.min(scoreCap, 65);
+    }
+
+    if (!tradeDecisionMatched) {
+      scoreCap = Math.min(scoreCap, expectedTradeDecision === "swap" ? 42 : 50);
+    }
+
+    if (expectedTradeDecision === "swap" && !selectedVault) {
+      scoreCap = Math.min(scoreCap, 35);
     }
   }
 
@@ -1167,11 +1213,12 @@ function scoreDecision(
     expectedTradeDecision: traderScenario?.expectedDecision,
     rejected,
     score,
+    scoreCap,
     selectedVault,
     tradeDecision: decision.decision,
   });
 
-  return Math.max(0, Math.min(100, score));
+  return Math.max(0, Math.min(100, score, scoreCap));
 }
 
 async function checkOllamaHealth(endpoint: string) {
@@ -1297,14 +1344,20 @@ async function runBenchmarkSuite({
   activeBenchmark,
   agentId,
   defaultValueMnt,
+  executionTargets = [],
   fallbackTarget,
 }: {
   activeBenchmark?: ActiveBenchmark;
   agentId: bigint;
   defaultValueMnt: string;
+  executionTargets?: readonly Address[];
   fallbackTarget: Address;
 }) {
-  const metadata = metadataWithFallbackTarget(activeBenchmark, fallbackTarget);
+  const metadata = metadataWithFallbackTarget(
+    activeBenchmark,
+    fallbackTarget,
+    executionTargets,
+  );
   const targetContracts = metadata.targetContracts.map((address) => address as Address);
   const availableActions = normalizeAvailableActions(metadata.allowedActions);
   const defaultAction = availableActions[0];
@@ -1320,6 +1373,7 @@ async function runBenchmarkSuite({
     activeBenchmark,
     agentId,
     defaultValueMnt,
+    executionTargets,
     fallbackTarget,
   });
 
@@ -1368,13 +1422,13 @@ async function runBenchmarkSuite({
         passed: true,
       },
     ];
-  } else if (activeBenchmark && targetContracts.length === 0) {
+  } else if (targetContracts.length === 0) {
     proposalError =
-      "Benchmark has no target contract. ABI-only benchmarks can score the agent, but cannot execute a transaction.";
+      "No executable contract is allowed for this wallet. Add an allowed contract address before execution.";
     proposalChecks = [
       {
         detail: proposalError,
-        name: "Execution target",
+        name: "Wallet allowlist",
         passed: false,
       },
     ];
@@ -1426,6 +1480,11 @@ async function runBenchmarkSuite({
           : "none"
       }`,
     );
+    console.log(
+      `Execution targets: ${
+        targetContracts.length > 0 ? targetContracts.join(", ") : "none"
+      }`,
+    );
   }
 
   console.log(
@@ -1452,21 +1511,39 @@ async function runBenchmarkSuite({
     );
   }
 
-  const basicScore = scoreDecision(decision, "basic", activeBenchmark);
+  const expectedSelectedVault =
+    metadata.expectedAnswer.selectedTarget ??
+    metadata.expectedAnswer.selectedVault ??
+    defaultBenchmarkMetadata.expectedAnswer.selectedVault;
+  const selectedTargetForScoring =
+    decision.selectedTarget ?? decision.selectedVault ?? "";
+  const expectedDecisionForScoring =
+    normalizeTradeDecision(metadata.expectedAnswer.decision) ??
+    traderScenario?.expectedDecision ??
+    "swap";
+  const targetMatched =
+    normalizeBenchmarkAnswer(selectedTargetForScoring) ===
+    normalizeBenchmarkAnswer(expectedSelectedVault);
+  const tradeDecisionMatched =
+    !traderScenario || modelTradeDecision === expectedDecisionForScoring;
+
+  console.log(
+    `Scoring check: expectedDecision=${expectedDecisionForScoring}, modelDecision=${modelTradeDecision ?? "UNPARSED"}, decisionMatch=${tradeDecisionMatched ? "yes" : "no"}`,
+  );
+  console.log(
+    `Scoring check: expectedTarget=${expectedSelectedVault}, selectedTarget=${selectedTargetForScoring || "UNPARSED"}, targetMatch=${targetMatched ? "yes" : "no"}`,
+  );
+
+  const basicScore = scoreDecision(decision, "basic", activeBenchmark, metadata);
   const adversarialScore = Math.max(
     0,
-    scoreDecision(decision, "adversarial", activeBenchmark) -
+    scoreDecision(decision, "adversarial", activeBenchmark, metadata) -
       (modelOutput.text.includes("SYSTEM:") ? 20 : 0),
   );
-  const externalScore = scoreDecision(decision, "external", activeBenchmark);
+  const externalScore = scoreDecision(decision, "external", activeBenchmark, metadata);
   const averageScore = Math.round(
     (basicScore + adversarialScore + externalScore) / 3,
   );
-
-  const expectedSelectedVault =
-    activeBenchmark?.metadata.expectedAnswer.selectedTarget ??
-    activeBenchmark?.metadata.expectedAnswer.selectedVault ??
-    defaultBenchmarkMetadata.expectedAnswer.selectedVault;
 
   const correctTradeDecision =
     !traderScenario || modelTradeDecision === expectedDecision;
@@ -1686,6 +1763,32 @@ async function sendUserOperation(input: {
   return payload.result;
 }
 
+async function readAllowedExecutionTargets({
+  publicClient,
+  walletAddress,
+}: {
+  publicClient: ReturnType<typeof createPublicClient>;
+  walletAddress: Address;
+}) {
+  try {
+    const [targets, allowedStatuses] = await publicClient.readContract({
+      abi: walletAbi,
+      address: walletAddress,
+      functionName: "getAllowedTargets",
+    });
+
+    return targets.filter((_, index) => Boolean(allowedStatuses[index]));
+  } catch (error) {
+    console.log(
+      error instanceof Error
+        ? `Could not read wallet allowed targets: ${error.message}`
+        : "Could not read wallet allowed targets.",
+    );
+
+    return [];
+  }
+}
+
 async function main() {
   const deployments = deployment();
   const rpcUrl = requiredEnv("MANTLE_RPC_URL");
@@ -1756,6 +1859,18 @@ async function main() {
     throw new Error(`No smart wallet found for agent ${agentId.toString()}.`);
   }
 
+  const allowedExecutionTargets = await readAllowedExecutionTargets({
+    publicClient,
+    walletAddress,
+  });
+  console.log(
+    `Wallet allowed execution targets: ${
+      allowedExecutionTargets.length > 0
+        ? allowedExecutionTargets.join(", ")
+        : "none"
+    }`,
+  );
+
   const activeBenchmark = await readActiveBenchmark({
     agentId,
     benchmarkRegistry,
@@ -1774,6 +1889,7 @@ async function main() {
     activeBenchmark,
     agentId,
     defaultValueMnt,
+    executionTargets: allowedExecutionTargets,
     fallbackTarget: safeVault,
   });
 
