@@ -1484,14 +1484,19 @@ export async function testBenchmark(): Promise<{
 
     child.stdout.on("data", (chunk: Buffer) => {
       const text = chunk.toString();
-      addLog("info", text);
       logs.push(text);
 
       const lines = text.split("\n");
       for (const line of lines) {
-        const match = line.match(/^NEXORA_BENCHMARK_RESULT: (.+)$/);
-        if (match) {
-          resultJson = match[1];
+        const marker = "NEXORA_BENCHMARK_RESULT:";
+        const markerIndex = line.indexOf(marker);
+        if (markerIndex >= 0) {
+          resultJson = line.slice(markerIndex + marker.length).trim();
+          continue;
+        }
+
+        if (line.trim()) {
+          addLog("info", line);
         }
       }
     });
@@ -1543,6 +1548,7 @@ export async function testBenchmark(): Promise<{
           };
           expectedAnswer: BenchmarkMetadata["expectedAnswer"];
           externalScore: number;
+          executionTargets?: Address[];
           passed: boolean;
           score: number;
         };

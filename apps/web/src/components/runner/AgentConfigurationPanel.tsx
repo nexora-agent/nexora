@@ -149,6 +149,7 @@ type BenchmarkReport = {
     selectedTarget?: string;
     selectedVault?: string;
   };
+  executionTargets?: string[];
   latencyMs?: number;
   modelResponse?: string;
   passed: boolean;
@@ -245,6 +246,21 @@ function getTargetContract(benchmark?: BenchmarkDisplaySource) {
   return benchmark?.targetContracts?.[0];
 }
 
+function getBenchmarkExecutionTargets(
+  benchmark?: BenchmarkDisplaySource,
+  fallbackTargets: string[] = [],
+) {
+  return benchmark?.targetContracts?.length
+    ? benchmark.targetContracts
+    : fallbackTargets;
+}
+
+function getTargetSourceLabel(benchmark?: BenchmarkDisplaySource) {
+  return benchmark?.targetContracts?.length
+    ? "Benchmark JSON"
+    : "Wallet allowlist";
+}
+
 function normalizeBenchmarkResult(
   result: Awaited<ReturnType<typeof testRunnerBenchmark>>,
 ): BenchmarkReport {
@@ -262,6 +278,7 @@ function normalizeBenchmarkResult(
       selectedVault: report.decision?.selectedVault,
     },
     expectedAnswer: report.expectedAnswer,
+    executionTargets: report.executionTargets ?? [],
     latencyMs: report.latencyMs,
     modelResponse: report.modelResponse,
     passed: report.passed,
@@ -443,11 +460,16 @@ function getBenchmarkLabel(benchmark?: OnchainBenchmark) {
   return getBenchmarkName(benchmark);
 }
 
-function getTargetUsedLabel(benchmark?: OnchainBenchmark) {
+function getTargetUsedLabel(
+  benchmark?: OnchainBenchmark,
+  fallbackTargets: string[] = [],
+) {
   const target = getTargetContract(benchmark);
 
   if (!target) {
-    return "No target contract";
+    return fallbackTargets.length > 0
+      ? `Wallet allowlist (${fallbackTargets.length})`
+      : "Add allowed addresses";
   }
 
   return formatAddress(target);
@@ -1002,6 +1024,7 @@ function AgentWalletLinkCard({
 
 function RunnerControlCard({
   activeBenchmark,
+  allowedContractAddresses = [],
   config,
   isBusy,
   latestLog,
@@ -1013,6 +1036,7 @@ function RunnerControlCard({
   status,
 }: {
   activeBenchmark?: OnchainBenchmark;
+  allowedContractAddresses?: string[];
   config: RunnerConfig;
   isBusy: boolean;
   latestLog?: string;
@@ -1056,8 +1080,10 @@ function RunnerControlCard({
         </div>
 
         <div>
-          <dt>Target contract</dt>
-          <dd>{getTargetUsedLabel(activeBenchmark)}</dd>
+          <dt>Execution targets</dt>
+          <dd>
+            {getTargetUsedLabel(activeBenchmark, allowedContractAddresses)}
+          </dd>
         </div>
 
         <div>
@@ -1145,14 +1171,19 @@ function RunnerControlCard({
 }
 
 function BenchmarkUsedCard({
+  allowedContractAddresses = [],
   benchmark,
   isLoading,
 }: {
+  allowedContractAddresses?: string[];
   benchmark?: OnchainBenchmark;
   isLoading: boolean;
 }) {
   const metadata = getBenchmarkMetadata(benchmark);
   const targetUsed = getTargetContract(benchmark);
+  const executionTargets = targetUsed
+    ? [targetUsed]
+    : allowedContractAddresses;
 
   return (
     <section className="summary-card benchmark-used-card">
@@ -1178,19 +1209,21 @@ function BenchmarkUsedCard({
             </div> */}
 
             <div>
-              <dt>Target contract</dt>
+              <dt>Execution targets</dt>
               <dd>
                 {targetUsed ? (
                   <span title={targetUsed}>{formatAddress(targetUsed)}</span>
+                ) : executionTargets.length > 0 ? (
+                  `Wallet allowlist (${executionTargets.length})`
                 ) : (
-                  "No target contract in benchmark"
+                  "Add allowed addresses"
                 )}
               </dd>
             </div>
 
           </dl>
 
-          {(metadata?.description || benchmark.targetContracts.length > 1) && (
+          {(metadata?.description || executionTargets.length > 0) && (
             <details className="benchmark-model-response">
               <summary>Benchmark details</summary>
 
@@ -1201,10 +1234,15 @@ function BenchmarkUsedCard({
                 </div>
 
                 <div>
-                  <dt>All target contracts</dt>
+                  <dt>Target source</dt>
+                  <dd>{targetUsed ? "Benchmark JSON" : "Wallet allowlist"}</dd>
+                </div>
+
+                <div>
+                  <dt>Allowed execution targets</dt>
                   <dd>
-                    {benchmark.targetContracts.length > 0
-                      ? benchmark.targetContracts.map((address) => (
+                    {executionTargets.length > 0
+                      ? executionTargets.map((address) => (
                           <span key={address} title={address}>
                             {formatAddress(address)}
                           </span>
@@ -1983,6 +2021,7 @@ export function AgentConfigurationPanel({
         </div>
 
         <BenchmarkUsedCard
+          allowedContractAddresses={allowedContractAddresses}
           benchmark={activeBenchmarkPreview}
           isLoading={isLoadingBenchmarkPreview}
         />
@@ -2071,24 +2110,29 @@ export function AgentConfigurationPanel({
                         </div>
 
                         <div>
-                          <dt>Target contract</dt>
+                          <dt>Execution targets</dt>
                           <dd>
-                            {getTargetContract(
+                            {getBenchmarkExecutionTargets(
                               benchmarkResult.activeBenchmark,
-                            ) ? (
-                              <span
-                                title={getTargetContract(
+                              benchmarkResult.executionTargets,
+                            ).length > 0
+                              ? getBenchmarkExecutionTargets(
                                   benchmarkResult.activeBenchmark,
-                                )}
-                              >
-                                {formatAddress(
-                                  getTargetContract(
-                                    benchmarkResult.activeBenchmark,
-                                  ),
-                                )}
-                              </span>
-                            ) : (
-                              "—"
+                                  benchmarkResult.executionTargets,
+                                ).map((address) => (
+                                  <span key={address} title={address}>
+                                    {formatAddress(address)}
+                                  </span>
+                                ))
+                              : "Add allowed addresses"}
+                          </dd>
+                        </div>
+
+                        <div>
+                          <dt>Target source</dt>
+                          <dd>
+                            {getTargetSourceLabel(
+                              benchmarkResult.activeBenchmark,
                             )}
                           </dd>
                         </div>
@@ -2111,17 +2155,20 @@ export function AgentConfigurationPanel({
                             </div>
 
                             <div>
-                              <dt>All target contracts</dt>
+                              <dt>Allowed execution targets</dt>
                               <dd>
-                                {benchmarkResult.activeBenchmark.targetContracts
-                                  ?.length
-                                  ? benchmarkResult.activeBenchmark.targetContracts.map(
-                                      (address) => (
-                                        <span key={address} title={address}>
-                                          {formatAddress(address)}
-                                        </span>
-                                      ),
-                                    )
+                                {getBenchmarkExecutionTargets(
+                                  benchmarkResult.activeBenchmark,
+                                  benchmarkResult.executionTargets,
+                                ).length > 0
+                                  ? getBenchmarkExecutionTargets(
+                                      benchmarkResult.activeBenchmark,
+                                      benchmarkResult.executionTargets,
+                                    ).map((address) => (
+                                      <span key={address} title={address}>
+                                        {formatAddress(address)}
+                                      </span>
+                                    ))
                                   : "—"}
                               </dd>
                             </div>
@@ -2399,6 +2446,7 @@ export function AgentConfigurationPanel({
 
       <RunnerControlCard
         activeBenchmark={activeBenchmarkPreview}
+        allowedContractAddresses={allowedContractAddresses}
         config={config}
         isBusy={isBusy}
         latestLog={latestLog}

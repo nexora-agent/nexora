@@ -167,6 +167,7 @@ export async function testRunnerBenchmark(config?: RunnerConfig) {
       selectedTarget?: string;
       selectedVault?: string;
     };
+    executionTargets?: string[];
     latencyMs: number;
     modelResponse: string;
     ok: boolean;

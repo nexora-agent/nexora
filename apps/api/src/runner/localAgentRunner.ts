@@ -397,6 +397,16 @@ const benchmarkRegistryAbi = [
 
 const walletAbi = [
   {
+    inputs: [
+      { internalType: "address", name: "", type: "address" },
+      { internalType: "bytes4", name: "", type: "bytes4" },
+    ],
+    name: "allowedTargetSelectors",
+    outputs: [{ internalType: "bool", name: "", type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "getAllowedTargets",
     outputs: [
@@ -1002,7 +1012,7 @@ function scoreDecision(
   if (isDexBenchmark && traderScenario) {
     const modelDecision = normalizeTradeDecision(decision.decision);
     const expectedTradeDecision =
-      normalizeTradeDecision(expected.decision) ?? traderScenario.expectedDecision;
+      traderScenario.expectedDecision ?? normalizeTradeDecision(expected.decision);
     const tradeDecisionMatched = modelDecision === expectedTradeDecision;
 
     if (tradeDecisionMatched) {
@@ -1244,7 +1254,13 @@ function printProposalReport(input: {
   console.log("Nexora checked:");
 
   for (const check of input.proposalChecks) {
-    console.log(`${check.name}: ${check.passed ? "allowed" : "blocked"} - ${check.detail}`);
+    const status =
+      check.name === "Execution skipped"
+        ? "skipped"
+        : check.passed
+          ? "allowed"
+          : "blocked";
+    console.log(`${check.name}: ${status} - ${check.detail}`);
   }
 
   if (input.proposalError) {
@@ -1280,8 +1296,8 @@ async function runBenchmarkSuite({
     ? traderScenarioFor(metadata, activeBenchmark?.benchmarkHash)
     : undefined;
   const expectedDecision =
-    normalizeTradeDecision(metadata.expectedAnswer.decision) ??
     traderScenario?.expectedDecision ??
+    normalizeTradeDecision(metadata.expectedAnswer.decision) ??
     "swap";
 
   const prompt = buildBenchmarkPrompt({
@@ -1333,7 +1349,7 @@ async function runBenchmarkSuite({
     proposalChecks = [
       {
         detail: "Model rejected execution for this trading scenario.",
-        name: "Execution decision",
+        name: "Execution skipped",
         passed: true,
       },
     ];
@@ -1433,8 +1449,8 @@ async function runBenchmarkSuite({
   const selectedTargetForScoring =
     decision.selectedTarget ?? decision.selectedVault ?? "";
   const expectedDecisionForScoring =
-    normalizeTradeDecision(metadata.expectedAnswer.decision) ??
     traderScenario?.expectedDecision ??
+    normalizeTradeDecision(metadata.expectedAnswer.decision) ??
     "swap";
   const targetMatched =
     normalizeBenchmarkAnswer(selectedTargetForScoring) ===
@@ -1693,9 +1709,11 @@ async function sendUserOperation(input: {
 }
 
 async function readAllowedExecutionTargets({
+  activeBenchmark,
   publicClient,
   walletAddress,
 }: {
+  activeBenchmark?: ActiveBenchmark;
   publicClient: ReturnType<typeof createPublicClient>;
   walletAddress: Address;
 }) {
@@ -1706,7 +1724,37 @@ async function readAllowedExecutionTargets({
       functionName: "getAllowedTargets",
     });
 
-    return targets.filter((_, index) => Boolean(allowedStatuses[index]));
+    const allowedTargets = targets.filter((_, index) =>
+      Boolean(allowedStatuses[index]),
+    );
+    const actionSelectors = normalizeAvailableActions(
+      activeBenchmark?.metadata.allowedActions ?? [],
+    ).map((action) => action.selector);
+
+    if (actionSelectors.length === 0) {
+      return allowedTargets;
+    }
+
+    const matchingTargets: Address[] = [];
+
+    for (const target of allowedTargets) {
+      const selectorAllowed = await Promise.all(
+        actionSelectors.map((selector) =>
+          publicClient.readContract({
+            abi: walletAbi,
+            address: walletAddress,
+            args: [target, selector],
+            functionName: "allowedTargetSelectors",
+          }),
+        ),
+      );
+
+      if (selectorAllowed.some(Boolean)) {
+        matchingTargets.push(target);
+      }
+    }
+
+    return matchingTargets.length > 0 ? matchingTargets : allowedTargets;
   } catch (error) {
     console.log(
       error instanceof Error
@@ -1759,12 +1807,6 @@ async function main() {
     "NexoraBenchmarkRegistry",
   );
 
-  const safeVault = contractAddress(
-    deployments,
-    "NEXORA_SAFE_VAULT",
-    "NexoraSafeVault",
-  );
-
   const entryPoint = useBundler
     ? contractAddress(
         deployments,
@@ -1788,18 +1830,6 @@ async function main() {
     throw new Error(`No smart wallet found for agent ${agentId.toString()}.`);
   }
 
-  const allowedExecutionTargets = await readAllowedExecutionTargets({
-    publicClient,
-    walletAddress,
-  });
-  console.log(
-    `Wallet allowed execution targets: ${
-      allowedExecutionTargets.length > 0
-        ? allowedExecutionTargets.join(", ")
-        : "none"
-    }`,
-  );
-
   const activeBenchmark = await readActiveBenchmark({
     agentId,
     benchmarkRegistry,
@@ -1818,6 +1848,19 @@ async function main() {
     return;
   }
 
+  const allowedExecutionTargets = await readAllowedExecutionTargets({
+    activeBenchmark,
+    publicClient,
+    walletAddress,
+  });
+  console.log(
+    `Wallet allowed execution targets for benchmark action: ${
+      allowedExecutionTargets.length > 0
+        ? allowedExecutionTargets.join(", ")
+        : "none"
+    }`,
+  );
+
   console.log("Running benchmark suite...");
 
   const benchmark = await runBenchmarkSuite({
@@ -1825,7 +1868,7 @@ async function main() {
     agentId,
     defaultValueMnt,
     executionTargets: allowedExecutionTargets,
-    fallbackTarget: safeVault,
+    fallbackTarget: allowedExecutionTargets[0] ?? zeroAddress,
   });
 
   console.log(
@@ -1856,6 +1899,7 @@ async function main() {
       },
       expectedAnswer: activeBenchmark.metadata.expectedAnswer,
       externalScore: benchmark.externalScore,
+      executionTargets: allowedExecutionTargets,
       latencyMs: 0,
       modelResponse: undefined as string | undefined,
       passed: benchmark.passed,
