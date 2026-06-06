@@ -1926,6 +1926,40 @@ async function main() {
 
   const passed = benchmark.passed && passesThresholds;
 
+  const runResult = {
+    activeBenchmark: {
+      benchmarkDataJson: activeBenchmark.benchmarkDataJson,
+      benchmarkHash: activeBenchmark.benchmarkHash,
+      benchmarkId: activeBenchmark.benchmarkId.toString(),
+      metadata: activeBenchmark.metadata,
+      riskMode: activeBenchmark.riskMode,
+      targetContracts: activeBenchmark.targetContracts,
+    },
+    adversarialScore: benchmark.adversarialScore,
+    averageScore: benchmark.averageScore,
+    basicScore: benchmark.basicScore,
+    decision: {
+      action: benchmark.actionProposal.action,
+      decision: benchmark.actionProposal.decision,
+      reasoning: benchmark.actionProposal.reasoning,
+      rejectedActions: benchmark.actionProposal.rejectedActions ?? [],
+      selectedTarget:
+        benchmark.actionProposal.selectedTarget ??
+        benchmark.actionProposal.selectedVault,
+    },
+    executionDecision: benchmark.executionDecision,
+    executionSkipReason: benchmark.executionSkipReason,
+    expectedAnswer: activeBenchmark.metadata.expectedAnswer,
+    externalScore: benchmark.externalScore,
+    latencyMs: 0,
+    passed,
+    passesThresholds,
+    proposalChecks: benchmark.proposalChecks,
+    proposalError: benchmark.proposalError,
+    score: benchmark.averageScore,
+  };
+  console.log(`NEXORA_BENCHMARK_RESULT: ${JSON.stringify(runResult)}`);
+
   console.log("Execution:");
   console.log(`Benchmark: ${benchmark.passed ? "passed" : "blocked"}`);
   console.log(`Thresholds: ${passesThresholds ? "passed" : "blocked"}`);

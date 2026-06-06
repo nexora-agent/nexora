@@ -259,12 +259,42 @@ const defaultConfig: RunnerConfig = {
   },
 };
 
+type LastRunResult = {
+  adversarialScore: number;
+  averageScore: number;
+  basicScore: number;
+  decision: {
+    action?: string;
+    decision?: string;
+    reasoning?: string;
+    rejectedActions: string[];
+    selectedTarget?: string;
+  };
+  executionDecision?: string;
+  executionSkipReason?: string;
+  expectedAnswer?: {
+    action?: string;
+    decision?: string;
+    rejectedActions?: string[];
+    reasoning?: string;
+    selectedTarget?: string;
+  };
+  externalScore: number;
+  passed: boolean;
+  passesThresholds?: boolean;
+  proposalError?: string;
+  score: number;
+  benchmarkName?: string;
+  benchmarkId?: string;
+};
+
 let config = loadConfig();
 let logs: RunnerLogEntry[] = [];
 let activeRun: ChildProcessWithoutNullStreams | undefined;
 let activeRunStartedAt: string | undefined;
 let lastRunFinishedAt: string | undefined;
 let lastRunExitCode: number | null | undefined;
+let lastRunResult: LastRunResult | undefined;
 let autoTimer: NodeJS.Timeout | undefined;
 
 function now() {
@@ -348,6 +378,7 @@ export function getRunnerStatus() {
     executorAddress,
     lastRunExitCode,
     lastRunFinishedAt,
+    lastRunResult,
     logs: logs.slice(-80),
     online: true,
     runStartedAt: activeRunStartedAt,
@@ -1628,7 +1659,38 @@ export function runAgentOnce() {
 
   activeRun = child;
 
-  child.stdout.on("data", (chunk: Buffer) => addLog("info", chunk.toString()));
+  child.stdout.on("data", (chunk: Buffer) => {
+    const text = chunk.toString();
+    addLog("info", text);
+    for (const line of text.split("\n")) {
+      const match = line.match(/^NEXORA_BENCHMARK_RESULT: (.+)$/);
+      if (match) {
+        try {
+          const parsed = JSON.parse(match[1]) as LastRunResult & {
+            activeBenchmark?: { metadata?: { name?: string }; benchmarkId?: string };
+          };
+          lastRunResult = {
+            adversarialScore: parsed.adversarialScore,
+            averageScore: parsed.averageScore,
+            basicScore: parsed.basicScore,
+            benchmarkId: parsed.activeBenchmark?.benchmarkId,
+            benchmarkName: parsed.activeBenchmark?.metadata?.name,
+            decision: parsed.decision,
+            executionDecision: parsed.executionDecision,
+            executionSkipReason: parsed.executionSkipReason,
+            expectedAnswer: parsed.expectedAnswer,
+            externalScore: parsed.externalScore,
+            passed: parsed.passed,
+            passesThresholds: parsed.passesThresholds,
+            proposalError: parsed.proposalError,
+            score: parsed.score,
+          };
+        } catch {
+          // ignore parse errors
+        }
+      }
+    }
+  });
   child.stderr.on("data", (chunk: Buffer) => addLog("error", chunk.toString()));
   child.on("error", (error) => {
     addLog("error", error.message);

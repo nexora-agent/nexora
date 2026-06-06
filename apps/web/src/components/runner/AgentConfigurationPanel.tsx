@@ -35,6 +35,7 @@ import {
   stopRunnerAutoMode,
   testRunnerBenchmark,
   testRunnerMcp,
+  type LastRunResult,
   type RunnerConfig,
   type RunnerStatus,
 } from "@/lib/runner/runnerClient";
@@ -659,6 +660,93 @@ function unifiedExecutionScore(thresholds?: PreflightThresholds) {
   }
 
   return thresholds.averageMinScore;
+}
+
+function getExecutionStatus(result: LastRunResult): string {
+  if (!result.passed) return "Benchmark blocked";
+  if (result.passesThresholds === false) return "Execution skipped";
+  if (result.executionDecision === "executed") return "Execution completed";
+  if (result.executionDecision === "skipped") return "Execution skipped";
+  if (result.executionDecision === "ready") return "Execution ready";
+  return "Benchmark passed";
+}
+
+function getBlockedReason(result: LastRunResult): string | undefined {
+  if (!result.passed) {
+    if (result.decision.decision) {
+      return `Blocked: model decision was "${result.decision.decision}"`;
+    }
+    return "Blocked: benchmark score too low";
+  }
+  if (result.passesThresholds === false) {
+    return `Blocked: score ${result.score} below required threshold`;
+  }
+  if (result.executionDecision === "skipped" && result.executionSkipReason) {
+    return `Skipped: ${result.executionSkipReason}`;
+  }
+  if (result.proposalError) {
+    return `Error: ${result.proposalError}`;
+  }
+  return undefined;
+}
+
+function LatestResultCard({ result }: { result: LastRunResult }) {
+  const statusLabel = getExecutionStatus(result);
+  const blockedReason = getBlockedReason(result);
+  const isBlocked = !result.passed || result.passesThresholds === false;
+
+  return (
+    <section className="summary-card runner-latest-result-card">
+      <div className="card-heading-row">
+        <div>
+          <h3>Latest Result</h3>
+
+          {result.benchmarkName && (
+            <p className="runner-note">{result.benchmarkName}</p>
+          )}
+        </div>
+
+        <span
+          className={`status-pill ${isBlocked ? "status-disconnected" : "status-ready"}`}
+        >
+          {statusLabel}
+        </span>
+      </div>
+
+      <dl className="runner-control-details">
+        <div>
+          <dt>Score</dt>
+          <dd>{result.score}</dd>
+        </div>
+
+        {result.expectedAnswer?.decision && (
+          <div>
+            <dt>Expected decision</dt>
+            <dd>{result.expectedAnswer.decision}</dd>
+          </div>
+        )}
+
+        <div>
+          <dt>Model decision</dt>
+          <dd>{result.decision.decision ?? "—"}</dd>
+        </div>
+
+        {result.decision.selectedTarget && (
+          <div>
+            <dt>Selected target</dt>
+            <dd>{result.decision.selectedTarget}</dd>
+          </div>
+        )}
+
+        {blockedReason && (
+          <div>
+            <dt>Reason</dt>
+            <dd>{blockedReason}</dd>
+          </div>
+        )}
+      </dl>
+    </section>
+  );
 }
 
 function AgentExecutionThresholdsCard({
@@ -2457,6 +2545,10 @@ export function AgentConfigurationPanel({
         selectedAgent={selectedAgent}
         status={status}
       />
+
+      {status?.lastRunResult && (
+        <LatestResultCard result={status.lastRunResult} />
+      )}
 
       <section className="summary-card">
         <div className="card-heading-row">

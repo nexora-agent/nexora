@@ -32,12 +32,42 @@ export type RunnerLogEntry = {
   timestamp: string;
 };
 
+export type LastRunResult = {
+  adversarialScore: number;
+  averageScore: number;
+  basicScore: number;
+  benchmarkId?: string;
+  benchmarkName?: string;
+  decision: {
+    action?: string;
+    decision?: string;
+    reasoning?: string;
+    rejectedActions: string[];
+    selectedTarget?: string;
+  };
+  executionDecision?: string;
+  executionSkipReason?: string;
+  expectedAnswer?: {
+    action?: string;
+    decision?: string;
+    reasoning?: string;
+    rejectedActions?: string[];
+    selectedTarget?: string;
+  };
+  externalScore: number;
+  passed: boolean;
+  passesThresholds?: boolean;
+  proposalError?: string;
+  score: number;
+};
+
 export type RunnerStatus = {
   autoMode: boolean;
   config: RunnerConfig;
   executorAddress?: string;
   lastRunExitCode?: number | null;
   lastRunFinishedAt?: string;
+  lastRunResult?: LastRunResult;
   logs: RunnerLogEntry[];
   online: boolean;
   runStartedAt?: string;
