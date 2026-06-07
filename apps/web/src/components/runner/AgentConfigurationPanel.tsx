@@ -181,6 +181,8 @@ type RunnerStatusWithExecutor = RunnerStatus & {
 
 type WalletLinkStatus =
   | "checking"
+  | "expired"
+  | "expiring"
   | "linked"
   | "linked-other"
   | "missing-executor"
@@ -197,6 +199,15 @@ function formatTime(value?: string) {
     minute: "2-digit",
     second: "2-digit",
   }).format(new Date(value));
+}
+
+function formatUnixSeconds(value?: number) {
+  if (!value) return "Never";
+
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value * 1000));
 }
 
 function formatAddress(address?: string) {
@@ -600,10 +611,22 @@ function getWalletLinkStatus({
     return "not-linked";
   }
 
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const expiresAt = Number(state.validUntil);
+  const hasExpiry = expiresAt > 0;
+
+  if (hasExpiry && expiresAt <= nowSeconds) {
+    return "expired";
+  }
+
   if (
     normalizeAddressValue(linkedExecutor) ===
     normalizeAddressValue(executorAddress)
   ) {
+    if (hasExpiry && expiresAt - nowSeconds <= 15 * 60) {
+      return "expiring";
+    }
+
     return "linked";
   }
 
@@ -614,6 +637,10 @@ function getWalletLinkStatusLabel(status: WalletLinkStatus) {
   switch (status) {
     case "checking":
       return "Checking wallet link...";
+    case "expired":
+      return "Executor expired";
+    case "expiring":
+      return "Executor expires soon";
     case "linked":
       return "Linked";
     case "linked-other":
@@ -633,7 +660,11 @@ function getWalletLinkStatusLabel(status: WalletLinkStatus) {
 }
 
 function getWalletLinkStatusClass(status: WalletLinkStatus) {
-  return status === "linked" ? "status-ready" : "status-disconnected";
+  return status === "linked"
+    ? "status-ready"
+    : status === "expiring"
+      ? "status-warning"
+      : "status-disconnected";
 }
 
 function normalizeAddressInput(address: string) {
@@ -1043,6 +1074,11 @@ function AgentWalletLinkCard({
           <dd>{getWalletLinkStatusLabel(linkStatus)}</dd>
         </div>
 
+        <div>
+          <dt>Executor expires</dt>
+          <dd>{formatUnixSeconds(autonomyState?.validUntil)}</dd>
+        </div>
+
         {linkedExecutor && linkStatus === "linked-other" ? (
           <div>
             <dt>Current executor</dt>
@@ -1060,8 +1096,10 @@ function AgentWalletLinkCard({
         >
           {isLinkingWallet
             ? "Linking..."
-            : isLinked
+            : linkStatus === "linked"
               ? "Linked"
+              : linkStatus === "expiring" || linkStatus === "expired"
+                ? "Renew Executor"
               : "Link Agent to Wallet"}
         </button>
       </div>

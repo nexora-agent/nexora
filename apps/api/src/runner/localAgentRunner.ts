@@ -509,6 +509,20 @@ const benchmarkRegistryAbi = [
 
 const walletAbi = [
   {
+    inputs: [],
+    name: "executorPolicy",
+    outputs: [
+      { internalType: "address", name: "executor", type: "address" },
+      { internalType: "bool", name: "enabled", type: "bool" },
+      { internalType: "bool", name: "requirePreflight", type: "bool" },
+      { internalType: "uint256", name: "maxValuePerAction", type: "uint256" },
+      { internalType: "uint256", name: "dailyLimit", type: "uint256" },
+      { internalType: "uint64", name: "validUntil", type: "uint64" },
+    ],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       { internalType: "address", name: "", type: "address" },
       { internalType: "bytes4", name: "", type: "bytes4" },
@@ -2111,6 +2125,47 @@ async function readAllowedExecutionTargets({
   }
 }
 
+async function executorPolicyAllowsRun({
+  executor,
+  publicClient,
+  walletAddress,
+}: {
+  executor: Address;
+  publicClient: ReturnType<typeof createPublicClient>;
+  walletAddress: Address;
+}) {
+  const policy = await publicClient.readContract({
+    abi: walletAbi,
+    address: walletAddress,
+    functionName: "executorPolicy",
+  });
+
+  const [policyExecutor, enabled, requirePreflight, maxValuePerAction, dailyLimit, validUntil] =
+    policy;
+  const nowSeconds = Math.floor(Date.now() / 1000);
+  const executorMatches =
+    policyExecutor.toLowerCase() === executor.toLowerCase() &&
+    policyExecutor.toLowerCase() !== zeroAddress.toLowerCase();
+  const notExpired = Number(validUntil) === 0 || Number(validUntil) >= nowSeconds;
+  const allowed = enabled && executorMatches && notExpired;
+
+  console.log(`Wallet executor policy:`);
+  console.log(`- executor: ${policyExecutor}`);
+  console.log(`- enabled: ${enabled}`);
+  console.log(`- requirePreflight: ${requirePreflight}`);
+  console.log(`- maxValuePerAction wei: ${maxValuePerAction.toString()}`);
+  console.log(`- dailyLimit wei: ${dailyLimit.toString()}`);
+  console.log(`- validUntil: ${validUntil.toString()}`);
+
+  if (!allowed) {
+    console.log(
+      `Execution blocked: wallet is not linked to local executor ${executor}. Link this agent wallet in Agent Configuration before running execution.`,
+    );
+  }
+
+  return allowed;
+}
+
 async function main() {
   const deployments = deployment();
   const rpcUrl = requiredEnv("MANTLE_RPC_URL");
@@ -2337,6 +2392,19 @@ async function main() {
     console.log(
       "Skipping failed validation write. Set NEXORA_RECORD_FAILED_VALIDATION=true to record failed benchmark proofs on-chain.",
     );
+    return;
+  }
+
+  if (
+    passed &&
+    benchmark.executionDecision === "execute" &&
+    !(await executorPolicyAllowsRun({
+      executor: account.address,
+      publicClient,
+      walletAddress,
+    }))
+  ) {
+    console.log("No validation proof was published because the executor policy is not ready.");
     return;
   }
 
