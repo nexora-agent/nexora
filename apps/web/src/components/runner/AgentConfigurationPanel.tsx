@@ -10,8 +10,11 @@ import type { Address, Hex } from "viem";
 import { keccak256, toBytes } from "viem";
 import {
   readActiveBenchmarkForAgent,
+  readBenchmarksOfOwner,
+  selectBenchmarkForAgentOnchain,
   type OnchainBenchmark,
 } from "@/lib/contracts/onchainBenchmarks";
+import { isBenchmarkRegistryReady } from "@/lib/contracts/deployments";
 import {
   readAutonomyStateOnchain,
   saveExecutorPolicyOnchain,
@@ -1351,6 +1354,141 @@ function BenchmarkUsedCard({
   );
 }
 
+function AgentBenchmarkSelectorCard({
+  activeBenchmark,
+  activeBenchmarkId,
+  availableBenchmarks,
+  isBenchmarkReady,
+  isBusy,
+  isLoading,
+  isSaving,
+  onActiveBenchmarkIdChange,
+  onRefresh,
+  onSave,
+  selectedAgentIdentityId,
+}: {
+  activeBenchmark?: OnchainBenchmark;
+  activeBenchmarkId: string;
+  availableBenchmarks: OnchainBenchmark[];
+  isBenchmarkReady: boolean;
+  isBusy: boolean;
+  isLoading: boolean;
+  isSaving: boolean;
+  onActiveBenchmarkIdChange: (benchmarkId: string) => void;
+  onRefresh: () => void;
+  onSave: () => void;
+  selectedAgentIdentityId?: string;
+}) {
+  const selectedBenchmark = availableBenchmarks.find(
+    (benchmark) => String(benchmark.benchmarkId) === String(activeBenchmarkId),
+  );
+
+  return (
+    <div className="benchmark-debug-section">
+      <div className="card-heading-row">
+        <div>
+          <h4>Benchmark Selector</h4>
+
+          <p className="runner-note">
+            Assign one owned benchmark to the selected ERC-8004 identity.
+          </p>
+        </div>
+
+        <button
+          className="ghost-action"
+          disabled={!isBenchmarkReady || isBusy || isSaving || isLoading}
+          onClick={onRefresh}
+          type="button"
+        >
+          Refresh
+        </button>
+      </div>
+
+      <dl className="benchmark-debug-grid">
+        <div>
+          <dt>Agent identity</dt>
+          <dd>
+            {selectedAgentIdentityId
+              ? `ERC-8004 #${selectedAgentIdentityId}`
+              : "No agent selected"}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Active benchmark</dt>
+          <dd>{activeBenchmark ? getBenchmarkName(activeBenchmark) : "None"}</dd>
+        </div>
+
+        {selectedBenchmark &&
+        String(selectedBenchmark.benchmarkId) !==
+          String(activeBenchmark?.benchmarkId ?? "") ? (
+          <div>
+            <dt>Pending selection</dt>
+            <dd>{getBenchmarkName(selectedBenchmark)}</dd>
+          </div>
+        ) : null}
+      </dl>
+
+      <div className="executor-form">
+        <label>
+          <span>Benchmark</span>
+
+          <select
+            disabled={
+              !selectedAgentIdentityId ||
+              !isBenchmarkReady ||
+              isBusy ||
+              isSaving ||
+              isLoading ||
+              availableBenchmarks.length === 0
+            }
+            onChange={(event) =>
+              onActiveBenchmarkIdChange(event.target.value)
+            }
+            value={activeBenchmarkId}
+          >
+            <option value="">Select benchmark</option>
+            {availableBenchmarks.map((benchmark) => (
+              <option
+                key={String(benchmark.benchmarkId)}
+                value={String(benchmark.benchmarkId)}
+              >
+                {getBenchmarkName(benchmark)}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <button
+          className="primary-action"
+          disabled={
+            !selectedAgentIdentityId ||
+            !isBenchmarkReady ||
+            !activeBenchmarkId ||
+            isBusy ||
+            isSaving ||
+            isLoading
+          }
+          onClick={onSave}
+          type="button"
+        >
+          {isSaving ? "Waiting..." : "Store On-Chain"}
+        </button>
+      </div>
+
+      {!isBenchmarkReady && (
+        <p className="ownership-note">Benchmark registry is not deployed yet.</p>
+      )}
+
+      {isBenchmarkReady && !isLoading && availableBenchmarks.length === 0 && (
+        <p className="ownership-note">
+          Create a benchmark before assigning one to this agent.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function AgentConfigurationPanel({
   agents = [],
 }: {
@@ -1378,6 +1516,13 @@ export function AgentConfigurationPanel({
   >();
   const [isLoadingBenchmarkPreview, setIsLoadingBenchmarkPreview] =
     useState(false);
+  const [availableBenchmarks, setAvailableBenchmarks] = useState<
+    OnchainBenchmark[]
+  >([]);
+  const [activeBenchmarkId, setActiveBenchmarkId] = useState("");
+  const [isLoadingAvailableBenchmarks, setIsLoadingAvailableBenchmarks] =
+    useState(false);
+  const [isSavingActiveBenchmark, setIsSavingActiveBenchmark] = useState(false);
   const [autonomyState, setAutonomyState] = useState<
     AutonomyOnchainState | undefined
   >();
@@ -1419,6 +1564,15 @@ export function AgentConfigurationPanel({
   const executorAddress = getExecutorAddress(status);
   const selectedAgentIdentityId = getAgentRuntimeId(selectedAgent);
   const expectedBenchmarkAnswer = getExpectedBenchmarkAnswer(benchmarkResult);
+  const isBenchmarkReady = isBenchmarkRegistryReady();
+  const activeBenchmarkSelection = useMemo(
+    () =>
+      availableBenchmarks.find(
+        (benchmark) =>
+          String(benchmark.benchmarkId) === String(activeBenchmarkId),
+      ),
+    [activeBenchmarkId, availableBenchmarks],
+  );
 
   const updateConfig = (nextConfig: RunnerConfig) => {
     isDirtyRef.current = true;
@@ -1442,6 +1596,61 @@ export function AgentConfigurationPanel({
       }
     } catch {
       setNotice("Runner API is offline. Start it with pnpm nexora:dev.");
+    }
+  };
+
+
+  const refreshAvailableBenchmarks = async () => {
+    if (!selectedAgentIdentityId) {
+      setAvailableBenchmarks([]);
+      setActiveBenchmarkId("");
+      setActiveBenchmarkPreview(undefined);
+      return;
+    }
+
+    if (!isBenchmarkReady) {
+      setAvailableBenchmarks([]);
+      setActiveBenchmarkId("");
+      setActiveBenchmarkPreview(undefined);
+      return;
+    }
+
+    setIsLoadingAvailableBenchmarks(true);
+    setIsLoadingBenchmarkPreview(true);
+
+    try {
+      const [ownedBenchmarks, appliedBenchmark] = await Promise.all([
+        selectedAgent?.ownerAddress
+          ? readBenchmarksOfOwner(selectedAgent.ownerAddress)
+          : Promise.resolve([]),
+        readActiveBenchmarkForAgent(selectedAgentIdentityId).catch(
+          () => undefined,
+        ),
+      ]);
+
+      const mergedBenchmarks = appliedBenchmark
+        ? [
+            appliedBenchmark,
+            ...ownedBenchmarks.filter(
+              (benchmark) =>
+                String(benchmark.benchmarkId) !==
+                String(appliedBenchmark.benchmarkId),
+            ),
+          ]
+        : ownedBenchmarks;
+
+      setAvailableBenchmarks(mergedBenchmarks);
+      setActiveBenchmarkPreview(appliedBenchmark);
+      setActiveBenchmarkId(
+        appliedBenchmark ? String(appliedBenchmark.benchmarkId) : "",
+      );
+    } catch {
+      setAvailableBenchmarks([]);
+      setActiveBenchmarkPreview(undefined);
+      setActiveBenchmarkId("");
+    } finally {
+      setIsLoadingAvailableBenchmarks(false);
+      setIsLoadingBenchmarkPreview(false);
     }
   };
 
@@ -1515,37 +1724,72 @@ export function AgentConfigurationPanel({
   useEffect(() => {
     let cancelled = false;
 
-    async function loadActiveBenchmarkPreview() {
-      if (!config.agentId) {
+    async function loadAvailableBenchmarks() {
+      if (!selectedAgentIdentityId) {
+        setAvailableBenchmarks([]);
+        setActiveBenchmarkId("");
         setActiveBenchmarkPreview(undefined);
         return;
       }
 
+      if (!isBenchmarkReady) {
+        setAvailableBenchmarks([]);
+        setActiveBenchmarkId("");
+        setActiveBenchmarkPreview(undefined);
+        return;
+      }
+
+      setIsLoadingAvailableBenchmarks(true);
       setIsLoadingBenchmarkPreview(true);
 
       try {
-        const benchmark = await readActiveBenchmarkForAgent(config.agentId);
+        const [ownedBenchmarks, appliedBenchmark] = await Promise.all([
+          selectedAgent?.ownerAddress
+            ? readBenchmarksOfOwner(selectedAgent.ownerAddress)
+            : Promise.resolve([]),
+          readActiveBenchmarkForAgent(selectedAgentIdentityId).catch(
+            () => undefined,
+          ),
+        ]);
 
-        if (!cancelled) {
-          setActiveBenchmarkPreview(benchmark);
-        }
+        if (cancelled) return;
+
+        const mergedBenchmarks = appliedBenchmark
+          ? [
+              appliedBenchmark,
+              ...ownedBenchmarks.filter(
+                (benchmark) =>
+                  String(benchmark.benchmarkId) !==
+                  String(appliedBenchmark.benchmarkId),
+              ),
+            ]
+          : ownedBenchmarks;
+
+        setAvailableBenchmarks(mergedBenchmarks);
+        setActiveBenchmarkPreview(appliedBenchmark);
+        setActiveBenchmarkId(
+          appliedBenchmark ? String(appliedBenchmark.benchmarkId) : "",
+        );
       } catch {
         if (!cancelled) {
+          setAvailableBenchmarks([]);
           setActiveBenchmarkPreview(undefined);
+          setActiveBenchmarkId("");
         }
       } finally {
         if (!cancelled) {
+          setIsLoadingAvailableBenchmarks(false);
           setIsLoadingBenchmarkPreview(false);
         }
       }
     }
 
-    void loadActiveBenchmarkPreview();
+    void loadAvailableBenchmarks();
 
     return () => {
       cancelled = true;
     };
-  }, [config.agentId]);
+  }, [isBenchmarkReady, selectedAgent?.ownerAddress, selectedAgentIdentityId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1638,6 +1882,72 @@ export function AgentConfigurationPanel({
       cancelled = true;
     };
   }, [executorAddress, selectedAgent?.walletAddress, selectedAgentIdentityId]);
+
+  const saveActiveBenchmark = async () => {
+    if (!selectedAgentIdentityId) {
+      setNotice("Select a wallet with an ERC-8004 identity first.");
+      return;
+    }
+
+    if (!isBenchmarkReady) {
+      setNotice("Benchmark registry is not deployed yet.");
+      return;
+    }
+
+    if (!activeBenchmarkId) {
+      setNotice("Select a benchmark first.");
+      return;
+    }
+
+    setIsBusy(true);
+    setIsSavingActiveBenchmark(true);
+    setNotice("Confirm benchmark selection in MetaMask...");
+
+    try {
+      await selectBenchmarkForAgentOnchain({
+        agentId: selectedAgentIdentityId,
+        benchmarkId: activeBenchmarkId,
+      });
+
+      const nextActiveBenchmark =
+        (await readActiveBenchmarkForAgent(selectedAgentIdentityId).catch(
+          () => undefined,
+        )) ?? activeBenchmarkSelection;
+
+      if (nextActiveBenchmark) {
+        setActiveBenchmarkPreview(nextActiveBenchmark);
+        setActiveBenchmarkId(String(nextActiveBenchmark.benchmarkId));
+        setAvailableBenchmarks((current) => [
+          nextActiveBenchmark,
+          ...current.filter(
+            (benchmark) =>
+              String(benchmark.benchmarkId) !==
+              String(nextActiveBenchmark.benchmarkId),
+          ),
+        ]);
+      }
+
+      setBenchmarkResult(undefined);
+      setBenchmarkState("idle");
+      setShowBenchmarkDetails(false);
+      setNotice(
+        `Benchmark selected for ERC-8004 #${selectedAgentIdentityId}: ${
+          nextActiveBenchmark
+            ? getBenchmarkName(nextActiveBenchmark)
+            : `Benchmark #${activeBenchmarkId}`
+        }.`,
+      );
+    } catch (error) {
+      setNotice(
+        error instanceof Error
+          ? error.message
+          : "Could not select benchmark.",
+      );
+    } finally {
+      setIsBusy(false);
+      setIsSavingActiveBenchmark(false);
+    }
+  };
 
   const testBenchmark = async () => {
     setIsBusy(true);
@@ -2107,6 +2417,20 @@ export function AgentConfigurationPanel({
                   : "Test Benchmark"}
           </button>
         </div>
+
+        <AgentBenchmarkSelectorCard
+          activeBenchmark={activeBenchmarkPreview}
+          activeBenchmarkId={activeBenchmarkId}
+          availableBenchmarks={availableBenchmarks}
+          isBenchmarkReady={isBenchmarkReady}
+          isBusy={isBusy}
+          isLoading={isLoadingAvailableBenchmarks}
+          isSaving={isSavingActiveBenchmark}
+          onActiveBenchmarkIdChange={setActiveBenchmarkId}
+          onRefresh={() => void refreshAvailableBenchmarks()}
+          onSave={() => void saveActiveBenchmark()}
+          selectedAgentIdentityId={selectedAgentIdentityId}
+        />
 
         <BenchmarkUsedCard
           allowedContractAddresses={allowedContractAddresses}

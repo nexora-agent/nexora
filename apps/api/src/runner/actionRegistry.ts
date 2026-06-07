@@ -275,6 +275,61 @@ function extractJsonObject(text: string) {
   return objectMatch?.[0];
 }
 
+function sanitizeLooseJson(value: string) {
+  let output = "";
+  let inString = false;
+  let escaped = false;
+
+  for (const current of value) {
+    if (escaped) {
+      output += current;
+      escaped = false;
+      continue;
+    }
+
+    if (current === "\\") {
+      output += current;
+      escaped = true;
+      continue;
+    }
+
+    if (current === "\"") {
+      output += current;
+      inString = !inString;
+      continue;
+    }
+
+    if (inString) {
+      if (current === "\n") {
+        output += "\\n";
+        continue;
+      }
+
+      if (current === "\r") {
+        output += "\\r";
+        continue;
+      }
+
+      if (current === "\t") {
+        output += "\\t";
+        continue;
+      }
+    }
+
+    output += current;
+  }
+
+  return output.replace(/,\s*([}\]])/g, "$1");
+}
+
+function parseLooseJsonObject(value: string) {
+  try {
+    return JSON.parse(value) as Record<string, unknown>;
+  } catch {
+    return JSON.parse(sanitizeLooseJson(value)) as Record<string, unknown>;
+  }
+}
+
 function stringArray(value: unknown) {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
@@ -294,7 +349,7 @@ export function parseActionProposal(text: string): ActionProposal {
     throw new Error("Model did not return a JSON action proposal.");
   }
 
-  const parsed = JSON.parse(jsonText) as Record<string, unknown>;
+  const parsed = parseLooseJsonObject(jsonText);
 
   return {
     action:

@@ -553,6 +553,21 @@ function normalizeTradeDecision(value?: string): "swap" | "reject" | undefined {
   return undefined;
 }
 
+function expectedTradeDecisionFor(
+  expected: BenchmarkMetadata["expectedAnswer"],
+  traderScenario?: TraderScenario,
+) {
+  const rawDecision = expected.decision?.toLowerCase().trim() ?? "";
+  const normalizedDecision = normalizeTradeDecision(expected.decision);
+  const explicitDecision = /^(swap|trade|execute|reject|skip|block)\.?$/.test(
+    rawDecision,
+  );
+
+  return explicitDecision && normalizedDecision
+    ? normalizedDecision
+    : traderScenario?.expectedDecision ?? normalizedDecision;
+}
+
 function extractJsonValue(text: string) {
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
   const candidate = fenced?.[1] ?? text;
@@ -651,6 +666,12 @@ function safeRiskMode(value: unknown): "aggressive" | "balanced" | "conservative
   return value === "balanced" || value === "aggressive" || value === "conservative"
     ? value
     : "conservative";
+}
+
+function isTradeDecisionWord(value?: string) {
+  return /^(swap|trade|execute|reject|skip|block)\.?$/i.test(
+    value?.trim() ?? "",
+  );
 }
 
 function normalizeGeneratedAction(value: unknown) {
@@ -1128,9 +1149,10 @@ function scoreBenchmarkDecision(decision: {
     }
 
     const modelDecision = normalizeTradeDecision(decision.decision);
-    const expectedDecision =
-      normalizeTradeDecision(expected.decision) ??
-      traderScenario?.expectedDecision;
+    const expectedDecision = expectedTradeDecisionFor(
+      expected,
+      traderScenario,
+    );
 
     if (modelDecision && expectedDecision && modelDecision === expectedDecision) {
       score += 35;
@@ -1359,6 +1381,16 @@ Rules:
           Boolean(action),
         )
     : [];
+  const generatedExpectedAction =
+    typeof expectedAnswer.action === "string" && expectedAnswer.action
+      ? expectedAnswer.action
+      : undefined;
+  const normalizedExpectedAction =
+    generatedExpectedAction && !isTradeDecisionWord(generatedExpectedAction)
+      ? generatedExpectedAction
+      : typeof allowedActions[0] === "string"
+        ? allowedActions[0]
+        : allowedActions[0]?.name;
 
   const draft = {
     allowedActions:
@@ -1388,10 +1420,7 @@ Rules:
         ? generated.description.trim()
         : input.objective || "AI-generated Nexora benchmark.",
     expectedAnswer: {
-      action:
-        typeof expectedAnswer.action === "string"
-          ? expectedAnswer.action
-          : undefined,
+      action: normalizedExpectedAction,
       decision:
         typeof expectedAnswer.decision === "string"
           ? expectedAnswer.decision

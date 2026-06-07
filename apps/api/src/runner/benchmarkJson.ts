@@ -136,6 +136,12 @@ function mergeTargets(jsonTargets: string[], chainTargets: Address[]): Address[]
   return result;
 }
 
+function isTradeDecisionWord(value?: string) {
+  return /^(swap|trade|execute|reject|skip|block)\.?$/i.test(
+    value?.trim() ?? "",
+  );
+}
+
 export function normalizeBenchmarkJson(
   rawJson: string,
   chainTargets: Address[] = [],
@@ -193,6 +199,14 @@ export function normalizeBenchmarkJson(
 
   const normalizedActions = normalizeAvailableActions(allowedActions);
   const firstAction = normalizedActions[0];
+  const expectedAction =
+    typeof expectedAnswer.action === "string" && expectedAnswer.action
+      ? expectedAnswer.action
+      : undefined;
+  const normalizedExpectedAction =
+    expectedAction && !isTradeDecisionWord(expectedAction)
+      ? expectedAction
+      : firstAction?.name;
 
   return {
     allowedActions,
@@ -206,10 +220,7 @@ export function normalizeBenchmarkJson(
         ? parsed.description
         : "No description.",
     expectedAnswer: {
-      action:
-        typeof expectedAnswer.action === "string" && expectedAnswer.action
-          ? expectedAnswer.action
-          : firstAction?.name,
+      action: normalizedExpectedAction,
       decision:
         typeof expectedAnswer.decision === "string" && expectedAnswer.decision
           ? expectedAnswer.decision
