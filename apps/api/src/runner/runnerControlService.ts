@@ -22,6 +22,8 @@ export type RunnerMcpServerConfig = {
   url: string;
 };
 
+export type ModelProvider = "ollama" | "openai" | "anthropic" | "openai-compatible" | "custom";
+
 export type RunnerConfig = {
   actionAmountMnt: string;
   agentId: string;
@@ -32,10 +34,11 @@ export type RunnerConfig = {
   };
   mcpServers: RunnerMcpServerConfig[];
   model: {
+    apiKeyEnvVar?: string;
     endpointUrl: string;
     maxTokens: number;
     modelName: string;
-    provider: "ollama";
+    provider: ModelProvider;
     temperature: number;
   };
 };
@@ -255,10 +258,11 @@ const defaultConfig: RunnerConfig = {
     },
   ],
   model: {
+    apiKeyEnvVar: process.env.NEXORA_MODEL_API_KEY_ENV_VAR || undefined,
     endpointUrl: process.env.NEXORA_MODEL_ENDPOINT_URL ?? defaultOllamaEndpoint(),
     maxTokens: Number(process.env.NEXORA_MODEL_MAX_TOKENS ?? "1600"),
     modelName: process.env.NEXORA_MODEL_NAME ?? "qwen2.5:7b",
-    provider: "ollama",
+    provider: (process.env.NEXORA_MODEL_PROVIDER as ModelProvider | undefined) ?? "ollama",
     temperature: Number(process.env.NEXORA_MODEL_TEMPERATURE ?? "0.2"),
   },
 };
@@ -339,6 +343,12 @@ function persistConfig(nextConfig: RunnerConfig) {
   writeFileSync(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`);
 }
 
+const validProviders: ModelProvider[] = ["ollama", "openai", "anthropic", "openai-compatible", "custom"];
+
+function normalizeProvider(value: unknown): ModelProvider {
+  return validProviders.includes(value as ModelProvider) ? (value as ModelProvider) : "ollama";
+}
+
 function normalizeConfig(input: Partial<RunnerConfig>): RunnerConfig {
   return {
     ...config,
@@ -355,11 +365,90 @@ function normalizeConfig(input: Partial<RunnerConfig>): RunnerConfig {
     model: {
       ...config.model,
       ...input.model,
-      provider: "ollama",
+      apiKeyEnvVar: input.model?.apiKeyEnvVar ?? config.model.apiKeyEnvVar,
       maxTokens: Number(input.model?.maxTokens ?? config.model.maxTokens),
+      provider: normalizeProvider(input.model?.provider ?? config.model.provider),
       temperature: Number(input.model?.temperature ?? config.model.temperature),
     },
   };
+}
+
+function defaultEndpointFor(provider: ModelProvider): string {
+  if (provider === "openai") return "https://api.openai.com/v1/chat/completions";
+  if (provider === "anthropic") return "https://api.anthropic.com/v1/messages";
+  return defaultOllamaEndpoint();
+}
+
+function defaultApiKeyEnvVarFor(provider: ModelProvider): string | undefined {
+  if (provider === "openai" || provider === "openai-compatible") return "OPENAI_API_KEY";
+  if (provider === "anthropic") return "ANTHROPIC_API_KEY";
+  return undefined;
+}
+
+async function callProviderModel(options: {
+  apiKeyEnvVar?: string;
+  endpoint: string;
+  maxTokens: number;
+  model: string;
+  prompt: string;
+  provider: ModelProvider;
+  temperature: number;
+}): Promise<{ latencyMs: number; text: string }> {
+  const started = Date.now();
+  const { apiKeyEnvVar, endpoint, maxTokens, model, prompt, provider, temperature } = options;
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  let body: unknown;
+
+  if (provider === "anthropic") {
+    const keyVar = apiKeyEnvVar || "ANTHROPIC_API_KEY";
+    const apiKey = process.env[keyVar];
+    if (!apiKey) {
+      throw new Error(`Missing API key env var: ${keyVar} is not set in .env.`);
+    }
+    headers["x-api-key"] = apiKey;
+    headers["anthropic-version"] = "2023-06-01";
+    body = { max_tokens: maxTokens, messages: [{ content: prompt, role: "user" }], model };
+  } else if (provider === "openai" || provider === "openai-compatible") {
+    const keyVar = apiKeyEnvVar || "OPENAI_API_KEY";
+    const apiKey = process.env[keyVar];
+    if (!apiKey) {
+      throw new Error(`Missing API key env var: ${keyVar} is not set in .env.`);
+    }
+    headers["authorization"] = `Bearer ${apiKey}`;
+    body = { max_tokens: maxTokens, messages: [{ content: prompt, role: "user" }], model, temperature };
+  } else {
+    body = { model, options: { num_predict: maxTokens, temperature }, prompt, stream: false };
+  }
+
+  const response = await fetch(endpoint, {
+    body: JSON.stringify(body),
+    headers,
+    method: "POST",
+  });
+
+  const raw = await response.text();
+  if (!response.ok) {
+    if (response.status === 404) throw new Error(`Model not found: ${model} at ${endpoint}`);
+    if (response.status === 401 || response.status === 403) {
+      const keyVar = apiKeyEnvVar || defaultApiKeyEnvVarFor(provider) || "API key";
+      throw new Error(`Invalid API key (${keyVar}) for ${provider}.`);
+    }
+    throw new Error(`Model request failed: HTTP ${response.status}. ${raw.slice(0, 400)}`);
+  }
+
+  const payload = JSON.parse(raw) as {
+    choices?: Array<{ message?: { content?: string } }>;
+    content?: Array<{ text?: string; type: string }>;
+    response?: string;
+  };
+
+  const text =
+    payload.response ??
+    payload.choices?.[0]?.message?.content ??
+    payload.content?.find((c) => c.type === "text")?.text ??
+    "";
+
+  return { latencyMs: Date.now() - started, text };
 }
 
 export function getRunnerConfig() {
@@ -1251,40 +1340,54 @@ function scoreBenchmarkDecision(decision: {
   return Math.max(0, Math.min(100, score));
 }
 
-export async function testOllamaModel() {
+export async function testModel() {
   const started = Date.now();
-  const endpoint = normalizedOllamaGenerateEndpoint(config.model.endpointUrl);
-  const response = await fetch(endpoint, {
-    body: JSON.stringify({
-      model: config.model.modelName,
-      options: {
-        num_predict: Math.min(config.model.maxTokens, 80),
-        temperature: config.model.temperature,
-      },
-      prompt: 'Return JSON only: {"status":"ok"}',
-      stream: false,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
+  const { provider, modelName, maxTokens, temperature, apiKeyEnvVar } = config.model;
+  const endpoint =
+    config.model.endpointUrl ||
+    defaultEndpointFor(provider);
 
-  const text = await response.text();
-  if (!response.ok) {
-    addLog("error", `Model test failed: HTTP ${response.status} ${text}`);
-    throw new Error(`Ollama test failed at ${endpoint}: HTTP ${response.status}. ${text.slice(0, 500)}`);
+  const normalizedEndpoint =
+    provider === "ollama"
+      ? normalizedOllamaGenerateEndpoint(endpoint)
+      : endpoint;
+
+  if (provider !== "ollama" && provider !== "custom") {
+    const keyVar = apiKeyEnvVar || defaultApiKeyEnvVarFor(provider);
+    if (keyVar && !process.env[keyVar]) {
+      throw new Error(`Missing API key env var: ${keyVar} is not set in .env.`);
+    }
   }
 
-  addLog("info", `Model test passed in ${Date.now() - started}ms.`);
-  return {
-    latencyMs: Date.now() - started,
-    ok: true,
-    response: text.slice(0, 1200),
-  };
+  try {
+    const result = await callProviderModel({
+      apiKeyEnvVar,
+      endpoint: normalizedEndpoint,
+      maxTokens: Math.min(maxTokens, 80),
+      model: modelName,
+      prompt: 'Return JSON only: {"status":"ok"}',
+      provider,
+      temperature,
+    });
+
+    addLog("info", `Model test passed (${provider}) in ${result.latencyMs}ms.`);
+    return {
+      latencyMs: Date.now() - started,
+      ok: true,
+      response: result.text.slice(0, 1200),
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Model test failed.";
+    addLog("error", `Model test failed (${provider}): ${message}`);
+    throw error;
+  }
 }
+
+export { testModel as testOllamaModel };
 
 export async function generateBenchmarkDraft(input: BenchmarkDraftInput) {
   const started = Date.now();
-  const endpoint = normalizedOllamaGenerateEndpoint(config.model.endpointUrl);
+  const endpoint = config.model.endpointUrl || defaultEndpointFor(config.model.provider);
   const benchmarkType = input.benchmarkType ?? "dex-trading";
   const riskMode = input.riskMode ?? "conservative";
   const targetAddress = input.contractAddress?.trim();
@@ -1358,33 +1461,29 @@ Rules:
 - Include at least 4 blockedActions and 5 scoringRules.
 - Make the expectedAnswer useful for automatic scoring.`;
 
-  const response = await fetch(endpoint, {
-    body: JSON.stringify({
-      model: config.model.modelName,
-      options: {
-        num_predict: config.model.maxTokens,
-        temperature: Math.max(config.model.temperature, 0.2),
-      },
+  const { provider, modelName, maxTokens, temperature, apiKeyEnvVar } = config.model;
+  const normalizedEndpoint =
+    provider === "ollama"
+      ? normalizedOllamaGenerateEndpoint(endpoint)
+      : endpoint;
+
+  let modelText: string;
+  try {
+    const result = await callProviderModel({
+      apiKeyEnvVar,
+      endpoint: normalizedEndpoint,
+      maxTokens,
+      model: modelName,
       prompt,
-      stream: false,
-    }),
-    headers: { "content-type": "application/json" },
-    method: "POST",
-  });
-
-  const raw = await response.text();
-  if (!response.ok) {
-    addLog("error", `Benchmark draft failed: HTTP ${response.status} ${raw}`);
-    throw new Error(
-      `Benchmark draft failed at ${endpoint}: HTTP ${response.status}. ${raw.slice(
-        0,
-        500,
-      )}`,
-    );
+      provider,
+      temperature: Math.max(temperature, 0.2),
+    });
+    modelText = result.text;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Benchmark draft failed.";
+    addLog("error", `Benchmark draft failed: ${message}`);
+    throw new Error(`Benchmark draft failed: ${message}`);
   }
-
-  const payload = JSON.parse(raw) as { response?: string };
-  const modelText = payload.response ?? raw;
   const generated = extractJsonValue(modelText);
   const simulation =
     generated.simulation && typeof generated.simulation === "object"
@@ -1547,11 +1646,12 @@ export async function testBenchmark(): Promise<{
         NEXORA_AGENT_ACTION_AMOUNT_MNT: config.actionAmountMnt,
         NEXORA_AGENT_OBJECTIVE: config.agentObjective,
         NEXORA_MCP_SERVERS: JSON.stringify(config.mcpServers.filter((s) => s.enabled)),
-        NEXORA_MODEL_HARNESS_PROMPT: config.modelHarness.prompt,
+        NEXORA_MODEL_API_KEY_ENV_VAR: config.model.apiKeyEnvVar ?? "",
         NEXORA_MODEL_ENDPOINT_URL: config.model.endpointUrl,
+        NEXORA_MODEL_HARNESS_PROMPT: config.modelHarness.prompt,
         NEXORA_MODEL_MAX_TOKENS: String(config.model.maxTokens),
         NEXORA_MODEL_NAME: config.model.modelName,
-        NEXORA_MODEL_PROVIDER: "ollama",
+        NEXORA_MODEL_PROVIDER: config.model.provider,
         NEXORA_MODEL_TEMPERATURE: String(config.model.temperature),
         NEXORA_RUNNER_TEST_ONLY: "true",
         NEXORA_SMART_WALLET_ID: config.agentId,
@@ -1698,11 +1798,12 @@ export function runAgentOnce() {
       NEXORA_AGENT_ACTION_AMOUNT_MNT: config.actionAmountMnt,
       NEXORA_AGENT_OBJECTIVE: config.agentObjective,
       NEXORA_MCP_SERVERS: JSON.stringify(config.mcpServers.filter((server) => server.enabled)),
-      NEXORA_MODEL_HARNESS_PROMPT: config.modelHarness.prompt,
+      NEXORA_MODEL_API_KEY_ENV_VAR: config.model.apiKeyEnvVar ?? "",
       NEXORA_MODEL_ENDPOINT_URL: config.model.endpointUrl,
+      NEXORA_MODEL_HARNESS_PROMPT: config.modelHarness.prompt,
       NEXORA_MODEL_MAX_TOKENS: String(config.model.maxTokens),
       NEXORA_MODEL_NAME: config.model.modelName,
-      NEXORA_MODEL_PROVIDER: "ollama",
+      NEXORA_MODEL_PROVIDER: config.model.provider,
       NEXORA_MODEL_TEMPERATURE: String(config.model.temperature),
       NEXORA_SMART_WALLET_ID: config.agentId,
     },

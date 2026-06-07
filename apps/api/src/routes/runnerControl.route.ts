@@ -9,7 +9,7 @@ import {
   stopAutoRunner,
   testBenchmark,
   testMcpServer,
-  testOllamaModel,
+  testModel,
   updateRunnerConfig,
   type BenchmarkDraftInput,
   type RunnerConfig,
@@ -32,7 +32,7 @@ export async function runnerControlRoute(app: FastifyInstance) {
   app.post<{ Body: Partial<RunnerConfig> | undefined }>("/runner/test-model", async (request, reply) => {
     try {
       if (request.body) updateRunnerConfig(request.body);
-      return await testOllamaModel();
+      return await testModel();
     } catch (error) {
       return reply.code(400).send(badRequest(error));
     }

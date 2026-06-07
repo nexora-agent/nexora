@@ -5,11 +5,41 @@ import {
   getRunnerStatus,
   saveRunnerConfig,
   testRunnerModel,
+  type ModelProvider,
   type RunnerConfig,
 } from "@/lib/runner/runnerClient";
 
 type TestState = "idle" | "testing" | "connected" | "failed";
 type SaveState = "idle" | "saving" | "saved" | "error";
+
+const PROVIDER_LABELS: Record<ModelProvider, string> = {
+  anthropic: "Anthropic (Claude)",
+  custom: "Custom HTTP",
+  ollama: "Ollama",
+  openai: "OpenAI",
+  "openai-compatible": "OpenAI-compatible",
+};
+
+const PROVIDER_DEFAULT_ENDPOINTS: Partial<Record<ModelProvider, string>> = {
+  anthropic: "https://api.anthropic.com/v1/messages",
+  ollama: "http://127.0.0.1:11434/api/generate",
+  openai: "https://api.openai.com/v1/chat/completions",
+};
+
+const PROVIDER_DEFAULT_MODELS: Partial<Record<ModelProvider, string>> = {
+  anthropic: "claude-haiku-4-5-20251001",
+  ollama: "qwen2.5:7b",
+  openai: "gpt-4o-mini",
+};
+
+const PROVIDER_DEFAULT_KEY_ENV_VAR: Partial<Record<ModelProvider, string>> = {
+  anthropic: "ANTHROPIC_API_KEY",
+  "openai-compatible": "OPENAI_API_KEY",
+  openai: "OPENAI_API_KEY",
+};
+
+const NEEDS_API_KEY: ModelProvider[] = ["openai", "anthropic", "openai-compatible"];
+const NEEDS_ENDPOINT: ModelProvider[] = ["ollama", "openai-compatible", "custom"];
 
 const DEFAULT_MODEL: RunnerConfig["model"] = {
   endpointUrl: "http://127.0.0.1:11434/api/generate",
@@ -33,10 +63,12 @@ export function RunnerModelSetupCard({
   title = "AI Setup",
 }: Props) {
   const [baseConfig, setBaseConfig] = useState<RunnerConfig | undefined>();
+  const [provider, setProvider] = useState<ModelProvider>(DEFAULT_MODEL.provider);
   const [endpointUrl, setEndpointUrl] = useState(DEFAULT_MODEL.endpointUrl);
   const [modelName, setModelName] = useState(DEFAULT_MODEL.modelName);
   const [temperature, setTemperature] = useState(DEFAULT_MODEL.temperature);
   const [maxTokens, setMaxTokens] = useState(DEFAULT_MODEL.maxTokens);
+  const [apiKeyEnvVar, setApiKeyEnvVar] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [testState, setTestState] = useState<TestState>("idle");
   const [testMessage, setTestMessage] = useState("");
@@ -48,16 +80,32 @@ export function RunnerModelSetupCard({
       .then((status) => {
         const m = status.config.model;
         setBaseConfig(status.config);
+        setProvider(m.provider ?? "ollama");
         setEndpointUrl(m.endpointUrl);
         setModelName(m.modelName);
         setTemperature(m.temperature);
         setMaxTokens(m.maxTokens);
+        setApiKeyEnvVar(m.apiKeyEnvVar ?? "");
       })
       .catch(() => {
-        // runner offline — keep defaults, user can still edit and save
+        // runner offline — keep defaults
       })
       .finally(() => setIsLoading(false));
   }, []);
+
+  const handleProviderChange = (next: ModelProvider) => {
+    setProvider(next);
+    setTestState("idle");
+    if (PROVIDER_DEFAULT_ENDPOINTS[next]) {
+      setEndpointUrl(PROVIDER_DEFAULT_ENDPOINTS[next]!);
+    }
+    if (PROVIDER_DEFAULT_MODELS[next]) {
+      setModelName(PROVIDER_DEFAULT_MODELS[next]!);
+    }
+    if (PROVIDER_DEFAULT_KEY_ENV_VAR[next] && !apiKeyEnvVar) {
+      setApiKeyEnvVar(PROVIDER_DEFAULT_KEY_ENV_VAR[next]!);
+    }
+  };
 
   const buildCurrentConfig = (): RunnerConfig => {
     const base = baseConfig ?? {
@@ -72,7 +120,15 @@ export function RunnerModelSetupCard({
     };
     return {
       ...base,
-      model: { ...base.model, endpointUrl, maxTokens, modelName, temperature },
+      model: {
+        ...base.model,
+        apiKeyEnvVar: apiKeyEnvVar || undefined,
+        endpointUrl,
+        maxTokens,
+        modelName,
+        provider,
+        temperature,
+      },
     };
   };
 
@@ -96,7 +152,15 @@ export function RunnerModelSetupCard({
       const latest = await getRunnerStatus();
       const merged: RunnerConfig = {
         ...latest.config,
-        model: { ...latest.config.model, endpointUrl, maxTokens, modelName, temperature },
+        model: {
+          ...latest.config.model,
+          apiKeyEnvVar: apiKeyEnvVar || undefined,
+          endpointUrl,
+          maxTokens,
+          modelName,
+          provider,
+          temperature,
+        },
       };
       await saveRunnerConfig(merged);
       setBaseConfig(merged);
@@ -109,6 +173,8 @@ export function RunnerModelSetupCard({
   };
 
   const isBusy = testState === "testing" || saveState === "saving";
+  const showEndpoint = NEEDS_ENDPOINT.includes(provider);
+  const showApiKeyEnvVar = NEEDS_API_KEY.includes(provider);
 
   const testLabel =
     testState === "testing"
@@ -133,7 +199,7 @@ export function RunnerModelSetupCard({
           {description && <p className="runner-note runner-model-setup-desc">{description}</p>}
         </div>
         <div className="runner-model-status-pills">
-          <span className="runner-model-provider-pill">Ollama</span>
+          <span className="runner-model-provider-pill">{PROVIDER_LABELS[provider]}</span>
           {testState === "connected" && (
             <span className="status-pill status-ready runner-model-status-pill">Connected</span>
           )}
@@ -151,16 +217,19 @@ export function RunnerModelSetupCard({
       ) : (
         <div className="runner-model-setup-fields">
           <label className="runner-model-field">
-            <span>Endpoint URL</span>
-            <input
-              onChange={(e) => {
-                setEndpointUrl(e.target.value);
-                setTestState("idle");
-              }}
-              type="text"
-              value={endpointUrl}
-            />
+            <span>Provider</span>
+            <select
+              onChange={(e) => handleProviderChange(e.target.value as ModelProvider)}
+              value={provider}
+            >
+              {(Object.keys(PROVIDER_LABELS) as ModelProvider[]).map((p) => (
+                <option key={p} value={p}>
+                  {PROVIDER_LABELS[p]}
+                </option>
+              ))}
+            </select>
           </label>
+
           <label className="runner-model-field">
             <span>Model</span>
             <input
@@ -172,6 +241,40 @@ export function RunnerModelSetupCard({
               value={modelName}
             />
           </label>
+
+          {showEndpoint && (
+            <label className="runner-model-field">
+              <span>Endpoint URL</span>
+              <input
+                onChange={(e) => {
+                  setEndpointUrl(e.target.value);
+                  setTestState("idle");
+                }}
+                type="text"
+                value={endpointUrl}
+              />
+            </label>
+          )}
+
+          {showApiKeyEnvVar && (
+            <label className="runner-model-field">
+              <span>API key env var</span>
+              <input
+                onChange={(e) => {
+                  setApiKeyEnvVar(e.target.value);
+                  setTestState("idle");
+                }}
+                placeholder={PROVIDER_DEFAULT_KEY_ENV_VAR[provider] ?? "MY_API_KEY"}
+                title="Name of the environment variable in .env that holds the API key (e.g. OPENAI_API_KEY). The key value is never stored here."
+                type="text"
+                value={apiKeyEnvVar}
+              />
+              <span className="runner-model-field-hint">
+                Variable name only — key value stays in .env, never in the browser.
+              </span>
+            </label>
+          )}
+
           <label className="runner-model-field runner-model-field-narrow">
             <span>Temperature</span>
             <input

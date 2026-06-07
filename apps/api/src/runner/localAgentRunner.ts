@@ -1416,6 +1416,9 @@ async function askModel(prompt: string, demoResponse: Record<string, unknown>) {
   const provider =
     process.env.NEXORA_MODEL_PROVIDER ?? (endpoint ? "ollama" : "demo");
   const model = process.env.NEXORA_MODEL_NAME ?? "Nexora Demo Model";
+  const maxTokens = Number(process.env.NEXORA_MODEL_MAX_TOKENS ?? "1600");
+  const temperature = Number(process.env.NEXORA_MODEL_TEMPERATURE ?? "0.2");
+  const apiKeyEnvVar = process.env.NEXORA_MODEL_API_KEY_ENV_VAR || undefined;
 
   console.log(`Model provider: ${provider}`);
   console.log(`Model name: ${model}`);
@@ -1423,39 +1426,46 @@ async function askModel(prompt: string, demoResponse: Record<string, unknown>) {
 
   if (!endpoint || provider === "demo" || model === "demo") {
     console.log("Using deterministic demo model.");
-
-    return {
-      model,
-      text: JSON.stringify(demoResponse),
-    };
+    return { model, text: JSON.stringify(demoResponse) };
   }
 
   debugLog("model prompt", prompt);
 
-  await checkOllamaHealth(endpoint);
+  const headers: Record<string, string> = { "content-type": "application/json" };
+  let requestBody: unknown;
 
-  const isOllamaGenerate = endpoint.endsWith("/api/generate");
-  const requestBody = isOllamaGenerate
-    ? {
-        model,
-        options: {
-          num_predict: Number(process.env.NEXORA_MODEL_MAX_TOKENS ?? "1600"),
-          temperature: Number(process.env.NEXORA_MODEL_TEMPERATURE ?? "0.2"),
-        },
-        prompt,
-        stream: false,
-      }
-    : {
-        messages: [{ content: prompt, role: "user" }],
-        model,
-        temperature: Number(process.env.NEXORA_MODEL_TEMPERATURE ?? "0.2"),
-      };
+  if (provider === "anthropic") {
+    const keyVar = apiKeyEnvVar || "ANTHROPIC_API_KEY";
+    const apiKey = process.env[keyVar];
+    if (!apiKey) {
+      throw new Error(`Missing API key env var: ${keyVar} is not set in .env.`);
+    }
+    headers["x-api-key"] = apiKey;
+    headers["anthropic-version"] = "2023-06-01";
+    requestBody = { max_tokens: maxTokens, messages: [{ content: prompt, role: "user" }], model };
+  } else if (provider === "openai" || provider === "openai-compatible") {
+    const keyVar = apiKeyEnvVar || "OPENAI_API_KEY";
+    const apiKey = process.env[keyVar];
+    if (!apiKey) {
+      throw new Error(`Missing API key env var: ${keyVar} is not set in .env.`);
+    }
+    headers["authorization"] = `Bearer ${apiKey}`;
+    requestBody = { max_tokens: maxTokens, messages: [{ content: prompt, role: "user" }], model, temperature };
+  } else {
+    await checkOllamaHealth(endpoint);
+    requestBody = {
+      model,
+      options: { num_predict: maxTokens, temperature },
+      prompt,
+      stream: false,
+    };
+  }
 
   debugLog("model request body", requestBody);
 
   const response = await fetch(endpoint, {
     body: JSON.stringify(requestBody),
-    headers: { "content-type": "application/json" },
+    headers,
     method: "POST",
   });
 
@@ -1464,11 +1474,19 @@ async function askModel(prompt: string, demoResponse: Record<string, unknown>) {
   if (!response.ok) {
     const errorText = await response.text();
     debugLog("model error response", errorText);
-    throw new Error(`Model request failed: ${response.status}`);
+    if (response.status === 401 || response.status === 403) {
+      const keyVar = apiKeyEnvVar || (provider === "anthropic" ? "ANTHROPIC_API_KEY" : "OPENAI_API_KEY");
+      throw new Error(`Invalid API key (${keyVar}) for ${provider}. Check your .env file.`);
+    }
+    if (response.status === 404) {
+      throw new Error(`Model not found: ${model} at ${endpoint}`);
+    }
+    throw new Error(`Model request failed: HTTP ${response.status}`);
   }
 
   const payload = (await response.json()) as {
     choices?: Array<{ message?: { content?: string } }>;
+    content?: Array<{ text?: string; type: string }>;
     response?: string;
   };
 
@@ -1476,7 +1494,11 @@ async function askModel(prompt: string, demoResponse: Record<string, unknown>) {
 
   return {
     model,
-    text: payload.response ?? payload.choices?.[0]?.message?.content ?? "",
+    text:
+      payload.response ??
+      payload.choices?.[0]?.message?.content ??
+      payload.content?.find((c) => c.type === "text")?.text ??
+      "",
   };
 }
 

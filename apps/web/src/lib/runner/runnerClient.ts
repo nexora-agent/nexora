@@ -9,6 +9,8 @@ export type RunnerMcpServerConfig = {
   url: string;
 };
 
+export type ModelProvider = "ollama" | "openai" | "anthropic" | "openai-compatible" | "custom";
+
 export type RunnerConfig = {
   actionAmountMnt: string;
   agentId: string;
@@ -19,10 +21,11 @@ export type RunnerConfig = {
   };
   mcpServers: RunnerMcpServerConfig[];
   model: {
+    apiKeyEnvVar?: string;
     endpointUrl: string;
     maxTokens: number;
     modelName: string;
-    provider: "ollama";
+    provider: ModelProvider;
     temperature: number;
   };
 };
