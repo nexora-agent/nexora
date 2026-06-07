@@ -260,17 +260,9 @@ export async function setAllowedSelectorOnchain({
   target: Address;
   walletAddress?: `0x${string}`;
 }) {
-  const current = await readContractOrDefault(
-    () =>
-      readContract(wagmiConfig, {
-        abi: nexora4337AgentWalletAbi,
-        address: requireAgentWallet(walletAddress),
-        args: [target, selector],
-        chainId: mantleSepolia.id,
-        functionName: "allowedTargetSelectors",
-      }),
-    false,
-  );
+  const current =
+    (await readAllowedSelectorOnchain({ selector, target, walletAddress })) ??
+    false;
 
   if (current === allowed) {
     return undefined;
@@ -282,6 +274,28 @@ export async function setAllowedSelectorOnchain({
     target,
     walletAddress,
   });
+}
+
+export async function readAllowedSelectorOnchain({
+  selector,
+  target,
+  walletAddress,
+}: {
+  selector: `0x${string}`;
+  target: Address;
+  walletAddress?: `0x${string}`;
+}) {
+  return readContractOrDefault(
+    () =>
+      readContract(wagmiConfig, {
+        abi: nexora4337AgentWalletAbi,
+        address: requireAgentWallet(walletAddress),
+        args: [target, selector],
+        chainId: mantleSepolia.id,
+        functionName: "allowedTargetSelectors",
+      }),
+    undefined,
+  );
 }
 
 export async function saveExecutorPolicyOnchain({

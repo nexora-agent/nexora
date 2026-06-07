@@ -17,6 +17,7 @@ import {
 import { isBenchmarkRegistryReady } from "@/lib/contracts/deployments";
 import {
   readAutonomyStateOnchain,
+  readAllowedSelectorOnchain,
   saveExecutorPolicyOnchain,
   setAllowedAddressOnchain,
   setAllowedSelectorOnchain,
@@ -47,6 +48,8 @@ import { RunnerModelSetupCard } from "./RunnerModelSetupCard";
 const emptyConfig: RunnerConfig = {
   actionAmountMnt: "0.01",
   agentId: "1",
+  agentObjective:
+    "Evaluate the active benchmark and execute only when the live case passes the configured policy.",
   autoIntervalSeconds: 120,
   modelHarness: {
     prompt:
@@ -915,6 +918,7 @@ function AgentExecutionThresholdsCard({
 function AgentWalletLinkCard({
   allowedContractAddressInput,
   allowedContractAddresses,
+  allowedSelectorStatus,
   autonomyState,
   agents,
   config,
@@ -925,12 +929,14 @@ function AgentWalletLinkCard({
   onAllowedContractAddressInputChange,
   onLinkAgentWallet,
   onRemoveAllowedContractAddress,
+  onSyncAllowedContractSelectors,
   onSelectAgent,
   selectedAgent,
   status,
 }: {
   allowedContractAddressInput: string;
   allowedContractAddresses: string[];
+  allowedSelectorStatus: Record<string, boolean | undefined>;
   autonomyState?: AutonomyOnchainState;
   agents: AgentRecord[];
   config: RunnerConfig;
@@ -941,6 +947,7 @@ function AgentWalletLinkCard({
   onAllowedContractAddressInputChange: (value: string) => void;
   onLinkAgentWallet: () => void;
   onRemoveAllowedContractAddress: (address: string) => Promise<void> | void;
+  onSyncAllowedContractSelectors: (address: string) => Promise<void> | void;
   onSelectAgent: (agentId: string) => void;
   selectedAgent?: AgentRecord;
   status?: RunnerStatus;
@@ -1094,7 +1101,24 @@ function AgentWalletLinkCard({
                 <div>
                   <strong>{formatAddress(address)}</strong>
                   <span>{address}</span>
+                  <span>
+                    Benchmark action:{" "}
+                    {allowedSelectorStatus[normalizeAddressValue(address) ?? address] === true
+                      ? "synced"
+                      : allowedSelectorStatus[normalizeAddressValue(address) ?? address] === false
+                        ? "missing permission"
+                        : "checking"}
+                  </span>
                 </div>
+
+                <button
+                  className="ghost-action"
+                  disabled={isBusy}
+                  onClick={() => void onSyncAllowedContractSelectors(address)}
+                  type="button"
+                >
+                  Sync benchmark actions
+                </button>
 
                 <button
                   className="ghost-action"
@@ -1531,6 +1555,9 @@ export function AgentConfigurationPanel({
   const [allowedContractAddresses, setAllowedContractAddresses] = useState<
     string[]
   >([]);
+  const [allowedSelectorStatus, setAllowedSelectorStatus] = useState<
+    Record<string, boolean | undefined>
+  >({});
   const [allowedContractAddressInput, setAllowedContractAddressInput] =
     useState("");
   const [showRunnerLogs, setShowRunnerLogs] = useState(false);
@@ -1689,6 +1716,55 @@ export function AgentConfigurationPanel({
       agentId: selectedAgentIdentityId,
     });
   }, [selectedAgentIdentityId]);
+
+  useEffect(() => {
+    const selectors = Array.from(new Set(selectorsForBenchmark(activeBenchmarkPreview)));
+    const walletAddress = selectedAgent?.walletAddress;
+
+    if (!walletAddress || allowedContractAddresses.length === 0 || selectors.length === 0) {
+      setAllowedSelectorStatus({});
+      return;
+    }
+
+    let cancelled = false;
+
+    async function refreshSelectorStatus() {
+      const entries = await Promise.all(
+        allowedContractAddresses.map(async (address) => {
+          const target = asHexAddress(address);
+
+          if (!target) {
+            return [normalizeAddressValue(address) ?? address, undefined] as const;
+          }
+
+          const selectorStatuses = await Promise.all(
+            selectors.map((selector) =>
+              readAllowedSelectorOnchain({
+                selector,
+                target,
+                walletAddress,
+              }),
+            ),
+          );
+
+          return [
+            normalizeAddressValue(address) ?? address,
+            selectorStatuses.every(Boolean),
+          ] as const;
+        }),
+      );
+
+      if (!cancelled) {
+        setAllowedSelectorStatus(Object.fromEntries(entries));
+      }
+    }
+
+    void refreshSelectorStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBenchmarkPreview, allowedContractAddresses, selectedAgent?.walletAddress]);
 
   useEffect(() => {
     if (!isDirty) return undefined;
@@ -2104,26 +2180,14 @@ export function AgentConfigurationPanel({
     }
   };
 
-  const addAllowedContractAddress = async () => {
-    const address = normalizeAddressInput(allowedContractAddressInput);
-
-    if (!address) {
-      setNotice("Enter a contract address.");
-      return;
-    }
-
-    if (!isHexAddress(address)) {
-      setNotice("Enter a valid 0x contract address.");
-      return;
-    }
-
+  const allowContractAddressWithBenchmarkSelectors = async (address: string) => {
     if (!selectedAgent?.walletAddress) {
       setNotice("Select a deployed smart wallet before adding an address.");
       return;
     }
 
     setIsBusy(true);
-    setNotice("Confirm allowed contract transaction in MetaMask...");
+    setNotice("Confirm wallet allowlist transaction in MetaMask...");
 
     try {
       const target = address as Address;
@@ -2134,6 +2198,14 @@ export function AgentConfigurationPanel({
       });
       const selectors = Array.from(new Set(selectorsForBenchmark(activeBenchmarkPreview)));
       const selectorHashes = [];
+
+      if (selectors.length === 0) {
+        setNotice(
+          "Address is allowed, but the active benchmark has no executable action selector to sync.",
+        );
+        await refreshAutonomyFromChain();
+        return;
+      }
 
       for (const selector of selectors) {
         const selectorHash = await setAllowedSelectorOnchain({
@@ -2149,11 +2221,10 @@ export function AgentConfigurationPanel({
       }
 
       await refreshAutonomyFromChain();
-      setAllowedContractAddressInput("");
       setNotice(
         targetHash || selectorHashes.length > 0
-          ? `Allowed ${formatAddress(address)} on-chain.`
-          : `${formatAddress(address)} was already allowed on-chain.`,
+          ? `Allowed ${formatAddress(address)} and synced ${selectorHashes.length || selectors.length} benchmark action selector${selectors.length === 1 ? "" : "s"}.`
+          : `${formatAddress(address)} already has the active benchmark action selector.`,
       );
     } catch (error) {
       setNotice(
@@ -2164,6 +2235,23 @@ export function AgentConfigurationPanel({
     } finally {
       setIsBusy(false);
     }
+  };
+
+  const addAllowedContractAddress = async () => {
+    const address = normalizeAddressInput(allowedContractAddressInput);
+
+    if (!address) {
+      setNotice("Enter a contract address.");
+      return;
+    }
+
+    if (!isHexAddress(address)) {
+      setNotice("Enter a valid 0x contract address.");
+      return;
+    }
+
+    await allowContractAddressWithBenchmarkSelectors(address);
+    setAllowedContractAddressInput("");
   };
 
   const removeAllowedContractAddress = async (address: string) => {
@@ -2356,6 +2444,7 @@ export function AgentConfigurationPanel({
       <AgentWalletLinkCard
         allowedContractAddressInput={allowedContractAddressInput}
         allowedContractAddresses={allowedContractAddresses}
+        allowedSelectorStatus={allowedSelectorStatus}
         autonomyState={autonomyState}
         agents={agents}
         config={config}
@@ -2366,6 +2455,7 @@ export function AgentConfigurationPanel({
         onAllowedContractAddressInputChange={setAllowedContractAddressInput}
         onLinkAgentWallet={linkAgentWallet}
         onRemoveAllowedContractAddress={removeAllowedContractAddress}
+        onSyncAllowedContractSelectors={allowContractAddressWithBenchmarkSelectors}
         onSelectAgent={(agentId) =>
           updateConfig({
             ...config,
@@ -2439,6 +2529,21 @@ export function AgentConfigurationPanel({
         />
 
         <div className="form-grid">
+          <label>
+            <span>Agent objective</span>
+
+            <textarea
+              onChange={(event) =>
+                updateConfig({
+                  ...config,
+                  agentObjective: event.target.value,
+                })
+              }
+              rows={4}
+              value={config.agentObjective}
+            />
+          </label>
+
           <label>
             <span>Harness prompt</span>
 

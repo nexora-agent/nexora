@@ -12,6 +12,7 @@ export type RunnerMcpServerConfig = {
 export type RunnerConfig = {
   actionAmountMnt: string;
   agentId: string;
+  agentObjective: string;
   autoIntervalSeconds: number;
   modelHarness: {
     prompt: string;

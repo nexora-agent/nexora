@@ -60,7 +60,16 @@ export function RunnerModelSetupCard({
   }, []);
 
   const buildCurrentConfig = (): RunnerConfig => {
-    const base = baseConfig ?? { model: DEFAULT_MODEL, agentId: "", actionAmountMnt: "0.01", autoIntervalSeconds: 120, mcpServers: [], modelHarness: { prompt: "" } };
+    const base = baseConfig ?? {
+      actionAmountMnt: "0.01",
+      agentId: "",
+      agentObjective:
+        "Evaluate the active benchmark and execute only when the live case passes the configured policy.",
+      autoIntervalSeconds: 120,
+      mcpServers: [],
+      model: DEFAULT_MODEL,
+      modelHarness: { prompt: "" },
+    };
     return {
       ...base,
       model: { ...base.model, endpointUrl, maxTokens, modelName, temperature },

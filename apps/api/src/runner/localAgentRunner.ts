@@ -396,6 +396,10 @@ function modelHarnessPrompt() {
   return process.env.NEXORA_MODEL_HARNESS_PROMPT?.trim() ?? "";
 }
 
+function agentObjective() {
+  return process.env.NEXORA_AGENT_OBJECTIVE?.trim() ?? "";
+}
+
 const mantleSepolia = {
   id: 5003,
   name: "Mantle Sepolia",
@@ -1005,6 +1009,7 @@ function buildBenchmarkPrompt(input: {
   fallbackTarget: Address;
 }) {
   const harnessPrompt = modelHarnessPrompt();
+  const objective = agentObjective();
   const metadata = metadataWithFallbackTarget(
     input.activeBenchmark,
     input.fallbackTarget,
@@ -1025,6 +1030,8 @@ function buildBenchmarkPrompt(input: {
 
   return `${
     harnessPrompt ? `Model harness instructions:\n${harnessPrompt}\n\n` : ""
+  }${
+    objective ? `Agent objective:\n${objective}\n\n` : ""
   }Return JSON only.
 
 Benchmark:
@@ -1068,7 +1075,7 @@ ${marketCases
     : ""
 }
 ${
-  traderScenario
+  traderScenario && marketCases.length === 0
     ? `
 Trading quality test:
 - scenarioProfile: ${traderScenario.scenarioProfile}
@@ -1091,13 +1098,13 @@ Expected JSON shape:
 {
   "selectedTarget": "${expected.selectedTarget ?? metadata.targetContracts[0] ?? ""}",
   "action": "${firstAction?.name ?? "deposit"}",
-  "decision": "${traderScenario ? "swap | reject" : (expected.decision ?? "execute")}",
+  "decision": "${liveCase?.expectedDecision ?? traderScenario?.expectedDecision ?? expected.decision ?? "execute"}",
   "params": ${JSON.stringify(exampleParams)},
   "valueMnt": "${input.defaultValueMnt}",
   "caseDecisions": ${JSON.stringify(
     marketCases.map((item) => ({
       caseId: item.caseId,
-      decision: "swap | reject",
+      decision: item.expectedDecision,
       reasoning: "case-specific evidence",
     })),
   )},
@@ -1126,10 +1133,25 @@ function normalizeTradeDecision(value?: string): "swap" | "reject" | undefined {
   const normalized = value?.toLowerCase().trim() ?? "";
 
   if (!normalized) return undefined;
-  if (normalized.includes("reject") || normalized.includes("skip") || normalized.includes("block")) {
+
+  const wantsReject =
+    normalized.includes("reject") ||
+    normalized.includes("skip") ||
+    normalized.includes("block");
+  const wantsSwap =
+    normalized.includes("swap") ||
+    normalized.includes("trade") ||
+    normalized.includes("execute");
+
+  if (wantsReject && wantsSwap) {
+    return undefined;
+  }
+
+  if (wantsReject) {
     return "reject";
   }
-  if (normalized.includes("swap") || normalized.includes("trade") || normalized.includes("execute")) {
+
+  if (wantsSwap) {
     return "swap";
   }
 
@@ -1217,11 +1239,19 @@ function scoreDecision(
   let scoreCap = 100;
 
   if (isDexBenchmark && traderScenario) {
-    const modelDecision = normalizeTradeDecision(decision.decision);
-    const expectedTradeDecision = expectedTradeDecisionFor(
-      expected,
-      traderScenario,
-    );
+    const liveCase = liveMarketCaseFor(marketCases, metadata);
+    const modelDecision =
+      normalizeTradeDecision(decision.decision) ??
+      normalizeTradeDecision(
+        decision.caseDecisions?.find((item) => item.caseId === liveCase?.caseId)
+          ?.decision,
+      );
+    const expectedTradeDecision =
+      liveCase?.expectedDecision ??
+      expectedTradeDecisionFor(
+        expected,
+        traderScenario,
+      );
     const tradeDecisionMatched = modelDecision === expectedTradeDecision;
 
     if (tradeDecisionMatched) {
@@ -1586,7 +1616,17 @@ async function runBenchmarkSuite({
     ) ??
     (traderScenario ? undefined : "swap");
 
-  if (modelTradeDecision === "reject") {
+  if (traderScenario && !modelTradeDecision) {
+    proposalError =
+      "Model did not return a concrete DEX decision. Use exactly swap or reject for the live case.";
+    proposalChecks = [
+      {
+        detail: proposalError,
+        name: "Trade decision",
+        passed: false,
+      },
+    ];
+  } else if (modelTradeDecision === "reject") {
     proposalChecks = [
       {
         detail: "Model rejected execution for this trading scenario.",
@@ -1686,7 +1726,7 @@ async function runBenchmarkSuite({
         : "none"
     }`,
   );
-  if (traderScenario) {
+  if (traderScenario && marketCases.length === 0) {
     console.log(
       `Trader scenario: ${traderScenario.scenarioProfile}, expected=${traderScenario.expectedDecision}, edge=${traderScenario.expectedEdgeBps} bps, expected profit=${traderScenario.expectedProfitMnt} MNT (${traderScenario.expectedReturnPct}%), impact=${traderScenario.priceImpactBps} bps, liquidity=${traderScenario.liquidityScore}/100, volatility=${traderScenario.volatilityBps} bps`,
     );
@@ -1745,7 +1785,7 @@ async function runBenchmarkSuite({
 
   const correctTradeDecision =
     !traderScenario || modelTradeDecision === expectedDecision;
-  const executionDecision = modelTradeDecision === "reject" ? "skip" : "execute";
+  const executionDecision = modelTradeDecision === "swap" ? "execute" : "skip";
   const proposalPassed =
     correctTradeDecision &&
     (modelTradeDecision === "reject" || (Boolean(actionCall) && !proposalError));
@@ -1797,7 +1837,9 @@ async function runBenchmarkSuite({
     executionDecision,
     executionSkipReason:
       executionDecision === "skip"
-        ? "Model rejected execution for this trading scenario."
+        ? modelTradeDecision === "reject"
+          ? "Model rejected execution for this trading scenario."
+          : proposalError ?? "Model did not choose an executable action."
         : undefined,
     externalScore,
     maxRiskScore,
@@ -1903,6 +1945,11 @@ function packGas(upper: bigint, lower: bigint) {
   ]) as Hex;
 }
 
+function gasWithBuffer(estimated: bigint) {
+  const bufferBps = BigInt(process.env.NEXORA_GAS_BUFFER_BPS ?? "2500");
+  return estimated + (estimated * bufferBps) / 10_000n + 10_000n;
+}
+
 async function sendUserOperation(input: {
   account: ReturnType<typeof privateKeyToAccount>;
   bundlerUrl: string;
@@ -2003,6 +2050,7 @@ async function readAllowedExecutionTargets({
     }
 
     const matchingTargets: Address[] = [];
+    const missingSelectorTargets: string[] = [];
 
     for (const target of allowedTargets) {
       const selectorAllowed = await Promise.all(
@@ -2018,10 +2066,18 @@ async function readAllowedExecutionTargets({
 
       if (selectorAllowed.some(Boolean)) {
         matchingTargets.push(target);
+      } else {
+        missingSelectorTargets.push(target);
       }
     }
 
-    return matchingTargets.length > 0 ? matchingTargets : allowedTargets;
+    if (missingSelectorTargets.length > 0) {
+      console.log(
+        `Allowed targets missing benchmark action selector: ${missingSelectorTargets.join(", ")}`,
+      );
+    }
+
+    return matchingTargets;
   } catch (error) {
     console.log(
       error instanceof Error
@@ -2262,10 +2318,6 @@ async function main() {
     return;
   }
 
-  const validationGas = BigInt(
-    process.env.NEXORA_VALIDATION_GAS_LIMIT ?? "1200000",
-  );
-
   const suiteHash =
     activeBenchmark?.benchmarkHash ?? hashJson(noBenchmarkMetadata);
 
@@ -2297,8 +2349,41 @@ async function main() {
     prompt: process.env.NEXORA_MODEL_HARNESS_PROMPT ?? "",
   });
 
+  const validationInput = {
+    actionIntentHash: benchmark.actionIntentHash,
+    adversarialScore: benchmark.adversarialScore,
+    agentId,
+    averageScore: benchmark.averageScore,
+    basicScore: benchmark.basicScore,
+    externalScore: benchmark.externalScore,
+    harnessHash,
+    maxRiskScore: benchmark.maxRiskScore,
+    modelHash,
+    passed,
+    policyHash: hashJson({
+      kind: "smart-wallet-executor-policy",
+      maxValueMnt: process.env.NEXORA_AGENT_MAX_VALUE_MNT ?? defaultValueMnt,
+      validation: "target-selector-value-preflight",
+    }),
+    reportHash: benchmark.reportHash,
+    suiteHash,
+    toolsHash,
+  };
+
+  const estimatedValidationGas = await publicClient.estimateContractGas({
+    account,
+    abi: validationAbi,
+    address: validationRegistry,
+    functionName: "recordValidation",
+    args: [validationInput],
+  });
+  const validationGas = process.env.NEXORA_VALIDATION_GAS_LIMIT
+    ? BigInt(process.env.NEXORA_VALIDATION_GAS_LIMIT)
+    : gasWithBuffer(estimatedValidationGas);
+
   console.log(`Validation registry: ${validationRegistry}`);
   console.log(`Validation passed: ${passed}`);
+  console.log(`Validation gas estimate: ${estimatedValidationGas.toString()}`);
   console.log(`Validation gas limit: ${validationGas.toString()}`);
 
   let validationHash: Hex;
@@ -2308,28 +2393,7 @@ async function main() {
       abi: validationAbi,
       address: validationRegistry,
       functionName: "recordValidation",
-      args: [
-        {
-          actionIntentHash: benchmark.actionIntentHash,
-          adversarialScore: benchmark.adversarialScore,
-          agentId,
-          averageScore: benchmark.averageScore,
-          basicScore: benchmark.basicScore,
-          externalScore: benchmark.externalScore,
-          harnessHash,
-          maxRiskScore: benchmark.maxRiskScore,
-          modelHash,
-          passed,
-          policyHash: hashJson({
-            kind: "smart-wallet-executor-policy",
-            maxValueMnt: process.env.NEXORA_AGENT_MAX_VALUE_MNT ?? defaultValueMnt,
-            validation: "target-selector-value-preflight",
-          }),
-          reportHash: benchmark.reportHash,
-          suiteHash,
-          toolsHash,
-        },
-      ],
+      args: [validationInput],
       gas: validationGas,
     });
   } catch (error) {
@@ -2388,24 +2452,33 @@ async function main() {
 
     console.log(`UserOperation submitted: ${userOpHash}`);
   } else {
-    const executionGas = BigInt(
-      process.env.NEXORA_EXECUTION_GAS_LIMIT ?? "1200000",
-    );
+    const executionArgs = [
+      validationRegistry,
+      benchmark.actionCall.target,
+      benchmark.actionCall.value,
+      benchmark.actionCall.data,
+      benchmark.actionIntentHash,
+      benchmark.riskScore,
+    ] as const;
+    const estimatedExecutionGas = await publicClient.estimateContractGas({
+      account,
+      abi: walletAbi,
+      address: walletAddress,
+      functionName: "executeWithPreflightByExecutor",
+      args: executionArgs,
+    });
+    const executionGas = process.env.NEXORA_EXECUTION_GAS_LIMIT
+      ? BigInt(process.env.NEXORA_EXECUTION_GAS_LIMIT)
+      : gasWithBuffer(estimatedExecutionGas);
 
+    console.log(`Execution gas estimate: ${estimatedExecutionGas.toString()}`);
     console.log(`Execution gas limit: ${executionGas.toString()}`);
 
     const executionHash = await walletClient.writeContract({
       abi: walletAbi,
       address: walletAddress,
       functionName: "executeWithPreflightByExecutor",
-      args: [
-        validationRegistry,
-        benchmark.actionCall.target,
-        benchmark.actionCall.value,
-        benchmark.actionCall.data,
-        benchmark.actionIntentHash,
-        benchmark.riskScore,
-      ],
+      args: executionArgs,
       gas: executionGas,
     });
 

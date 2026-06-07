@@ -25,6 +25,7 @@ export type RunnerMcpServerConfig = {
 export type RunnerConfig = {
   actionAmountMnt: string;
   agentId: string;
+  agentObjective: string;
   autoIntervalSeconds: number;
   modelHarness: {
     prompt: string;
@@ -231,6 +232,9 @@ function defaultOllamaEndpoint() {
 const defaultConfig: RunnerConfig = {
   actionAmountMnt: process.env.NEXORA_AGENT_ACTION_AMOUNT_MNT ?? "0.01",
   agentId: process.env.NEXORA_SMART_WALLET_ID ?? "1",
+  agentObjective:
+    process.env.NEXORA_AGENT_OBJECTIVE ??
+    "Evaluate the active benchmark and execute only when the live case passes the configured policy.",
   autoIntervalSeconds: 120,
   modelHarness: {
     prompt:
@@ -341,6 +345,7 @@ function normalizeConfig(input: Partial<RunnerConfig>): RunnerConfig {
     ...input,
     actionAmountMnt: input.actionAmountMnt ?? config.actionAmountMnt,
     agentId: input.agentId ?? config.agentId,
+    agentObjective: input.agentObjective ?? config.agentObjective,
     autoIntervalSeconds: Number(input.autoIntervalSeconds ?? config.autoIntervalSeconds),
     modelHarness: {
       ...config.modelHarness,
@@ -543,10 +548,25 @@ function normalizeTradeDecision(value?: string): "swap" | "reject" | undefined {
   const normalized = value?.toLowerCase().trim() ?? "";
 
   if (!normalized) return undefined;
-  if (normalized.includes("reject") || normalized.includes("skip") || normalized.includes("block")) {
+
+  const wantsReject =
+    normalized.includes("reject") ||
+    normalized.includes("skip") ||
+    normalized.includes("block");
+  const wantsSwap =
+    normalized.includes("swap") ||
+    normalized.includes("trade") ||
+    normalized.includes("execute");
+
+  if (wantsReject && wantsSwap) {
+    return undefined;
+  }
+
+  if (wantsReject) {
     return "reject";
   }
-  if (normalized.includes("swap") || normalized.includes("trade") || normalized.includes("execute")) {
+
+  if (wantsSwap) {
     return "swap";
   }
 
@@ -1049,7 +1069,7 @@ Return:
 {
   "selectedTarget": "${expected.selectedTarget ?? metadata.targetContracts[0] ?? ""}",
   "action": "${expected.action ?? metadata.allowedActions[0] ?? "swapMntForTokens"}",
-  "decision": "swap | reject",
+  "decision": "${traderScenario?.expectedDecision ?? "reject"}",
   "rejectedActions": ${JSON.stringify(expected.rejectedActions ?? expected.rejectedVaults)},
   "reasoning": "short evidence-based DEX trading rationale"
 }
@@ -1525,6 +1545,7 @@ export async function testBenchmark(): Promise<{
       env: {
         ...process.env,
         NEXORA_AGENT_ACTION_AMOUNT_MNT: config.actionAmountMnt,
+        NEXORA_AGENT_OBJECTIVE: config.agentObjective,
         NEXORA_MCP_SERVERS: JSON.stringify(config.mcpServers.filter((s) => s.enabled)),
         NEXORA_MODEL_HARNESS_PROMPT: config.modelHarness.prompt,
         NEXORA_MODEL_ENDPOINT_URL: config.model.endpointUrl,
@@ -1675,6 +1696,7 @@ export function runAgentOnce() {
     env: {
       ...process.env,
       NEXORA_AGENT_ACTION_AMOUNT_MNT: config.actionAmountMnt,
+      NEXORA_AGENT_OBJECTIVE: config.agentObjective,
       NEXORA_MCP_SERVERS: JSON.stringify(config.mcpServers.filter((server) => server.enabled)),
       NEXORA_MODEL_HARNESS_PROMPT: config.modelHarness.prompt,
       NEXORA_MODEL_ENDPOINT_URL: config.model.endpointUrl,
