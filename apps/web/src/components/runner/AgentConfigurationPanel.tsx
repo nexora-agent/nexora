@@ -75,7 +75,7 @@ const thresholdPresetIds: PreflightPresetId[] = [
   "conservative",
   "balanced",
   "aggressive",
-  "custom",
+  // "custom",
 ];
 
 type RejectedVault =

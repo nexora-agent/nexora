@@ -152,7 +152,7 @@ if ([string]::IsNullOrWhiteSpace($privateKey)) {
 
 $entryPointAddress = [System.Environment]::GetEnvironmentVariable("NEXORA_ENTRYPOINT_ADDRESS")
 if ([string]::IsNullOrWhiteSpace($entryPointAddress)) {
-  $entryPointAddress = $zeroAddress
+  $entryPointAddress = "0x0000000071727de22e5e9d8baf0edac6f37da032"
 }
 
 $networkName = [System.Environment]::GetEnvironmentVariable("NETWORK_NAME")

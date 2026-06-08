@@ -61,6 +61,7 @@ function JsonModal({
             Close
           </button>
         </div>
+
         <pre className="benchmark-json-preview">
           {JSON.stringify(value, null, 2)}
         </pre>
@@ -81,25 +82,43 @@ function BenchmarkCard({
     month: "short",
     day: "numeric",
   });
+
   const isExecutable = benchmark.targetContracts.length > 0;
 
   return (
-    <button className="benchmark-card benchmark-card-button" onClick={onViewJson} type="button">
+    <button
+      className="benchmark-card benchmark-card-button"
+      onClick={onViewJson}
+      type="button"
+    >
       <div className="benchmark-card-header">
         <div className="benchmark-card-pills">
-          <span className={`status-pill ${benchmark.active ? "status-ready" : "status-disconnected"}`}>
-            {benchmark.active ? "Active" : "Inactive"}
+          <span
+            className={`status-pill ${
+              benchmark.active ? "status-ready" : "status-disconnected"
+            }`}
+          >
+            {/* {benchmark.active ? "Active" : "Inactive"} */}
           </span>
-          <span className={`status-pill ${isExecutable ? "status-running" : "status-idle"}`}>
-            {isExecutable ? "Executable" : "ABI-only"}
+
+          <span
+            className={`status-pill ${
+              isExecutable ? "status-running" : "status-idle"
+            }`}
+          >
+            {isExecutable ? "Executable" : ""}
           </span>
         </div>
+
         <span className="benchmark-meta">#{benchmark.benchmarkId}</span>
       </div>
+
       <h3>{benchmark.name || `Benchmark #${benchmark.benchmarkId}`}</h3>
+
       {benchmark.description && (
         <p className="benchmark-card-description">{benchmark.description}</p>
       )}
+
       <dl className="benchmark-card-dl">
         {benchmark.benchmarkType && (
           <div>
@@ -107,10 +126,12 @@ function BenchmarkCard({
             <dd>{benchmark.benchmarkType}</dd>
           </div>
         )}
+
         <div>
           <dt>Created</dt>
           <dd>{createdDate}</dd>
         </div>
+
         {isExecutable && (
           <div>
             <dt>Target{benchmark.targetContracts.length > 1 ? "s" : ""}</dt>
@@ -124,6 +145,7 @@ function BenchmarkCard({
           </div>
         )}
       </dl>
+
       <div className="benchmark-card-footer">
         <span>Stored on Mantle</span>
         <strong>View JSON</strong>
@@ -132,11 +154,23 @@ function BenchmarkCard({
   );
 }
 
-export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refreshKey = 0 }: Props) {
+export function BenchmarkDashboard({
+  connectedAddress,
+  onCreateBenchmark,
+  refreshKey = 0,
+}: Props) {
   const [benchmarks, setBenchmarks] = useState<OnchainBenchmark[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedBenchmarkJson, setSelectedBenchmarkJson] = useState<unknown | null>(null);
+  const [selectedBenchmarkJson, setSelectedBenchmarkJson] =
+    useState<unknown | null>(null);
+  const [selectedBenchmarkTitle, setSelectedBenchmarkTitle] =
+    useState("Benchmark");
+
+  const closeSelectedBenchmark = () => {
+    setSelectedBenchmarkJson(null);
+    setSelectedBenchmarkTitle("Benchmark");
+  };
 
   useEffect(() => {
     if (!connectedAddress) return;
@@ -147,7 +181,9 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refres
     readBenchmarksOfOwner(connectedAddress)
       .then(setBenchmarks)
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Failed to load benchmarks.");
+        setError(
+          err instanceof Error ? err.message : "Failed to load benchmarks."
+        );
       })
       .finally(() => setIsLoading(false));
   }, [connectedAddress, refreshKey]);
@@ -158,11 +194,17 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refres
         <div>
           <h2>Benchmarks</h2>
           <p>
-            Custom on-chain benchmarks define what your smart wallet is tested against.
-            Use them to decide which checks the local runner must pass before acting.
+            Custom on-chain benchmarks define what your smart wallet is tested
+            against. Use them to decide which checks the local runner must pass
+            before acting.
           </p>
         </div>
-        <button className="primary-action" onClick={onCreateBenchmark} type="button">
+
+        <button
+          className="primary-action"
+          onClick={onCreateBenchmark}
+          type="button"
+        >
           Create Benchmark
         </button>
       </div>
@@ -200,10 +242,16 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refres
         <section className="empty-state-card" aria-label="No benchmarks">
           <h3>No benchmarks yet</h3>
           <p>
-            Create a custom benchmark to define what your smart wallet is tested against.
-            The runner can then use it as the active test for your agent.
+            Create a custom benchmark to define what your smart wallet is tested
+            against. The runner can then use it as the active test for your
+            agent.
           </p>
-          <button className="primary-action" onClick={onCreateBenchmark} type="button">
+
+          <button
+            className="primary-action"
+            onClick={onCreateBenchmark}
+            type="button"
+          >
             Create Benchmark
           </button>
         </section>
@@ -212,16 +260,26 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refres
       {connectedAddress && !isLoading && benchmarks.length > 0 && (
         <>
           <div className="benchmark-count-line">
-            <span>Created Benchmarks · {benchmarks.length} on Mantle Sepolia</span>
+            <span>
+              Created Benchmarks · {benchmarks.length} on Mantle Sepolia
+            </span>
           </div>
+
           <div className="benchmark-grid">
             {benchmarks.map((benchmark) => (
               <BenchmarkCard
                 benchmark={benchmark}
                 key={benchmark.benchmarkId}
                 onViewJson={() => {
+                  setSelectedBenchmarkTitle(
+                    benchmark.name?.trim() ||
+                      `Benchmark #${benchmark.benchmarkId}`
+                  );
+
                   setSelectedBenchmarkJson({
-                    benchmarkJson: benchmark.benchmarkDataJson ? parseJsonSafely(benchmark.benchmarkDataJson) : undefined,
+                    benchmarkJson: benchmark.benchmarkDataJson
+                      ? parseJsonSafely(benchmark.benchmarkDataJson)
+                      : undefined,
                     benchmarkState: benchmark,
                     source: "mantle",
                   });
@@ -233,8 +291,8 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refres
       )}
 
       <JsonModal
-        onClose={() => setSelectedBenchmarkJson(null)}
-        title="Benchmark JSON from Mantle"
+        onClose={closeSelectedBenchmark}
+        title={selectedBenchmarkTitle}
         value={selectedBenchmarkJson}
       />
     </div>

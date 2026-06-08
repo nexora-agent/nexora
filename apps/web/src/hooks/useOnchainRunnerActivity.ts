@@ -81,7 +81,7 @@ const publicClient = createPublicClient({
   transport: http(mantleSepolia.rpcUrls.default.http[0]),
 });
 
-const cacheTtlMs = 30_000;
+const cacheTtlMs = 90_000;
 const validationRecordedEvent = parseAbiItem(
   "event ValidationRecorded(uint256 indexed agentId, bytes32 indexed actionIntentHash, bytes32 indexed reportHash, uint16 averageScore, bool passed, address reporter)",
 );
@@ -92,6 +92,9 @@ const reputationSignalEvent = parseAbiItem(
   "event ReputationSignal(uint256 indexed agentId, bool executed, bool policyViolation, uint16 riskScore, uint16 benchmarkScore, uint256 trustScore, address indexed reporter)",
 );
 const logChunkSize = 10n;
+const recentLogWindowBlocks = BigInt(process.env.NEXT_PUBLIC_NEXORA_ACTIVITY_LOG_WINDOW_BLOCKS ?? "80");
+const logChunkDelayMs = Number(process.env.NEXT_PUBLIC_NEXORA_LOG_CHUNK_DELAY_MS ?? "300");
+const maxLogRetries = 3;
 const activityCache = new Map<
   string,
   {
@@ -117,6 +120,39 @@ function logStartBlock() {
   return BigInt(process.env.NEXT_PUBLIC_NEXORA_START_BLOCK ?? "39141900");
 }
 
+function recentFromBlock(latestBlock: bigint) {
+  const earliest = logStartBlock();
+  const recentStart = latestBlock > recentLogWindowBlocks ? latestBlock - recentLogWindowBlocks : earliest;
+  return recentStart > earliest ? recentStart : earliest;
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+function isRateLimitError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes("429") || message.toLowerCase().includes("too many requests");
+}
+
+async function readLogsWithRetry(
+  params: Parameters<typeof publicClient.getLogs>[0],
+) {
+  for (let attempt = 0; attempt <= maxLogRetries; attempt += 1) {
+    try {
+      return await publicClient.getLogs(params);
+    } catch (error) {
+      if (!isRateLimitError(error) || attempt === maxLogRetries) {
+        throw error;
+      }
+
+      await sleep(logChunkDelayMs * 2 ** attempt);
+    }
+  }
+
+  return [];
+}
+
 async function getLogsChunked<TLog>({
   address,
   args,
@@ -135,7 +171,7 @@ async function getLogsChunked<TLog>({
 
   while (cursor <= toBlock) {
     const chunkToBlock = cursor + logChunkSize - 1n > toBlock ? toBlock : cursor + logChunkSize - 1n;
-    const logs = await publicClient.getLogs({
+    const logs = await readLogsWithRetry({
       address,
       args,
       event,
@@ -145,6 +181,10 @@ async function getLogsChunked<TLog>({
 
     allLogs.push(...(logs as TLog[]));
     cursor = chunkToBlock + 1n;
+
+    if (cursor <= toBlock) {
+      await sleep(logChunkDelayMs);
+    }
   }
 
   return allLogs;
@@ -186,7 +226,7 @@ async function readValidationEventTx({
       reportHash,
     },
     event: validationRecordedEvent,
-    fromBlock: logStartBlock(),
+    fromBlock: recentFromBlock(latestBlock),
     toBlock: latestBlock,
   });
 
@@ -252,7 +292,7 @@ async function readOnchainTimeline({
   walletAddress: Address;
 }): Promise<OnchainTimelineEvent[]> {
   const latestBlock = await publicClient.getBlockNumber();
-  const fromBlock = logStartBlock();
+  const fromBlock = recentFromBlock(latestBlock);
 
   const validationLogs = await (
     isConfigured(mantleSepoliaContracts.agentValidationRegistry)

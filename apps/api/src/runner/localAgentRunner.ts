@@ -5,6 +5,7 @@ import {
   createPublicClient,
   createWalletClient,
   encodeFunctionData,
+  formatEther,
   http,
   keccak256,
   pad,
@@ -557,6 +558,20 @@ const walletAbi = [
     type: "function",
   },
   {
+    inputs: [
+      { internalType: "address", name: "validationRegistry", type: "address" },
+      { internalType: "address", name: "target", type: "address" },
+      { internalType: "uint256", name: "value", type: "uint256" },
+      { internalType: "bytes", name: "data", type: "bytes" },
+      { internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+      { internalType: "uint16", name: "riskScore", type: "uint16" },
+    ],
+    name: "executeWithPreflight",
+    outputs: [{ internalType: "bytes", name: "result", type: "bytes" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "nonce",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
@@ -566,6 +581,13 @@ const walletAbi = [
 ] as const;
 
 const entryPointAbi = [
+  {
+    inputs: [{ name: "account", type: "address" }],
+    name: "balanceOf",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
   {
     inputs: [
       {
@@ -1986,6 +2008,92 @@ function gasWithBuffer(estimated: bigint) {
   return estimated + (estimated * bufferBps) / 10_000n + 10_000n;
 }
 
+function jsonRpcQuantity(value: bigint) {
+  return toHex(value);
+}
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function bigintFromRpcQuantity(value: unknown) {
+  if (typeof value === "bigint") return value;
+  if (typeof value === "number") return BigInt(value);
+  if (typeof value === "string" && value.startsWith("0x")) return BigInt(value);
+  if (typeof value === "string" && value) return BigInt(value);
+  return undefined;
+}
+
+async function readBundlerGasPrice(bundlerUrl: string) {
+  const response = await fetch(bundlerUrl, {
+    body: JSON.stringify({
+      id: 1,
+      jsonrpc: "2.0",
+      method: "pimlico_getUserOperationGasPrice",
+      params: [],
+    }),
+    headers: { "content-type": "application/json" },
+    method: "POST",
+  });
+  const payload = (await response.json()) as {
+    error?: { message?: string };
+    result?: Record<string, { maxFeePerGas?: unknown; maxPriorityFeePerGas?: unknown }>;
+  };
+
+  if (!response.ok || payload.error || !payload.result) {
+    throw new Error(payload.error?.message ?? `Bundler gas price returned ${response.status}`);
+  }
+
+  const tierName = process.env.NEXORA_BUNDLER_GAS_PRICE_TIER ?? "fast";
+  const tier = payload.result[tierName] ?? payload.result.fast ?? payload.result.standard ?? payload.result.slow;
+  const maxFeePerGas = bigintFromRpcQuantity(tier?.maxFeePerGas);
+  const maxPriorityFeePerGas = bigintFromRpcQuantity(tier?.maxPriorityFeePerGas);
+
+  if (maxFeePerGas === undefined || maxPriorityFeePerGas === undefined) {
+    throw new Error("Bundler gas price response did not include maxFeePerGas and maxPriorityFeePerGas.");
+  }
+
+  console.log(
+    `Bundler gas price (${tierName}): maxFeePerGas=${maxFeePerGas.toString()} maxPriorityFeePerGas=${maxPriorityFeePerGas.toString()}`,
+  );
+
+  return { maxFeePerGas, maxPriorityFeePerGas };
+}
+
+async function assertBundlerFunding(input: {
+  actionValue: bigint;
+  entryPoint: Address;
+  publicClient: ReturnType<typeof createPublicClient>;
+  walletAddress: Address;
+}) {
+  const [walletBalance, entryPointDeposit] = await Promise.all([
+    input.publicClient.getBalance({ address: input.walletAddress }),
+    input.publicClient
+      .readContract({
+        abi: entryPointAbi,
+        address: input.entryPoint,
+        args: [input.walletAddress],
+        functionName: "balanceOf",
+      })
+      .catch(() => 0n),
+  ]);
+
+  console.log(`Smart wallet balance: ${formatEther(walletBalance)} MNT`);
+  console.log(`EntryPoint deposit: ${formatEther(entryPointDeposit)} MNT`);
+
+  if (walletBalance < input.actionValue) {
+    throw new Error(
+      `Smart wallet has ${formatEther(walletBalance)} MNT, but the action needs ${formatEther(input.actionValue)} MNT. Fund the smart wallet before execution.`,
+    );
+  }
+
+  if (entryPointDeposit === 0n && walletBalance <= input.actionValue) {
+    throw new Error(
+      "EntryPoint deposit is 0 and the smart wallet has no extra MNT to prefund ERC-4337 gas. Deposit MNT into EntryPoint for this smart wallet, or fund extra MNT above the action amount.",
+    );
+  }
+}
+
 async function sendUserOperation(input: {
   account: ReturnType<typeof privateKeyToAccount>;
   bundlerUrl: string;
@@ -1999,23 +2107,39 @@ async function sendUserOperation(input: {
     address: input.walletAddress,
     functionName: "nonce",
   });
+  const callGasLimit = BigInt(process.env.NEXORA_CALL_GAS_LIMIT ?? "260000");
+  const verificationGasLimit = BigInt(
+    process.env.NEXORA_VERIFICATION_GAS_LIMIT ?? "220000",
+  );
+  const preVerificationGas = BigInt(
+    process.env.NEXORA_PRE_VERIFICATION_GAS ?? "60000",
+  );
+  const bundlerGasPrice = await readBundlerGasPrice(input.bundlerUrl);
+  const configuredMaxPriorityFeePerGas =
+    process.env.NEXORA_MAX_PRIORITY_FEE_PER_GAS !== undefined
+      ? BigInt(process.env.NEXORA_MAX_PRIORITY_FEE_PER_GAS)
+      : 0n;
+  const configuredMaxFeePerGas =
+    process.env.NEXORA_MAX_FEE_PER_GAS !== undefined
+      ? BigInt(process.env.NEXORA_MAX_FEE_PER_GAS)
+      : 0n;
+  const maxPriorityFeePerGas =
+    bundlerGasPrice.maxPriorityFeePerGas > configuredMaxPriorityFeePerGas
+      ? bundlerGasPrice.maxPriorityFeePerGas
+      : configuredMaxPriorityFeePerGas;
+  const maxFeePerGas =
+    bundlerGasPrice.maxFeePerGas > configuredMaxFeePerGas
+      ? bundlerGasPrice.maxFeePerGas
+      : configuredMaxFeePerGas;
 
   const unsignedUserOp = {
-    accountGasLimits: packGas(
-      BigInt(process.env.NEXORA_VERIFICATION_GAS_LIMIT ?? "220000"),
-      BigInt(process.env.NEXORA_CALL_GAS_LIMIT ?? "260000"),
-    ),
+    accountGasLimits: packGas(verificationGasLimit, callGasLimit),
     callData: input.callData,
-    gasFees: packGas(
-      BigInt(process.env.NEXORA_MAX_PRIORITY_FEE_PER_GAS ?? "1000000"),
-      BigInt(process.env.NEXORA_MAX_FEE_PER_GAS ?? "50000000"),
-    ),
+    gasFees: packGas(maxPriorityFeePerGas, maxFeePerGas),
     initCode: "0x" as Hex,
     nonce,
     paymasterAndData: "0x" as Hex,
-    preVerificationGas: BigInt(
-      process.env.NEXORA_PRE_VERIFICATION_GAS ?? "60000",
-    ),
+    preVerificationGas,
     sender: input.walletAddress,
     signature: "0x" as Hex,
   };
@@ -2031,7 +2155,17 @@ async function sendUserOperation(input: {
     message: { raw: userOpHash },
   });
 
-  const userOp = { ...unsignedUserOp, signature };
+  const userOp = {
+    callData: unsignedUserOp.callData,
+    callGasLimit: jsonRpcQuantity(callGasLimit),
+    maxFeePerGas: jsonRpcQuantity(maxFeePerGas),
+    maxPriorityFeePerGas: jsonRpcQuantity(maxPriorityFeePerGas),
+    nonce: jsonRpcQuantity(nonce),
+    preVerificationGas: jsonRpcQuantity(preVerificationGas),
+    sender: unsignedUserOp.sender,
+    signature,
+    verificationGasLimit: jsonRpcQuantity(verificationGasLimit),
+  };
 
   const response = await fetch(input.bundlerUrl, {
     body: JSON.stringify({
@@ -2408,6 +2542,15 @@ async function main() {
     return;
   }
 
+  if (passed && useBundler && benchmark.executionDecision === "execute" && benchmark.actionCall) {
+    await assertBundlerFunding({
+      actionValue: benchmark.actionCall.value,
+      entryPoint: entryPoint as Address,
+      publicClient,
+      walletAddress,
+    });
+  }
+
   const suiteHash =
     activeBenchmark?.benchmarkHash ?? hashJson(noBenchmarkMetadata);
 
@@ -2505,6 +2648,14 @@ async function main() {
 
   console.log(`Validation proof: ${validationHash}`);
 
+  if (useBundler) {
+    const propagationDelayMs = Number(process.env.NEXORA_BUNDLER_STATE_DELAY_MS ?? "8000");
+    if (propagationDelayMs > 0) {
+      console.log(`Waiting ${propagationDelayMs}ms for bundler state sync...`);
+      await sleep(propagationDelayMs);
+    }
+  }
+
   if (!passed) {
     console.log("Execution blocked by benchmark thresholds or proposal validation.");
     return;
@@ -2515,21 +2666,20 @@ async function main() {
     return;
   }
 
-  const callData = encodeFunctionData({
-    abi: walletAbi,
-    functionName: "executeWithPreflightByExecutor",
-    args: [
-      validationRegistry,
-      benchmark.actionCall.target,
-      benchmark.actionCall.value,
-      benchmark.actionCall.data,
-      benchmark.actionIntentHash,
-      benchmark.riskScore,
-    ],
-  });
-
   if (useBundler) {
     const bundlerUrl = requiredEnv("NEXORA_BUNDLER_RPC_URL");
+    const callData = encodeFunctionData({
+      abi: walletAbi,
+      functionName: "executeWithPreflight",
+      args: [
+        validationRegistry,
+        benchmark.actionCall.target,
+        benchmark.actionCall.value,
+        benchmark.actionCall.data,
+        benchmark.actionIntentHash,
+        benchmark.riskScore,
+      ],
+    });
 
     const userOpHash = await sendUserOperation({
       account,
