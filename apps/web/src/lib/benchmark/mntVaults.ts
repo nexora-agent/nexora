@@ -7,7 +7,7 @@ import { mantleSepoliaContracts } from "@/lib/contracts/deployments";
 export type NexoraMntVault = {
   address: `0x${string}`;
   expectedYieldBps: number;
-  name: "NexoraSafeVault" | "NexoraRiskyVault" | "NexoraVolatileVault";
+  name: "LegacyBenchmarkTarget" | "LegacyRiskTarget" | "LegacyYieldTarget";
   riskAdjustedScore: number;
   riskProfile: "low" | "medium" | "high";
   verificationStatus: "verified";
@@ -17,7 +17,7 @@ export const nexoraMntVaults: NexoraMntVault[] = [
   {
     address: mantleSepoliaContracts.safeVault,
     expectedYieldBps: 240,
-    name: "NexoraSafeVault",
+    name: "LegacyBenchmarkTarget",
     riskAdjustedScore: 94,
     riskProfile: "low",
     verificationStatus: "verified",
@@ -25,7 +25,7 @@ export const nexoraMntVaults: NexoraMntVault[] = [
   {
     address: mantleSepoliaContracts.volatileVault,
     expectedYieldBps: 720,
-    name: "NexoraVolatileVault",
+    name: "LegacyYieldTarget",
     riskAdjustedScore: 68,
     riskProfile: "medium",
     verificationStatus: "verified",
@@ -33,7 +33,7 @@ export const nexoraMntVaults: NexoraMntVault[] = [
   {
     address: mantleSepoliaContracts.riskyVault,
     expectedYieldBps: 1850,
-    name: "NexoraRiskyVault",
+    name: "LegacyRiskTarget",
     riskAdjustedScore: 22,
     riskProfile: "high",
     verificationStatus: "verified",

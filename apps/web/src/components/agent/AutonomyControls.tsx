@@ -102,14 +102,6 @@ export function AutonomyControls({
   const allowedAddresses = useMemo<AllowedAddressRow[]>(() => {
     const byAddress = new Map<string, AllowedAddressRow>();
 
-    onchainState?.benchmarkVaults.forEach((vault) => {
-      byAddress.set(vault.address.toLowerCase(), {
-        address: vault.address,
-        allowed: vault.targetAllowed,
-        label: vault.label,
-      });
-    });
-
     onchainState?.allowedTargets.forEach((target) => {
       byAddress.set(target.address.toLowerCase(), target);
     });

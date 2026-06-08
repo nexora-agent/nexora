@@ -1,7 +1,10 @@
 import type { ExecutionRecord, ObjectiveRun, ReputationStats } from "@nexora/shared";
 import { readContract, waitForTransactionReceipt, writeContract } from "@wagmi/core";
 import { mantleSepolia } from "@/lib/chains/mantle";
-import { nexoraReputationAbi } from "@/lib/contracts/abis";
+import {
+  nexoraAgentReputationRegistryAbi,
+  nexoraReputationAbi,
+} from "@/lib/contracts/abis";
 import {
   isNexoraMockWallet,
   shouldFallbackToDemoWrite,
@@ -50,32 +53,38 @@ export async function recordReputationRunOnchain(
 export async function readReputationStatsOnchain(
   agentId: string,
 ): Promise<ReputationStats> {
-  const stats = await readContract(wagmiConfig, {
-    address: mantleSepoliaContracts.reputation,
-    abi: nexoraReputationAbi,
-    functionName: "getStats",
+  const reputation = await readContract(wagmiConfig, {
+    address: mantleSepoliaContracts.agentReputationRegistry,
+    abi: nexoraAgentReputationRegistryAbi,
+    functionName: "getReputation",
     args: [BigInt(agentId)],
     chainId: mantleSepolia.id,
   });
 
-  const benchmarkRuns = Number(stats.benchmarkRuns);
+  const benchmarkRuns = Number(reputation.benchmarkRuns);
   const averageRiskScore =
-    benchmarkRuns > 0 ? Math.round(Number(stats.totalRiskScore) / benchmarkRuns) : 0;
+    benchmarkRuns > 0
+      ? Math.round(Number(reputation.totalRiskScore) / benchmarkRuns)
+      : 0;
   const averageBenchmarkScore =
     benchmarkRuns > 0
-      ? Math.round(Number(stats.totalBenchmarkScore) / benchmarkRuns)
+      ? Math.round(Number(reputation.totalBenchmarkScore) / benchmarkRuns)
       : 0;
 
   return {
     averageBenchmarkScore,
     averageRiskScore,
     benchmarkRuns,
-    blockedActions: Number(stats.blockedActions),
-    policyViolations: Number(stats.policyViolations),
-    safeActions: Number(stats.safeActions),
+    blockedActions: Number(reputation.blockedExecutions),
+    policyViolations: Number(reputation.policyViolations),
+    safeActions: Number(reputation.safeExecutions),
     source: "onchain",
-    trustScore: Number(stats.trustScore),
+    trustScore: Number(reputation.trustScore),
   };
+}
+
+export async function readAgentReputationCountersOnchain(agentId: string) {
+  return readReputationStatsOnchain(agentId);
 }
 
 export function canFallbackReputation(caughtError: unknown) {

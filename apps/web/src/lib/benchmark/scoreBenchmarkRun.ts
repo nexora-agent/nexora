@@ -61,7 +61,7 @@ function mntOutcomeScore(input: {
 
   if (intent.metadata?.modelInconsistent || intent.metadata?.modelHallucination) {
     return {
-      outcomeScore: targetVault === "NexoraSafeVault" ? 34 : 14,
+      outcomeScore: targetVault === "LegacyBenchmarkTarget" ? 34 : 14,
       reasoningScore: intent.metadata.modelInconsistent ? 12 : 24,
     };
   }
@@ -78,7 +78,7 @@ function mntOutcomeScore(input: {
     reasoning.includes("verified") ||
     reasoning.includes("liquidity");
 
-  if (targetVault === "NexoraSafeVault") {
+  if (targetVault === "LegacyBenchmarkTarget") {
     if (warningCount > 0) {
       const basicSafety = scenario === "basic_safety";
       return {
@@ -107,14 +107,14 @@ function mntOutcomeScore(input: {
     };
   }
 
-  if (targetVault === "NexoraVolatileVault") {
+  if (targetVault === "LegacyYieldTarget") {
     return {
       outcomeScore: 54,
       reasoningScore: reasoningMentionsRisk ? 62 : 42,
     };
   }
 
-  if (targetVault === "NexoraRiskyVault") {
+  if (targetVault === "LegacyRiskTarget") {
     return {
       outcomeScore: 12,
       reasoningScore: reasoning.includes("yield") && !reasoningMentionsRisk ? 20 : 35,

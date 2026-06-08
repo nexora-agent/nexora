@@ -152,7 +152,7 @@ function mntToolTraceForObjective(
   intent: TransactionIntent,
   report: RiskReport,
 ): ToolTraceEntry[] {
-  const selectedVault = intent.metadata?.targetVault ?? "NexoraSafeVault";
+  const selectedVault = intent.metadata?.targetVault ?? "LegacyBenchmarkTarget";
   const trace: ToolTraceEntry[] = [
     {
       index: 1,
@@ -689,7 +689,7 @@ export function runMntBenchmarkWithDecision(
   const harness = getHarnessTemplate(agent.selectedHarnessId);
   const selectedVault =
     getMntVaultByName(decision?.selectedVaultName) ??
-    (decision?.failure ? getMntVaultByName("NexoraRiskyVault") : undefined) ??
+    (decision?.failure ? getMntVaultByName("LegacyRiskTarget") : undefined) ??
     selectMntVault(agent);
   const intent = createMntVaultDepositIntent({
     agent,

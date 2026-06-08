@@ -4437,6 +4437,39 @@ pre, code {
   padding: 18px 20px;
 }
 
+.benchmark-card-button {
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+}
+
+.benchmark-card-button:hover {
+  border-color: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.benchmark-card-footer {
+  align-items: center;
+  color: var(--muted);
+  display: flex;
+  font-size: 0.78rem;
+  justify-content: space-between;
+}
+
+.benchmark-card-footer strong {
+  color: var(--accent);
+}
+
+.benchmark-json-preview {
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--border);
+  color: var(--text);
+  max-height: 75vh;
+  overflow: auto;
+  padding: 16px;
+  white-space: pre-wrap;
+}
+
 .benchmark-card-skeleton {
   display: flex;
   flex-direction: column;

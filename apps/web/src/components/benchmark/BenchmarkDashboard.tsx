@@ -14,7 +14,68 @@ type Props = {
   refreshKey?: number;
 };
 
-function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
+function parseJsonSafely(value: string) {
+  try {
+    return JSON.parse(value);
+  } catch {
+    return value;
+  }
+}
+
+function JsonModal({
+  onClose,
+  title,
+  value,
+}: {
+  onClose: () => void;
+  title: string;
+  value: unknown | null;
+}) {
+  useEffect(() => {
+    if (!value) return;
+
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [onClose, value]);
+
+  if (!value) return null;
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose} role="presentation">
+      <section
+        aria-label={title}
+        aria-modal="true"
+        className="wallet-modal"
+        onMouseDown={(event) => event.stopPropagation()}
+        role="dialog"
+      >
+        <div className="modal-topline">
+          <h2>{title}</h2>
+          <button className="secondary-action" onClick={onClose} type="button">
+            Close
+          </button>
+        </div>
+        <pre className="benchmark-json-preview">
+          {JSON.stringify(value, null, 2)}
+        </pre>
+      </section>
+    </div>
+  );
+}
+
+function BenchmarkCard({
+  benchmark,
+  onViewJson,
+}: {
+  benchmark: OnchainBenchmark;
+  onViewJson: () => void;
+}) {
   const createdDate = new Date(benchmark.createdAt).toLocaleDateString("en-US", {
     year: "numeric",
     month: "short",
@@ -23,7 +84,7 @@ function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
   const isExecutable = benchmark.targetContracts.length > 0;
 
   return (
-    <article className="benchmark-card">
+    <button className="benchmark-card benchmark-card-button" onClick={onViewJson} type="button">
       <div className="benchmark-card-header">
         <div className="benchmark-card-pills">
           <span className={`status-pill ${benchmark.active ? "status-ready" : "status-disconnected"}`}>
@@ -63,7 +124,11 @@ function BenchmarkCard({ benchmark }: { benchmark: OnchainBenchmark }) {
           </div>
         )}
       </dl>
-    </article>
+      <div className="benchmark-card-footer">
+        <span>Stored on Mantle</span>
+        <strong>View JSON</strong>
+      </div>
+    </button>
   );
 }
 
@@ -71,6 +136,7 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refres
   const [benchmarks, setBenchmarks] = useState<OnchainBenchmark[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [selectedBenchmarkJson, setSelectedBenchmarkJson] = useState<unknown | null>(null);
 
   useEffect(() => {
     if (!connectedAddress) return;
@@ -146,15 +212,31 @@ export function BenchmarkDashboard({ connectedAddress, onCreateBenchmark, refres
       {connectedAddress && !isLoading && benchmarks.length > 0 && (
         <>
           <div className="benchmark-count-line">
-            <span>{benchmarks.length} benchmark{benchmarks.length !== 1 ? "s" : ""} on Mantle Sepolia</span>
+            <span>Created Benchmarks · {benchmarks.length} on Mantle Sepolia</span>
           </div>
           <div className="benchmark-grid">
-            {benchmarks.map((b) => (
-              <BenchmarkCard key={b.benchmarkId} benchmark={b} />
+            {benchmarks.map((benchmark) => (
+              <BenchmarkCard
+                benchmark={benchmark}
+                key={benchmark.benchmarkId}
+                onViewJson={() => {
+                  setSelectedBenchmarkJson({
+                    benchmarkJson: benchmark.benchmarkDataJson ? parseJsonSafely(benchmark.benchmarkDataJson) : undefined,
+                    benchmarkState: benchmark,
+                    source: "mantle",
+                  });
+                }}
+              />
             ))}
           </div>
         </>
       )}
+
+      <JsonModal
+        onClose={() => setSelectedBenchmarkJson(null)}
+        title="Benchmark JSON from Mantle"
+        value={selectedBenchmarkJson}
+      />
     </div>
   );
 }

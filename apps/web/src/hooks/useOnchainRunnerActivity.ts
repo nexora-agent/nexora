@@ -14,7 +14,6 @@ import { mantleSepolia } from "@/lib/chains/mantle";
 import {
   nexoraAgentReputationRegistryAbi,
   nexoraAgentValidationRegistryAbi,
-  nexoraBenchmarkVaultAbi,
 } from "@/lib/contracts/abis";
 import { mantleSepoliaContracts } from "@/lib/contracts/deployments";
 
@@ -46,7 +45,16 @@ type LatestExecution = {
   value?: string;
 };
 
-type OnchainRunnerActivity = {
+export type OnchainTimelineEvent = {
+  blockNumber?: bigint;
+  label: string;
+  status: "success" | "failed" | "unknown";
+  txHash: Hex;
+  type: "validation" | "execution" | "reputation";
+  value?: string;
+};
+
+export type OnchainRunnerActivity = {
   agentId: string;
   latestExecution?: LatestExecution;
   latestValidation?: LatestValidation;
@@ -57,10 +65,7 @@ type OnchainRunnerActivity = {
     safeActions?: number;
     trustScore?: number;
   };
-  safeVaultPosition?: {
-    balanceMnt: string;
-    vaultAddress: string;
-  };
+  timeline?: OnchainTimelineEvent[];
   walletAddress: string;
 };
 
@@ -80,6 +85,13 @@ const cacheTtlMs = 30_000;
 const validationRecordedEvent = parseAbiItem(
   "event ValidationRecorded(uint256 indexed agentId, bytes32 indexed actionIntentHash, bytes32 indexed reportHash, uint16 averageScore, bool passed, address reporter)",
 );
+const walletExecutedEvent = parseAbiItem(
+  "event Executed(address indexed target, uint256 value, bytes data, bytes result)",
+);
+const reputationSignalEvent = parseAbiItem(
+  "event ReputationSignal(uint256 indexed agentId, bool executed, bool policyViolation, uint16 riskScore, uint16 benchmarkScore, uint256 trustScore, address indexed reporter)",
+);
+const logChunkSize = 10n;
 const activityCache = new Map<
   string,
   {
@@ -91,6 +103,51 @@ const inFlightReads = new Map<string, Promise<OnchainRunnerActivity>>();
 
 function isConfigured(address: string) {
   return address.toLowerCase() !== zeroAddress.toLowerCase();
+}
+
+function formatAddress(address: string) {
+  if (!address) {
+    return "unknown target";
+  }
+
+  return `${address.slice(0, 8)}...${address.slice(-6)}`;
+}
+
+function logStartBlock() {
+  return BigInt(process.env.NEXT_PUBLIC_NEXORA_START_BLOCK ?? "39141900");
+}
+
+async function getLogsChunked<TLog>({
+  address,
+  args,
+  event,
+  fromBlock,
+  toBlock,
+}: {
+  address: Address;
+  args?: Record<string, unknown>;
+  event: typeof validationRecordedEvent | typeof walletExecutedEvent | typeof reputationSignalEvent;
+  fromBlock: bigint;
+  toBlock: bigint;
+}) {
+  const allLogs: TLog[] = [];
+  let cursor = fromBlock;
+
+  while (cursor <= toBlock) {
+    const chunkToBlock = cursor + logChunkSize - 1n > toBlock ? toBlock : cursor + logChunkSize - 1n;
+    const logs = await publicClient.getLogs({
+      address,
+      args,
+      event,
+      fromBlock: cursor,
+      toBlock: chunkToBlock,
+    });
+
+    allLogs.push(...(logs as TLog[]));
+    cursor = chunkToBlock + 1n;
+  }
+
+  return allLogs;
 }
 
 async function readValidationHashes(agentId: string) {
@@ -121,8 +178,7 @@ async function readValidationEventTx({
   reportHash: Hex;
 }) {
   const latestBlock = await publicClient.getBlockNumber();
-  const fromBlock = latestBlock > 100_000n ? latestBlock - 100_000n : 0n;
-  const logs = await publicClient.getLogs({
+  const logs = await getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
     address: mantleSepoliaContracts.agentValidationRegistry,
     args: {
       actionIntentHash,
@@ -130,7 +186,7 @@ async function readValidationEventTx({
       reportHash,
     },
     event: validationRecordedEvent,
-    fromBlock,
+    fromBlock: logStartBlock(),
     toBlock: latestBlock,
   });
 
@@ -188,36 +244,90 @@ async function readLatestValidation(agentId: string) {
   } satisfies LatestValidation;
 }
 
-async function readSafeVaultPosition(walletAddress: Address) {
-  if (!isConfigured(mantleSepoliaContracts.safeVault)) {
-    return undefined;
-  }
+async function readOnchainTimeline({
+  agentId,
+  walletAddress,
+}: {
+  agentId: string;
+  walletAddress: Address;
+}): Promise<OnchainTimelineEvent[]> {
+  const latestBlock = await publicClient.getBlockNumber();
+  const fromBlock = logStartBlock();
 
-  const balance = await publicClient.readContract({
-    abi: nexoraBenchmarkVaultAbi,
-    address: mantleSepoliaContracts.safeVault,
-    args: [walletAddress],
-    functionName: "balanceOf",
-  });
+  const validationLogs = await (
+    isConfigured(mantleSepoliaContracts.agentValidationRegistry)
+      ? getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
+          address: mantleSepoliaContracts.agentValidationRegistry,
+          args: { agentId: BigInt(agentId) },
+          event: validationRecordedEvent,
+          fromBlock,
+          toBlock: latestBlock,
+        }).catch(() => [])
+      : Promise.resolve([])
+  );
 
-  return {
-    balanceMnt: `${formatEther(balance)} MNT`,
-    vaultAddress: mantleSepoliaContracts.safeVault,
-  };
+  const executionLogs = await getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
+      address: walletAddress,
+      event: walletExecutedEvent,
+      fromBlock,
+      toBlock: latestBlock,
+    }).catch(() => []);
+
+  const reputationLogs = await (
+    isConfigured(mantleSepoliaContracts.agentReputationRegistry)
+      ? getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
+          address: mantleSepoliaContracts.agentReputationRegistry,
+          args: { agentId: BigInt(agentId) },
+          event: reputationSignalEvent,
+          fromBlock,
+          toBlock: latestBlock,
+        }).catch(() => [])
+      : Promise.resolve([])
+  );
+
+  return [
+    ...validationLogs.map((log) => ({
+      blockNumber: log.blockNumber,
+      label: log.args.passed
+        ? "Benchmark validation passed"
+        : "Benchmark validation failed",
+      status: log.args.passed ? "success" as const : "failed" as const,
+      txHash: log.transactionHash,
+      type: "validation" as const,
+    })),
+    ...executionLogs.map((log) => ({
+      blockNumber: log.blockNumber,
+      label: `Wallet executed action to ${formatAddress(log.args.target ?? "")}`,
+      status: "success" as const,
+      txHash: log.transactionHash,
+      type: "execution" as const,
+      value: log.args.value ? `${formatEther(log.args.value)} MNT` : undefined,
+    })),
+    ...reputationLogs.map((log) => ({
+      blockNumber: log.blockNumber,
+      label: log.args.executed
+        ? "Safe execution reputation recorded"
+        : "Blocked execution reputation recorded",
+      status: log.args.executed ? "success" as const : "failed" as const,
+      txHash: log.transactionHash,
+      type: "reputation" as const,
+    })),
+  ].sort((left, right) => Number((right.blockNumber ?? 0n) - (left.blockNumber ?? 0n)));
 }
 
 async function readActivity(agentId: string, walletAddress: `0x${string}`) {
   const latestValidation = await readLatestValidation(agentId);
-  const [safeVaultPosition, reputation] = await Promise.all([
-    readSafeVaultPosition(walletAddress).catch(() => undefined),
+  const [reputation, timeline] = await Promise.all([
     readReputation(agentId).catch(() => undefined),
+    readOnchainTimeline({ agentId, walletAddress }).catch(() => []),
   ]);
 
   return {
     agentId,
+    latestExecution: timeline.find((event) => event.type === "execution"),
     latestValidation,
     reputation,
-    safeVaultPosition,
+    timeline,
     walletAddress,
   } satisfies OnchainRunnerActivity;
 }

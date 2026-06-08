@@ -613,6 +613,13 @@ export const nexora4337AgentWalletAbi = [
     type: "function",
   },
   {
+    inputs: [{ internalType: "uint256", name: "day", type: "uint256" }],
+    name: "spentByDay",
+    outputs: [{ internalType: "uint256", name: "spent", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
     inputs: [
       { internalType: "address", name: "executor", type: "address" },
       { internalType: "bool", name: "enabled", type: "bool" },

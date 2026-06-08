@@ -146,3 +146,30 @@ export function isNexoraMockWallet() {
       ?.isNexoraMock,
   );
 }
+
+export type OnchainAgentIdentitySummary = {
+  agentId: string;
+  smartWalletAddress?: `0x${string}`;
+};
+
+export async function readAgentIdentitySummaryOnchain(
+  agentId: string,
+): Promise<OnchainAgentIdentitySummary> {
+  const parsedAgentId = BigInt(agentId);
+
+  const walletAddress = await readContract(wagmiConfig, {
+    address: mantleSepoliaContracts.factory,
+    abi: nexoraFactoryAbi,
+    functionName: "walletOfAgent",
+    args: [parsedAgentId],
+    chainId: mantleSepolia.id,
+  });
+
+  return {
+    agentId,
+    smartWalletAddress:
+      walletAddress && walletAddress !== zeroAddress
+        ? (walletAddress as `0x${string}`)
+        : undefined,
+  };
+}

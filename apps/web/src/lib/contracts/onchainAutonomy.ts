@@ -28,25 +28,7 @@ async function waitForMantle(hash: `0x${string}`, label: string) {
   return receipt;
 }
 
-const benchmarkVaults = [
-  { address: mantleSepoliaContracts.safeVault, label: "NexoraSafeVault" },
-  { address: mantleSepoliaContracts.volatileVault, label: "NexoraVolatileVault" },
-  { address: mantleSepoliaContracts.riskyVault, label: "NexoraRiskyVault" },
-].filter((vault) => vault.address.toLowerCase() !== zeroAddress.toLowerCase()) as Array<{
-  address: Address;
-  label: string;
-}>;
-
-const benchmarkSelectors = [
-  { label: "Deposit", selector: "0xd0e30db0" as const },
-  { label: "Withdraw", selector: "0x2e1a7d4d" as const },
-];
-
 const benchmarkActionTargets = [
-  ...benchmarkVaults.map((vault) => ({
-    address: vault.address,
-    selectors: benchmarkSelectors,
-  })),
   {
     address: mantleSepoliaContracts.benchmarkDex as Address,
     selectors: [
@@ -57,7 +39,6 @@ const benchmarkActionTargets = [
 
 function labelAllowedTarget(address: Address) {
   const knownTargets = [
-    ...benchmarkVaults,
     {
       address: mantleSepoliaContracts.benchmarkDex as Address,
       label: "NexoraBenchmarkDex",
@@ -68,10 +49,7 @@ function labelAllowedTarget(address: Address) {
     },
   ].filter((target) => target.address.toLowerCase() !== zeroAddress.toLowerCase());
 
-  return (
-    knownTargets.find((target) => target.address.toLowerCase() === address.toLowerCase())?.label ??
-    "Custom address"
-  );
+  return knownTargets.find((target) => target.address.toLowerCase() === address.toLowerCase())?.label ?? "Custom address";
 }
 
 async function readContractOrDefault<T>(read: () => Promise<T>, fallback: T) {
@@ -105,12 +83,6 @@ async function allowAutonomousSelectorOnchain({
   return hash;
 }
 
-export type BenchmarkVaultPermission = {
-  address: Address;
-  label: string;
-  targetAllowed?: boolean;
-};
-
 export type AllowedTargetPermission = {
   address: Address;
   allowed: boolean;
@@ -119,15 +91,48 @@ export type AllowedTargetPermission = {
 
 export type AutonomyOnchainState = {
   allowedTargets: AllowedTargetPermission[];
-  benchmarkVaults: BenchmarkVaultPermission[];
   dailyLimitMnt: string;
   enabled: boolean;
   executor: Address;
   maxValuePerActionMnt: string;
   reporterAuthorized: boolean;
   requirePreflight: boolean;
+  remainingTodayMnt?: string;
+  spentTodayMnt?: string;
   validUntil: number;
 };
+
+function currentUtcDayIndex() {
+  return BigInt(Math.floor(Date.now() / 86_400_000));
+}
+
+async function readExecutorDailyUsageOnchain({
+  dailyLimitWei,
+  walletAddress,
+}: {
+  dailyLimitWei: bigint;
+  walletAddress: Address;
+}) {
+  const spentTodayWei = await readContractOrDefault(
+    () =>
+      readContract(wagmiConfig, {
+        abi: nexora4337AgentWalletAbi,
+        address: walletAddress,
+        args: [currentUtcDayIndex()],
+        chainId: mantleSepolia.id,
+        functionName: "spentByDay",
+      }),
+    0n,
+  );
+
+  const remainingTodayWei =
+    dailyLimitWei > spentTodayWei ? dailyLimitWei - spentTodayWei : 0n;
+
+  return {
+    remainingTodayMnt: formatEther(remainingTodayWei),
+    spentTodayMnt: formatEther(spentTodayWei),
+  };
+}
 
 export async function readAutonomyStateOnchain({
   agentId,
@@ -165,24 +170,14 @@ export async function readAutonomyStateOnchain({
         )
       : false;
 
-  const vaultPermissions = await Promise.all(
-    benchmarkVaults.map(async (vault) => {
-      const targetAllowed = await readAllowedAddressOnchain({
-        target: vault.address,
-        walletAddress: address,
-      });
-
-      return {
-        ...vault,
-        targetAllowed,
-      };
-    }),
-  );
   const allowedTargets = await readAllowedTargetsOnchain(address);
+  const dailyUsage = await readExecutorDailyUsageOnchain({
+    dailyLimitWei: policy[4],
+    walletAddress: address,
+  });
 
   return {
     allowedTargets,
-    benchmarkVaults: vaultPermissions,
     dailyLimitMnt: formatEther(policy[4]),
     enabled: policy[1],
     executor: policyExecutor,
@@ -190,6 +185,7 @@ export async function readAutonomyStateOnchain({
     reporterAuthorized,
     requirePreflight: policy[2],
     validUntil: Number(policy[5]),
+    ...dailyUsage,
   };
 }
 

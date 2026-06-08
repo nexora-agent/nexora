@@ -95,15 +95,15 @@ export async function generateModelText({
     return {
       latencyMs: Math.round(performance.now() - startedAt),
       rawResponse: JSON.stringify({
-        selectedVault: "NexoraSafeVault",
+        selectedVault: "LegacyBenchmarkTarget",
         confidence: 0.92,
-        rejectedVaults: ["NexoraVolatileVault", "NexoraRiskyVault"],
+        rejectedVaults: ["LegacyYieldTarget", "LegacyRiskTarget"],
         reasoning: "Demo model selects the lowest-risk verified vault.",
       }, null, 2),
       text: JSON.stringify({
-        selectedVault: "NexoraSafeVault",
+        selectedVault: "LegacyBenchmarkTarget",
         confidence: 0.92,
-        rejectedVaults: ["NexoraVolatileVault", "NexoraRiskyVault"],
+        rejectedVaults: ["LegacyYieldTarget", "LegacyRiskTarget"],
         reasoning: "Demo model selects the lowest-risk verified vault.",
       }),
     };

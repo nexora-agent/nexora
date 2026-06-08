@@ -254,7 +254,7 @@ export function analyzeRiskLocally(
   };
 }
 const benchmarkVaults = new Map<string, { name: string; risk: "low" | "medium" | "high" }>([
-  [mantleSepoliaContracts.safeVault.toLowerCase(), { name: "NexoraSafeVault", risk: "low" }],
-  [mantleSepoliaContracts.volatileVault.toLowerCase(), { name: "NexoraVolatileVault", risk: "medium" }],
-  [mantleSepoliaContracts.riskyVault.toLowerCase(), { name: "NexoraRiskyVault", risk: "high" }],
+  [mantleSepoliaContracts.safeVault.toLowerCase(), { name: "LegacyBenchmarkTarget", risk: "low" }],
+  [mantleSepoliaContracts.volatileVault.toLowerCase(), { name: "LegacyYieldTarget", risk: "medium" }],
+  [mantleSepoliaContracts.riskyVault.toLowerCase(), { name: "LegacyRiskTarget", risk: "high" }],
 ]);

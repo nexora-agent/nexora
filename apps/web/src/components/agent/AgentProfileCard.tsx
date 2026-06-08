@@ -5,21 +5,13 @@ import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { useOnchainRunnerActivity } from "@/hooks/useOnchainRunnerActivity";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
-import { getByrealStatus } from "@/lib/byreal/byrealAdapter";
-import { fetchByrealStatus } from "@/lib/byreal/byrealClient";
-import {
-  getExternalDefiEligibility,
-  latestByrealRun,
-} from "@/lib/byreal/externalDefiEligibility";
-import { DexBenchmarkReport } from "../benchmark/DexBenchmarkReport";
-import { ModelDecisionPanel } from "../benchmark/ModelDecisionPanel";
-import { ByrealStatusCard } from "../byreal/ByrealStatusCard";
-import { ReputationPanel } from "../reputation/ReputationPanel";
+import { getExternalDefiEligibility } from "@/lib/byreal/externalDefiEligibility";
 import { AgentWalletBalance } from "../wallet/AgentWalletBalance";
 import { AgentWalletCard } from "../wallet/AgentWalletCard";
 import { FundWalletPanel } from "../wallet/FundWalletPanel";
 import { AgentStatusBadge, getAgentStatus } from "./AgentStatusBadge";
 import { AutonomyControls } from "./AutonomyControls";
+import { OnchainAgentReportPanel } from "./OnchainAgentReportPanel";
 
 type AgentProfileCardProps = {
   agent: AgentRecord;
@@ -29,8 +21,7 @@ type AgentProfileCardProps = {
 type DetailTab =
   | "overview"
   | "agent-access"
-  | "results"
-  | "activity";
+  | "results";
 
 type ModalName =
   | "create-wallet"
@@ -41,19 +32,10 @@ const tabs: Array<{ id: DetailTab; label: string }> = [
   { id: "overview", label: "Overview" },
   { id: "agent-access", label: "Agent Access" },
   { id: "results", label: "Reports" },
-  { id: "activity", label: "Timeline" },
 ];
 
 function formatAddress(address: string) {
   return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
-function formatHash(hash?: string) {
-  if (!hash) {
-    return "Not recorded";
-  }
-
-  return `${hash.slice(0, 10)}...${hash.slice(-8)}`;
 }
 
 function formatUnixTimestamp(timestamp?: number) {
@@ -187,18 +169,10 @@ export function AgentProfileCard({
   const isViewOnly = Boolean(connectedAddress && !isOwner);
   const latestRun = currentAgent.objectiveRuns?.[0];
   const agentIdentityId = currentAgent.agentIdentityId ?? currentAgent.id;
-  const {
-    activity: onchainActivity,
-    error: onchainActivityError,
-    loading: onchainActivityLoading,
-    refresh: refreshOnchainActivity,
-  } = useOnchainRunnerActivity({
+  const { activity: onchainActivity } = useOnchainRunnerActivity({
     agentId: agentIdentityId,
     walletAddress: currentAgent.walletAddress,
   });
-  const [byrealStatus, setByrealStatus] = useState(getByrealStatus);
-  const latestByrealProposalRun = latestByrealRun(currentAgent);
-  const latestExecution = latestRun?.execution;
   const { formattedBalance, isLoading, isRefreshing, isStale, isZeroBalance } = useWalletBalance(
     currentAgent.walletAddress,
   );
@@ -223,25 +197,6 @@ export function AgentProfileCard({
         ? "passed"
         : "failed"
       : latestRun?.riskReport?.policyDecision;
-  const latestValidation = onchainActivity?.latestValidation;
-  const latestBenchmarkLabel =
-    latestRun?.intent?.metadata?.benchmarkName ??
-    (latestValidation ? "On-chain runner validation" : undefined);
-
-  useEffect(() => {
-    let active = true;
-
-    void fetchByrealStatus().then((statusResult) => {
-      if (active) {
-        setByrealStatus(statusResult);
-      }
-    });
-
-    return () => {
-      active = false;
-    };
-  }, []);
-
   useEffect(() => {
     if (!currentAgent.walletAddress || isLoading || isZeroBalance || currentAgent.walletFundedAt) {
       return;
@@ -493,275 +448,9 @@ export function AgentProfileCard({
         )}
 
         {activeTab === "results" && (
-          <div className="results-grid">
-            {latestRun?.intent?.kind === "dex_swap" || latestRun?.intent?.kind === "dex_reject"
-              ? latestRun && <DexBenchmarkReport run={latestRun} />
-              : null}
-            {onchainActivity?.latestValidation && (
-              <section className="summary-card onchain-runner-report" aria-label="On-chain runner report">
-                <div className="card-heading-row">
-                  <h3>On-chain Runner Report</h3>
-                  <button className="ghost-action" onClick={() => void refreshOnchainActivity()} type="button">
-                    Refresh
-                  </button>
-                </div>
-                <dl>
-                  <div>
-                    <dt>Average Score</dt>
-                    <dd>{onchainActivity.latestValidation.averageScore}</dd>
-                  </div>
-                  <div>
-                    <dt>Basic / Trap / External</dt>
-                    <dd>
-                      {onchainActivity.latestValidation.basicScore} /{" "}
-                      {onchainActivity.latestValidation.adversarialScore} /{" "}
-                      {onchainActivity.latestValidation.externalScore}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Risk</dt>
-                    <dd>{onchainActivity.latestValidation.riskScore} / 100</dd>
-                  </div>
-                  <div>
-                    <dt>Status</dt>
-                    <dd>{onchainActivity.latestValidation.passed ? "Passed" : "Failed"}</dd>
-                  </div>
-                  <div>
-                    <dt>Validation Tx</dt>
-                    <dd title={onchainActivity.latestValidation.txHash}>
-                      {onchainActivity.latestValidation.txHash
-                        ? formatHash(onchainActivity.latestValidation.txHash)
-                        : "Event lookup pending"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Recorded At</dt>
-                    <dd>{formatUnixTimestamp(onchainActivity.latestValidation.timestamp)}</dd>
-                  </div>
-                  <div>
-                    <dt>Execution</dt>
-                    <dd>
-                      {onchainActivity.latestExecution
-                        ? `${onchainActivity.latestExecution.status ?? "unknown"} · ${onchainActivity.latestExecution.txHash ?? "no tx"}`
-                        : "No matching execution found"}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Wallet Position</dt>
-                    <dd>{onchainActivity.safeVaultPosition?.balanceMnt ?? "No wallet position"}</dd>
-                  </div>
-                </dl>
-              </section>
-            )}
-            {!onchainActivity?.latestValidation && (
-              <section className="summary-card">
-                <div className="card-heading-row">
-                  <h3>On-chain Runner Report</h3>
-                  <button className="ghost-action" onClick={() => void refreshOnchainActivity()} type="button">
-                    Refresh
-                  </button>
-                </div>
-                <p>
-                  {onchainActivityLoading
-                    ? "Reading Mantle..."
-                    : onchainActivityError ?? "No on-chain runner validation found yet."}
-                </p>
-              </section>
-            )}
-            <section className="summary-card" aria-label="Benchmark summary">
-              <h3>Latest Benchmark</h3>
-              <p>{latestBenchmarkLabel ?? "No reports yet. Start the local runner to generate benchmark and risk records."}</p>
-            </section>
-            <section className="summary-card" aria-label="Risk report summary">
-              <h3>Risk Score</h3>
-              <p>
-                {latestRun?.riskReport
-                  ? `${latestRun.riskReport.riskScore} / 100 · ${latestRun.riskReport.policyDecision}`
-                  : onchainActivity?.latestValidation
-                    ? `${onchainActivity.latestValidation.riskScore} / 100 · ${onchainActivity.latestValidation.passed ? "passed" : "failed"}`
-                    : "No risk report yet. Start the local runner to create one."}
-              </p>
-            </section>
-            <section className="summary-card">
-              <h3>Selected Target</h3>
-              <p>
-                {latestRun?.intent?.metadata?.targetVault ??
-                  latestRun?.proposal?.target ??
-                  (latestValidation ? "Stored in report hash" : "No target selected yet")}
-              </p>
-            </section>
-            <section className="summary-card">
-              <h3>Rejected Options</h3>
-              <p>{latestRun?.intent?.metadata?.rejectedOptions?.map((vault) => `${vault.name}: ${vault.reason}`).join(" · ") ?? "No rejected actions yet"}</p>
-            </section>
-            <section className="summary-card">
-              <h3>MNT Amount</h3>
-              <p>{latestRun?.intent?.tokenSymbol === "MNT" ? `${latestRun.intent.amount} MNT` : "No MNT benchmark yet"}</p>
-            </section>
-            <section className="summary-card">
-              <h3>Benchmark Score</h3>
-              <p>{latestBenchmarkScore ?? "No benchmark score yet"}</p>
-            </section>
-            <section className="summary-card">
-              <h3>Proposal</h3>
-              <p>{latestRun?.proposal?.reasoning ?? "No proposal yet"}</p>
-            </section>
-            <section className="summary-card">
-              <h3>Execution Eligibility</h3>
-              <p>{onchainActivity?.latestExecution?.status ?? latestRun?.execution?.status ?? "No execution decision yet"}</p>
-            </section>
-            <section className="summary-card">
-              <h3>External DeFi Eligibility</h3>
-              <p>{externalDefiEligibility.label}</p>
-              <span>{externalDefiEligibility.reason}</span>
-            </section>
-            <ByrealStatusCard
-              eligibilityLabel={externalDefiEligibility.label}
-              eligibilityReason={externalDefiEligibility.reason}
-              status={byrealStatus}
-            />
-            <section className="summary-card">
-              <h3>Latest Byreal Proposal</h3>
-              <p>{latestByrealProposalRun?.proposal?.poolName ?? "No Byreal proposal yet"}</p>
-              <span>{latestByrealProposalRun ? "External DeFi Preview" : "External DeFi Preview proposals appear here."}</span>
-            </section>
-            <section className="summary-card">
-              <h3>Execution Mode</h3>
-              <p>{latestByrealProposalRun ? "External DeFi Preview" : "No External DeFi Preview yet"}</p>
-            </section>
-            <section className="summary-card" aria-label="Reputation summary">
-              {onchainActivity?.reputation ? (
-                <>
-                  <h3>On-chain Reputation</h3>
-                  <dl>
-                    <div>
-                      <dt>Trust Score</dt>
-                      <dd>{onchainActivity.reputation.trustScore ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>Benchmark Runs</dt>
-                      <dd>{onchainActivity.reputation.benchmarkRuns ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>Safe Actions</dt>
-                      <dd>{onchainActivity.reputation.safeActions ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>Blocked Actions</dt>
-                      <dd>{onchainActivity.reputation.blockedActions ?? 0}</dd>
-                    </div>
-                    <div>
-                      <dt>Policy Violations</dt>
-                      <dd>{onchainActivity.reputation.policyViolations ?? 0}</dd>
-                    </div>
-                  </dl>
-                </>
-              ) : (
-                <ReputationPanel agent={currentAgent} />
-              )}
-            </section>
-            <details className="setup-detail-card">
-              <summary>Model and Tool Logs</summary>
-              {latestRun ? (
-                <>
-                  <ModelDecisionPanel intent={latestRun.intent} />
-                  <section className="summary-card">
-                    <h3>Tool Trace</h3>
-                    <ol className="tool-trace-list">
-                      {latestRun.toolTrace.map((tool) => (
-                        <li key={`${latestRun.id}-${tool.index}`}>
-                          <strong>{tool.toolName}</strong>
-                          <span>{tool.summary}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  </section>
-                  {latestExecution?.reason && (
-                    <section className="summary-card">
-                      <h3>Execution</h3>
-                      <p>{latestExecution.reason}</p>
-                    </section>
-                  )}
-                </>
-              ) : (
-                <p>Start the local runner to populate detailed results.</p>
-              )}
-            </details>
+          <div className="agent-detail-panel">
+            <OnchainAgentReportPanel activity={onchainActivity} agent={currentAgent} />
           </div>
-        )}
-
-        {activeTab === "activity" && (
-          <section className="activity-timeline" aria-label="Wallet activity timeline">
-            <ol>
-              <li>
-                <strong>Profile created</strong>
-                <span>{currentAgent.createdAt}</span>
-              </li>
-              {onchainActivity?.latestValidation && (
-                <li>
-                  <strong>On-chain validation recorded</strong>
-                  <span>
-                    Score {onchainActivity.latestValidation.averageScore} · risk{" "}
-                    {onchainActivity.latestValidation.riskScore} ·{" "}
-                    {onchainActivity.latestValidation.txHash
-                      ? formatHash(onchainActivity.latestValidation.txHash)
-                      : formatHash(onchainActivity.latestValidation.reportHash)}
-                  </span>
-                </li>
-              )}
-              {onchainActivity?.latestExecution && (
-                <li>
-                  <strong>Wallet execution recorded</strong>
-                  <span>
-                    {onchainActivity.latestExecution.status} ·{" "}
-                    {onchainActivity.latestExecution.value ?? "value unavailable"} ·{" "}
-                    {onchainActivity.latestExecution.txHash ?? "tx not found"}
-                  </span>
-                </li>
-              )}
-              {onchainActivity?.safeVaultPosition && (
-                <li>
-                  <strong>Wallet position</strong>
-                  <span>{onchainActivity.safeVaultPosition.balanceMnt}</span>
-                </li>
-              )}
-              {currentAgent.walletAddress && (
-                <li>
-                  <strong>Smart wallet deployed</strong>
-                  <span>{formatAddress(currentAgent.walletAddress)}</span>
-                </li>
-              )}
-              {(currentAgent.objectiveRuns ?? []).map((run) => (
-                [
-                  <li key={`${run.id}-started`}><strong>Benchmark started</strong><span>{run.intent?.metadata?.benchmarkName ?? run.objective}</span></li>,
-                  ...run.toolTrace.map((tool) => (
-                    <li key={`${run.id}-${tool.index}`}><strong>Tool called: {tool.toolName}</strong><span>{tool.summary}</span></li>
-                  )),
-                  <li key={`${run.id}-proposal`}><strong>Proposal created</strong><span>{run.proposal?.targetVault ?? run.proposal?.actionType ?? "Proposal"}</span></li>,
-                  <li key={`${run.id}-risk`}><strong>Risk report generated</strong><span>{run.riskReport?.riskScore ?? "—"} / 100</span></li>,
-                  ...(run.intent?.kind.startsWith("byreal_")
-                    ? [
-                        <li key={`${run.id}-byreal-status`}><strong>Byreal status checked</strong><span>{run.intent.metadata?.mode ?? "demo"} mode; live execution disabled</span></li>,
-                        <li key={`${run.id}-byreal-pools`}><strong>Byreal pools listed</strong><span>External DeFi opportunities inspected</span></li>,
-                        <li key={`${run.id}-byreal-inspected`}><strong>Byreal opportunity inspected</strong><span>{run.intent.metadata?.poolName ?? "Byreal / RealClaw opportunity"}</span></li>,
-                        <li key={`${run.id}-byreal-proposal`}><strong>Byreal proposal created</strong><span>External DeFi Preview</span></li>,
-                        <li key={`${run.id}-byreal-risk`}><strong>Byreal risk report generated</strong><span>{run.riskReport?.riskScore ?? "—"} / 100</span></li>,
-                        <li key={`${run.id}-byreal-eligibility`}><strong>External DeFi eligibility checked</strong><span>{externalDefiEligibility.label}</span></li>,
-                      ]
-                    : []),
-                  <li key={`${run.id}-score`}><strong>Benchmark score generated</strong><span>{run.benchmarkScore?.finalScore ?? "—"} / 100</span></li>,
-                  <li key={`${run.id}-policy`}><strong>Policy decision produced</strong><span>{run.riskReport?.policyDecision ?? "pending"}</span></li>,
-                  <li key={`${run.id}-eligibility`}><strong>Execution eligibility updated</strong><span>{run.riskReport?.policyDecision === "passed" ? "Eligible" : "Blocked"}</span></li>,
-                ]
-              ))}
-              {!currentAgent.objectiveRuns?.length && !onchainActivity?.latestValidation && (
-                <li>
-                  <strong>No runner activity yet</strong>
-                  <span>Start the local runner to add benchmark, risk, and execution events.</span>
-                </li>
-              )}
-            </ol>
-          </section>
         )}
         </section>
       )}
