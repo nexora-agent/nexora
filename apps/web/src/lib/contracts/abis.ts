@@ -497,6 +497,19 @@ export const nexoraAgentValidationRegistryAbi = [
     type: "function",
   },
   {
+    inputs: [
+      { internalType: "address", name: "target", type: "address" },
+      { internalType: "uint256", name: "value", type: "uint256" },
+      { internalType: "bytes", name: "data", type: "bytes" },
+      { internalType: "bytes32", name: "actionIntentHash", type: "bytes32" },
+      { internalType: "uint16", name: "riskScore", type: "uint16" },
+    ],
+    name: "executeWithPreflight",
+    outputs: [{ internalType: "bytes", name: "result", type: "bytes" }],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     anonymous: false,
     inputs: [
       { indexed: true, internalType: "uint256", name: "agentId", type: "uint256" },
@@ -561,6 +574,7 @@ export const nexora4337AgentWalletAbi = [
   { inputs: [], name: "IntentAlreadyConsumed", type: "error" },
   { inputs: [], name: "InvalidNonce", type: "error" },
   { inputs: [], name: "InvalidUserOperation", type: "error" },
+  { inputs: [], name: "InvalidValidationRegistry", type: "error" },
   { inputs: [], name: "NoEntryPoint", type: "error" },
   { inputs: [], name: "NotAuthorized", type: "error" },
   { inputs: [], name: "PreflightFailed", type: "error" },
@@ -656,6 +670,13 @@ export const nexora4337AgentWalletAbi = [
   },
   {
     inputs: [],
+    name: "validationRegistry",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "entryPointDeposit",
     outputs: [{ internalType: "uint256", name: "", type: "uint256" }],
     stateMutability: "view",
@@ -673,7 +694,6 @@ export const nexora4337AgentWalletAbi = [
   },
   {
     inputs: [
-      { internalType: "address", name: "validationRegistry", type: "address" },
       { internalType: "address", name: "target", type: "address" },
       { internalType: "uint256", name: "value", type: "uint256" },
       { internalType: "bytes", name: "data", type: "bytes" },

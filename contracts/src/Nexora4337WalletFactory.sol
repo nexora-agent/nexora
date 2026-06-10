@@ -8,6 +8,7 @@ import {NexoraAgentIdentityRegistry} from "./NexoraAgentIdentityRegistry.sol";
 contract Nexora4337WalletFactory {
     NexoraAgentIdentityRegistry public immutable identityRegistry;
     address public immutable entryPoint;
+    address public immutable validationRegistry;
     address public immutable reputationRegistry;
     address public immutable safeVault;
     address public immutable volatileVault;
@@ -22,6 +23,7 @@ contract Nexora4337WalletFactory {
     constructor(
         address identityRegistry_,
         address entryPoint_,
+        address validationRegistry_,
         address reputationRegistry_,
         address safeVault_,
         address volatileVault_,
@@ -29,6 +31,7 @@ contract Nexora4337WalletFactory {
     ) {
         identityRegistry = NexoraAgentIdentityRegistry(identityRegistry_);
         entryPoint = entryPoint_;
+        validationRegistry = validationRegistry_;
         reputationRegistry = reputationRegistry_;
         safeVault = safeVault_;
         volatileVault = volatileVault_;
@@ -52,7 +55,16 @@ contract Nexora4337WalletFactory {
         bytes32 bytecodeHash = keccak256(
             abi.encodePacked(
                 type(Nexora4337AgentWallet).creationCode,
-                abi.encode(owner, agentId, entryPoint, reputationRegistry, safeVault, volatileVault, riskyVault)
+                abi.encode(
+                    owner,
+                    agentId,
+                    entryPoint,
+                    validationRegistry,
+                    reputationRegistry,
+                    safeVault,
+                    volatileVault,
+                    riskyVault
+                )
             )
         );
 
@@ -67,7 +79,7 @@ contract Nexora4337WalletFactory {
 
         wallet = address(
             new Nexora4337AgentWallet{salt: keccak256(abi.encode(owner, agentId, salt))}(
-                owner, agentId, entryPoint, reputationRegistry, safeVault, volatileVault, riskyVault
+                owner, agentId, entryPoint, validationRegistry, reputationRegistry, safeVault, volatileVault, riskyVault
             )
         );
     }

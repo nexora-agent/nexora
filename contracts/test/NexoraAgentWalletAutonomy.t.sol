@@ -67,7 +67,13 @@ contract NexoraAgentWalletAutonomyTest {
         entryPoint = address(mockEntryPoint);
         safeVault = new NexoraSafeVault();
         factory = new Nexora4337WalletFactory(
-            address(identity), entryPoint, address(reputation), address(safeVault), address(0), address(0)
+            address(identity),
+            entryPoint,
+            address(validation),
+            address(reputation),
+            address(safeVault),
+            address(0),
+            address(0)
         );
         identity.setController(address(factory), true);
     }
@@ -81,6 +87,7 @@ contract NexoraAgentWalletAutonomyTest {
         assert(identity.agentWalletOf(agentId) == walletAddress);
         assert(identity.getAgentWallet(agentId) == walletAddress);
         assert(factory.walletOfAgent(agentId) == walletAddress);
+        assert(Nexora4337AgentWallet(payable(walletAddress)).validationRegistry() == address(validation));
         assert(Nexora4337AgentWallet(payable(walletAddress)).allowedTargets(address(safeVault)));
         assert(Nexora4337AgentWallet(payable(walletAddress)).allowedTargetSelectors(address(safeVault), 0xd0e30db0));
         assert(Nexora4337AgentWallet(payable(walletAddress)).allowedTargetSelectors(address(safeVault), 0x2e1a7d4d));
@@ -157,7 +164,6 @@ contract NexoraAgentWalletAutonomyTest {
 
         bytes memory callData = abi.encodeWithSelector(
             wallet.executeWithPreflight.selector,
-            address(validation),
             address(safeVault),
             0.01 ether,
             abi.encodeWithSignature("deposit()"),
@@ -179,7 +185,6 @@ contract NexoraAgentWalletAutonomyTest {
         Nexora4337AgentWallet wallet = Nexora4337AgentWallet(payable(walletAddress));
         bytes memory callData = abi.encodeWithSelector(
             wallet.executeWithPreflight.selector,
-            address(validation),
             address(safeVault),
             0,
             abi.encodeWithSignature("deposit()"),
@@ -216,7 +221,6 @@ contract NexoraAgentWalletAutonomyTest {
 
         bytes memory callData = abi.encodeWithSelector(
             wallet.executeWithPreflight.selector,
-            address(validation),
             address(safeVault),
             0.01 ether,
             abi.encodeWithSignature("deposit()"),
@@ -240,7 +244,6 @@ contract NexoraAgentWalletAutonomyTest {
 
         vm.prank(executor);
         try wallet.executeWithPreflightByExecutor(
-            address(validation),
             address(safeVault),
             0.01 ether,
             abi.encodeWithSignature("deposit()"),
@@ -266,7 +269,7 @@ contract NexoraAgentWalletAutonomyTest {
 
         vm.prank(executor);
         try wallet.executeWithPreflightByExecutor(
-            address(validation), address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
+            address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         ) {
             revert("expected stale validation revert");
         } catch (bytes memory reason) {
@@ -286,7 +289,7 @@ contract NexoraAgentWalletAutonomyTest {
 
         vm.prank(executor);
         try wallet.executeWithPreflightByExecutor(
-            address(validation), address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
+            address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         ) {
             revert("expected score validation revert");
         } catch (bytes memory reason) {
@@ -304,7 +307,7 @@ contract NexoraAgentWalletAutonomyTest {
 
         vm.prank(executor);
         try wallet.executeWithPreflightByExecutor(
-            address(validation), address(otherVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
+            address(otherVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         ) {
             revert("expected target revert");
         } catch (bytes memory reason) {
@@ -324,7 +327,7 @@ contract NexoraAgentWalletAutonomyTest {
 
         vm.prank(executor);
         try wallet.executeWithPreflightByExecutor(
-            address(validation), address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
+            address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         ) {
             revert("expected selector revert");
         } catch (bytes memory reason) {
@@ -344,7 +347,7 @@ contract NexoraAgentWalletAutonomyTest {
 
         vm.prank(executor);
         try wallet.executeWithPreflightByExecutor(
-            address(validation), address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
+            address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         ) {
             revert("expected spend limit revert");
         } catch (bytes memory reason) {
@@ -364,7 +367,7 @@ contract NexoraAgentWalletAutonomyTest {
 
         vm.prank(executor);
         wallet.executeWithPreflightByExecutor(
-            address(validation), address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
+            address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         );
 
         assert(safeVault.balanceOf(walletAddress) == 0.01 ether);
@@ -387,12 +390,12 @@ contract NexoraAgentWalletAutonomyTest {
 
         vm.prank(executor);
         wallet.executeWithPreflightByExecutor(
-            address(validation), address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
+            address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         );
 
         vm.prank(executor);
         try wallet.executeWithPreflightByExecutor(
-            address(validation), address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
+            address(safeVault), 0.01 ether, abi.encodeWithSignature("deposit()"), intentHash, 6
         ) {
             revert("expected replay revert");
         } catch (bytes memory reason) {

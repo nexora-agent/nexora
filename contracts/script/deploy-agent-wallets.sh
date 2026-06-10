@@ -170,7 +170,7 @@ identity_registry="$(deploy_contract "NexoraAgentIdentityRegistry" "src/NexoraAg
 validation_registry="$(deploy_contract "NexoraAgentValidationRegistry" "src/NexoraAgentValidationRegistry.sol:NexoraAgentValidationRegistry" --constructor-args "$identity_registry")"
 reputation_registry="$(deploy_contract "NexoraAgentReputationRegistry" "src/NexoraAgentReputationRegistry.sol:NexoraAgentReputationRegistry" --constructor-args "$identity_registry")"
 benchmark_registry="$(deploy_contract "NexoraBenchmarkRegistry" "src/NexoraBenchmarkRegistry.sol:NexoraBenchmarkRegistry" --constructor-args "$identity_registry")"
-wallet_factory="$(deploy_contract "Nexora4337WalletFactory" "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" --constructor-args "$identity_registry" "$ENTRYPOINT_ADDRESS" "$reputation_registry" "$safe_vault" "$volatile_vault" "$risky_vault")"
+wallet_factory="$(deploy_contract "Nexora4337WalletFactory" "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" --constructor-args "$identity_registry" "$ENTRYPOINT_ADDRESS" "$validation_registry" "$reputation_registry" "$safe_vault" "$volatile_vault" "$risky_vault")"
 
 echo ""
 echo "Authorizing factory as identity controller..."

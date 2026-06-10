@@ -82,6 +82,7 @@ contract Nexora4337AgentWallet {
     address public immutable owner;
     uint256 public immutable agentId;
     address public immutable entryPoint;
+    address public immutable validationRegistry;
     address public reputationRegistry;
     uint256 public nonce;
 
@@ -117,6 +118,7 @@ contract Nexora4337AgentWallet {
     error IntentAlreadyConsumed();
     error InvalidNonce();
     error InvalidUserOperation();
+    error InvalidValidationRegistry();
     error NoEntryPoint();
     error NotAuthorized();
     error PreflightFailed();
@@ -132,6 +134,7 @@ contract Nexora4337AgentWallet {
         address initialOwner,
         uint256 linkedAgentId,
         address entryPoint_,
+        address validationRegistry_,
         address reputationRegistry_,
         address safeVault,
         address volatileVault,
@@ -141,9 +144,14 @@ contract Nexora4337AgentWallet {
             revert NotAuthorized();
         }
 
+        if (validationRegistry_ == address(0)) {
+            revert InvalidValidationRegistry();
+        }
+
         owner = initialOwner;
         agentId = linkedAgentId;
         entryPoint = entryPoint_;
+        validationRegistry = validationRegistry_;
         reputationRegistry = reputationRegistry_;
 
         _allowBenchmarkVault(safeVault);
@@ -293,7 +301,6 @@ contract Nexora4337AgentWallet {
     }
 
     function executeWithPreflight(
-        address validationRegistry,
         address target,
         uint256 value,
         bytes calldata data,
@@ -301,17 +308,17 @@ contract Nexora4337AgentWallet {
         uint16 riskScore
     ) external returns (bytes memory result) {
         if (msg.sender == owner) {
-            result = _executePolicyChecked(validationRegistry, target, value, data, actionIntentHash, riskScore, false);
+            result = _executePolicyChecked(target, value, data, actionIntentHash, riskScore, false);
             return result;
         }
 
         if (msg.sender == entryPoint) {
-            result = _executePolicyChecked(validationRegistry, target, value, data, actionIntentHash, riskScore, true);
+            result = _executePolicyChecked(target, value, data, actionIntentHash, riskScore, true);
             return result;
         }
 
         if (msg.sender == executorPolicy.executor) {
-            result = _executePolicyChecked(validationRegistry, target, value, data, actionIntentHash, riskScore, true);
+            result = _executePolicyChecked(target, value, data, actionIntentHash, riskScore, true);
             return result;
         }
 
@@ -319,7 +326,6 @@ contract Nexora4337AgentWallet {
     }
 
     function executeWithPreflightByExecutor(
-        address validationRegistry,
         address target,
         uint256 value,
         bytes calldata data,
@@ -330,7 +336,7 @@ contract Nexora4337AgentWallet {
             revert NotAuthorized();
         }
 
-        result = _executePolicyChecked(validationRegistry, target, value, data, actionIntentHash, riskScore, true);
+        result = _executePolicyChecked(target, value, data, actionIntentHash, riskScore, true);
     }
 
     function _setAllowedTarget(address target, bool allowed) private {
@@ -362,7 +368,6 @@ contract Nexora4337AgentWallet {
     }
 
     function _executePolicyChecked(
-        address validationRegistry,
         address target,
         uint256 value,
         bytes calldata data,
@@ -382,7 +387,10 @@ contract Nexora4337AgentWallet {
         }
 
         NexoraAgentValidationRegistry.ValidationRecord memory preflight =
-            _validatePreflight(validationRegistry, actionIntentHash, riskScore);
+            _validatePreflight(actionIntentHash, riskScore);
+
+        consumedActionIntents[actionIntentHash] = true;
+        emit ActionIntentConsumed(actionIntentHash);
 
         bool success;
         (success, result) = target.call{value: value}(data);
@@ -390,9 +398,6 @@ contract Nexora4337AgentWallet {
         if (!success) {
             revert ExecutionFailed();
         }
-
-        consumedActionIntents[actionIntentHash] = true;
-        emit ActionIntentConsumed(actionIntentHash);
 
         _recordReputation(preflight);
 
@@ -411,16 +416,15 @@ contract Nexora4337AgentWallet {
         }
 
         (
-            address validationRegistry,
             address target,
             uint256 value,
             bytes memory targetData,
             bytes32 actionIntentHash,
             uint16 riskScore
-        ) = abi.decode(callData[4:], (address, address, uint256, bytes, bytes32, uint16));
+        ) = abi.decode(callData[4:], (address, uint256, bytes, bytes32, uint16));
 
         _validateExecutorPolicy(target, value, targetData);
-        _validatePreflight(validationRegistry, actionIntentHash, riskScore);
+        _validatePreflight(actionIntentHash, riskScore);
     }
 
     function _validateExecutorPolicy(address target, uint256 value, bytes memory data) private view {
@@ -448,7 +452,7 @@ contract Nexora4337AgentWallet {
         spentByDay[block.timestamp / 1 days] += value;
     }
 
-    function _validatePreflight(address validationRegistry, bytes32 actionIntentHash, uint16 riskScore)
+    function _validatePreflight(bytes32 actionIntentHash, uint16 riskScore)
         private
         view
         returns (NexoraAgentValidationRegistry.ValidationRecord memory preflight)

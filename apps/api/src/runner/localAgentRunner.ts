@@ -535,6 +535,13 @@ const walletAbi = [
   },
   {
     inputs: [],
+    name: "validationRegistry",
+    outputs: [{ internalType: "address", name: "", type: "address" }],
+    stateMutability: "view",
+    type: "function",
+  },
+  {
+    inputs: [],
     name: "getAllowedTargets",
     outputs: [
       { internalType: "address[]", name: "targets", type: "address[]" },
@@ -545,7 +552,6 @@ const walletAbi = [
   },
   {
     inputs: [
-      { internalType: "address", name: "validationRegistry", type: "address" },
       { internalType: "address", name: "target", type: "address" },
       { internalType: "uint256", name: "value", type: "uint256" },
       { internalType: "bytes", name: "data", type: "bytes" },
@@ -559,7 +565,6 @@ const walletAbi = [
   },
   {
     inputs: [
-      { internalType: "address", name: "validationRegistry", type: "address" },
       { internalType: "address", name: "target", type: "address" },
       { internalType: "uint256", name: "value", type: "uint256" },
       { internalType: "bytes", name: "data", type: "bytes" },
@@ -2364,6 +2369,25 @@ async function main() {
     throw new Error(`No smart wallet found for agent ${agentId.toString()}.`);
   }
 
+  let trustedValidationRegistry: Address;
+  try {
+    trustedValidationRegistry = await publicClient.readContract({
+      abi: walletAbi,
+      address: walletAddress,
+      functionName: "validationRegistry",
+    });
+  } catch {
+    throw new Error(
+      `Smart wallet ${walletAddress} does not expose a trusted validation registry. Create a new wallet with the latest factory deployment.`,
+    );
+  }
+
+  if (trustedValidationRegistry.toLowerCase() !== validationRegistry.toLowerCase()) {
+    throw new Error(
+      `Smart wallet validation registry mismatch. Wallet trusts ${trustedValidationRegistry}, deployment expects ${validationRegistry}. Create a new wallet from the current factory.`,
+    );
+  }
+
   const activeBenchmark = await readActiveBenchmark({
     agentId,
     benchmarkRegistry,
@@ -2672,7 +2696,6 @@ async function main() {
       abi: walletAbi,
       functionName: "executeWithPreflight",
       args: [
-        validationRegistry,
         benchmark.actionCall.target,
         benchmark.actionCall.value,
         benchmark.actionCall.data,
@@ -2693,7 +2716,6 @@ async function main() {
     console.log(`UserOperation submitted: ${userOpHash}`);
   } else {
     const executionArgs = [
-      validationRegistry,
       benchmark.actionCall.target,
       benchmark.actionCall.value,
       benchmark.actionCall.data,

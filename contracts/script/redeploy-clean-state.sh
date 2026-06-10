@@ -235,6 +235,7 @@ wallet_factory="$(deploy_contract \
   --constructor-args \
     "$identity_registry" \
     "$ENTRYPOINT_ADDRESS" \
+    "$validation_registry" \
     "$reputation_registry" \
     "$safe_vault_address" \
     "$volatile_vault_address" \

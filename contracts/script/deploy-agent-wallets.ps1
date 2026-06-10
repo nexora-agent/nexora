@@ -187,7 +187,7 @@ $riskyVault = Get-ExistingContractAddress $deploymentFile "NexoraRiskyVault"
 $identityRegistry = Invoke-DeployContract -label "NexoraAgentIdentityRegistry" -contractPath "src/NexoraAgentIdentityRegistry.sol:NexoraAgentIdentityRegistry" -constructorArgs @() -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
 $validationRegistry = Invoke-DeployContract -label "NexoraAgentValidationRegistry" -contractPath "src/NexoraAgentValidationRegistry.sol:NexoraAgentValidationRegistry" -constructorArgs @($identityRegistry) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
 $reputationRegistry = Invoke-DeployContract -label "NexoraAgentReputationRegistry" -contractPath "src/NexoraAgentReputationRegistry.sol:NexoraAgentReputationRegistry" -constructorArgs @($identityRegistry) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
-$walletFactory = Invoke-DeployContract -label "Nexora4337WalletFactory" -contractPath "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" -constructorArgs @($identityRegistry, $entryPointAddress, $reputationRegistry, $safeVault, $volatileVault, $riskyVault) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
+$walletFactory = Invoke-DeployContract -label "Nexora4337WalletFactory" -contractPath "src/Nexora4337WalletFactory.sol:Nexora4337WalletFactory" -constructorArgs @($identityRegistry, $entryPointAddress, $validationRegistry, $reputationRegistry, $safeVault, $volatileVault, $riskyVault) -rpcUrl $rpcUrl -privateKey $privateKey -deployer $deployer
 
 Write-Host ""
 Write-Host "Authorizing factory as identity controller..."
