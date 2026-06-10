@@ -36,6 +36,11 @@ library NexoraECDSA {
             v := byte(0, mload(add(signature, 0x60)))
         }
 
+        // Reject high-s signatures (EIP-2) so each message has a single valid encoding.
+        if (uint256(s) > 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF5D576E7357A4501DDFE92F46681B20A0) {
+            revert InvalidSignature();
+        }
+
         if (v < 27) {
             v += 27;
         }

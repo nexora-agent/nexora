@@ -212,6 +212,26 @@ contract NexoraAgentWalletAutonomyTest {
         assert(wallet.isValidSignature(hash, _signature(0xBAD, hash)) == 0xffffffff);
     }
 
+    function testRejectsMalleatedHighSSignature() public {
+        (uint256 agentId, address walletAddress) = _createWallet();
+        Nexora4337AgentWallet wallet = Nexora4337AgentWallet(payable(walletAddress));
+        _configureWallet(wallet, agentId);
+
+        bytes32 hash = keccak256("erc1271-hash");
+        bytes32 digest = keccak256(abi.encodePacked("\x19Ethereum Signed Message:\n32", hash));
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(ownerKey, digest);
+
+        // Same key, same digest, but the (n - s, flipped v) encoding must be rejected.
+        bytes32 highS =
+            bytes32(0xFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFEBAAEDCE6AF48A03BBFD25E8CD0364141 - uint256(s));
+        uint8 flippedV = v == 27 ? 28 : 27;
+        bytes memory malleated = abi.encodePacked(r, highS, flippedV);
+
+        try wallet.isValidSignature(hash, malleated) returns (bytes4) {
+            assert(false);
+        } catch {}
+    }
+
     function testRejectsUnauthorizedExecutorUserOperation() public {
         (uint256 agentId, address walletAddress) = _createWallet();
         Nexora4337AgentWallet wallet = Nexora4337AgentWallet(payable(walletAddress));

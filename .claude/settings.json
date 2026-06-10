@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd /d)",
+      "Bash(find \"d:\\\\projects\\\\hackathon\\\\nexora\\\\contracts\\\\src\" -name \"*.sol\")",
+      "Bash(find \"d:\\\\projects\\\\hackathon\\\\nexora\\\\contracts\" \\\\\\( -name \"*.s.sol\" -o -name \"Deploy*.sol\" \\\\\\))",
+      "Bash(ls -la \"d:\\\\projects\\\\hackathon\\\\nexora\\\\contracts\\\\script\")",
+      "Bash(grep \"\\\\.sh$\" -o)",
+      "Bash(git ls-tree *)",
+      "Bash(git sparse-checkout *)",
+      "PowerShell(git config core.sparseCheckout true)",
+      "PowerShell(git config core.sparseCheckout)",
+      "PowerShell(git pull)",
+      "PowerShell(git sparse-checkout list)",
+      "PowerShell(git config core.protectNTFS false; Write-Output \"core.protectNTFS = $\\(git config core.protectNTFS\\)\"; Write-Output \"core.sparseCheckout = $\\(git config core.sparseCheckout\\)\")"
+    ]
+  }
+}
