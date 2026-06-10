@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import {
   AgentStatusBadge,
-  getAgentNextAction,
+  getAgentAvailableActions,
   getAgentStatus,
   MINIMUM_MNT_READY_BALANCE,
 } from "./AgentStatusBadge";
@@ -73,7 +73,9 @@ function WalletBalanceCell({
     <span>
       {formattedBalance ?? "—"}
       {isRefreshing && <span className="balance-indicator"> ↻</span>}
-      {isStale && !isRefreshing && <span className="balance-indicator balance-stale"> stale</span>}
+      {isStale && !isRefreshing && (
+        <span className="balance-indicator balance-stale"> stale</span>
+      )}
     </span>
   );
 }
@@ -147,124 +149,63 @@ function AgentTableRow({
     minimumReadyBalanceMnt: MINIMUM_MNT_READY_BALANCE,
   });
 
-  const nextAction = getAgentNextAction(status);
-  const isActionDisabled = Boolean(agent.walletAddress && isLoading);
+  const availableActions = getAgentAvailableActions(agent, status);
 
-  async function copyWalletAddress() {
-    if (!agent.walletAddress) {
+  const handleAction = (actionKind: string) => {
+    if (actionKind === "fund-wallet") {
+      onWalletAction?.(agent, "needs-funding");
       return;
     }
 
-    await navigator.clipboard.writeText(agent.walletAddress);
-  }
+    onWalletAction?.(agent, status);
+  };
 
   return (
     <tr>
       <td>
-        <strong>{agent.name}</strong>
+        <Link className="table-link" href={`/wallets/${agent.id}`}>
+          {agent.name}
+        </Link>
       </td>
 
-      <td>
-        <span>{getAgentDescription(agent)}</span>
-      </td>
+      <td>{getAgentDescription(agent)}</td>
 
-      <td>
-        <div className="address-cell">
-          <span title={agent.walletAddress ?? undefined}>
-            {formatAddress(agent.walletAddress)}
-          </span>
-
-          {agent.walletAddress && (
-            <button
-              aria-label="Copy full wallet address"
-              className="secondary-action table-action"
-              onClick={copyWalletAddress}
-              title="Copy full wallet address"
-              type="button"
-            >
-              <svg
-                aria-hidden="true"
-                fill="none"
-                height="16"
-                viewBox="0 0 24 24"
-                width="16"
-                xmlns="http://www.w3.org/2000/svg"
-              >
-                <rect
-                  height="13"
-                  rx="2"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                  width="13"
-                  x="9"
-                  y="9"
-                />
-                <path
-                  d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"
-                  stroke="currentColor"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth="2"
-                />
-              </svg>
-            </button>
-          )}
-        </div>
-      </td>
+      <td>{formatAddress(agent.walletAddress)}</td>
 
       <td>
         <WalletBalanceCell
-          walletAddress={agent.walletAddress}
           formattedBalance={formattedBalance}
           isLoading={isLoading}
           isRefreshing={isRefreshing}
           isStale={isStale}
+          walletAddress={agent.walletAddress}
         />
       </td>
 
       <td>
-        {isLoading && agent.walletAddress ? (
-          <span aria-label="Loading status" className="skeleton-line skeleton-short" />
-        ) : (
-          <AgentStatusBadge status={status} />
-        )}
+        <AgentStatusBadge status={status} />
       </td>
 
       <td>
-        <div className="table-action-group">
-          {onWalletAction && (
-            <button
-              className="primary-action table-action"
-              disabled={isActionDisabled}
-              onClick={() => onWalletAction(agent, status)}
-              type="button"
-            >
-              {isActionDisabled ? (
-                <span aria-label="Loading action" className="value-skeleton" />
-              ) : (
-                nextAction
-              )}
-            </button>
-          )}
+        <div className="wallet-action-row">
+          <button
+            className="secondary-action"
+            onClick={() => onOpenWallet?.(agent)}
+            type="button"
+          >
+            View
+          </button>
 
-          {onOpenWallet ? (
+          {availableActions.map((action) => (
             <button
-              className="secondary-action table-action"
-              onClick={() => onOpenWallet(agent)}
+              className={action.primary ? "primary-action" : "secondary-action"}
+              key={action.kind}
+              onClick={() => handleAction(action.kind)}
               type="button"
             >
-              View
+              {action.label}
             </button>
-          ) : (
-            <Link
-              className="secondary-action table-action"
-              href={`/wallets/${agent.id}`}
-            >
-              View
-            </Link>
-          )}
+          ))}
         </div>
       </td>
     </tr>
@@ -282,68 +223,27 @@ export function AgentList({
     return <AgentListSkeleton />;
   }
 
-  const uniqueAgents = agents.filter((agent, index, allAgents) => {
-    const identityKey = `${agent.identityStandard ?? "legacy"}-${agent.id}`;
-    const walletKey = agent.walletAddress?.toLowerCase();
-
-    return (
-      allAgents.findIndex((candidate) => {
-        const candidateIdentityKey = `${
-          candidate.identityStandard ?? "legacy"
-        }-${candidate.id}`;
-        const candidateWalletKey = candidate.walletAddress?.toLowerCase();
-
-        return (
-          candidateIdentityKey === identityKey ||
-          Boolean(walletKey && candidateWalletKey === walletKey)
-        );
-      }) === index
-    );
-  });
-
-  if (uniqueAgents.length === 0) {
+  if (agents.length === 0) {
     return (
       <section className="empty-state-card" aria-label="Empty dashboard">
         <h2>Create your first AI-controlled smart wallet.</h2>
-
-        {onCreateSmartWallet ? (
-          <button
-            className="primary-action"
-            onClick={onCreateSmartWallet}
-            type="button"
-          >
-            Create Smart Wallet
-          </button>
-        ) : (
-          <Link className="primary-action" href="/create-wallet">
-            Create Smart Wallet
-          </Link>
-        )}
+        <p>
+          Smart wallets appear here after creation. Each wallet can be funded,
+          benchmarked, and monitored from this dashboard.
+        </p>
+        <button
+          className="primary-action"
+          onClick={onCreateSmartWallet}
+          type="button"
+        >
+          Create Smart Wallet
+        </button>
       </section>
     );
   }
 
   return (
     <section className="agent-table-card" aria-label="Smart wallets table">
-      <div className="benchmark-dashboard-header">
-        <div>
-          <h2>Smart Wallets</h2>
-          <p>AI-controlled wallets linked to an agent identity and local runner.</p>
-        </div>
-        {onCreateSmartWallet ? (
-          <button
-            className="primary-action"
-            onClick={onCreateSmartWallet}
-            type="button"
-          >
-            Create Smart Wallet
-          </button>
-        ) : (
-          <Link className="primary-action" href="/create-wallet">
-            Create Smart Wallet
-          </Link>
-        )}
-      </div>
       <div className="agent-table-scroll">
         <table>
           <thead>
@@ -358,12 +258,10 @@ export function AgentList({
           </thead>
 
           <tbody>
-            {uniqueAgents.map((agent, index) => (
+            {agents.map((agent) => (
               <AgentTableRow
                 agent={agent}
-                key={`${agent.identityStandard ?? "legacy"}-${agent.id}-${
-                  agent.walletAddress ?? "profile"
-                }-${index}`}
+                key={agent.id}
                 onOpenWallet={onOpenWallet}
                 onWalletAction={onWalletAction}
               />

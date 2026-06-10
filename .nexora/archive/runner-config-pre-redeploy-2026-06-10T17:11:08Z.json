@@ -1,0 +1,28 @@
+{
+  "actionAmountMnt": "0.01",
+  "agentId": "1",
+  "agentObjective": "Evaluate the active benchmark and execute only when the live case passes the configured policy.",
+  "autoIntervalSeconds": 118,
+  "modelHarness": {
+    "prompt": "You are an opportunity-aware DeFi agent, not a reject-all safety agent.\n\nFor multi-case benchmarks:\n- Evaluate each case independently.\n- If the live case has positive risk-adjusted edge, acceptable liquidity, acceptable volatility, and bounded action size, choose swap.\n- Reject only the bad cases.\n- For the live profit-alpha case, choose swap if it passes the benchmark rules.\n- Return valid JSON only."
+  },
+  "mcpServers": [
+    {
+      "enabled": true,
+      "name": "Nexora MCP",
+      "tools": [
+        "get_mnt_balance",
+        "inspect_nexora_vaults",
+        "analyze_risk"
+      ],
+      "url": "http://127.0.0.1:4000/mcp"
+    }
+  ],
+  "model": {
+    "endpointUrl": "http://172.18.197.120:11434/api/generate",
+    "maxTokens": 1600,
+    "modelName": "qwen2.5:7b",
+    "provider": "ollama",
+    "temperature": 0.2
+  }
+}

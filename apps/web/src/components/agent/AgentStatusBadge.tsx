@@ -22,6 +22,18 @@ export type AgentFundingStatusInput = {
   minimumReadyBalanceMnt?: number;
 };
 
+export type AgentActionKind =
+  | "create-wallet"
+  | "fund-wallet"
+  | "view-results"
+  | "monitor";
+
+export type AgentAvailableAction = {
+  kind: AgentActionKind;
+  label: string;
+  primary?: boolean;
+};
+
 const statusLabels: Record<AgentStatus, string> = {
   draft: "Draft",
   "needs-wallet": "Needs wallet",
@@ -106,14 +118,73 @@ export function getAgentNextAction(status: AgentStatus) {
     "benchmark-complete": "View Results",
     draft: "Create Wallet",
     "needs-funding": "Fund Wallet",
-    "needs-better-benchmark": "Run Test",
+    "needs-better-benchmark": "Fund Wallet",
     "needs-wallet": "Create Wallet",
     paused: "Monitor",
     "ready-for-live-mode": "View Results",
-    "ready-to-benchmark": "Run Test",
+    "ready-to-benchmark": "Fund Wallet",
   };
 
   return actions[status];
+}
+
+export function getAgentAvailableActions(
+  agent: AgentRecord,
+  status: AgentStatus,
+): AgentAvailableAction[] {
+  const primaryByStatus: Partial<Record<AgentStatus, AgentAvailableAction>> = {
+    active: {
+      kind: "monitor",
+      label: "Monitor",
+      primary: true,
+    },
+    "benchmark-complete": {
+      kind: "view-results",
+      label: "View Results",
+      primary: true,
+    },
+    draft: {
+      kind: "create-wallet",
+      label: "Create Wallet",
+      primary: true,
+    },
+    "needs-funding": {
+      kind: "fund-wallet",
+      label: "Fund Wallet",
+      primary: true,
+    },
+    "needs-wallet": {
+      kind: "create-wallet",
+      label: "Create Wallet",
+      primary: true,
+    },
+    paused: {
+      kind: "monitor",
+      label: "Monitor",
+      primary: true,
+    },
+    "ready-for-live-mode": {
+      kind: "view-results",
+      label: "View Results",
+      primary: true,
+    },
+  };
+
+  const primaryAction = primaryByStatus[status];
+  const actions: AgentAvailableAction[] = primaryAction ? [primaryAction] : [];
+
+  if (
+    agent.walletAddress &&
+    !actions.some((action) => action.kind === "fund-wallet")
+  ) {
+    actions.push({
+      kind: "fund-wallet",
+      label: "Fund Wallet",
+      primary: actions.length === 0,
+    });
+  }
+
+  return actions;
 }
 
 export function AgentStatusBadge({ status }: AgentStatusBadgeProps) {

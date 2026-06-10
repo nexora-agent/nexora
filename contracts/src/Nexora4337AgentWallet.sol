@@ -159,9 +159,9 @@ contract Nexora4337AgentWallet {
         validationRegistry = validationRegistry_;
         reputationRegistry = reputationRegistry_;
 
-        _allowBenchmarkVault(safeVault);
-        _allowBenchmarkVault(volatileVault);
-        _allowBenchmarkVault(riskyVault);
+       // _allowBenchmarkVault(safeVault);
+       // _allowBenchmarkVault(volatileVault);
+       // _allowBenchmarkVault(riskyVault);
     }
 
     receive() external payable {}
