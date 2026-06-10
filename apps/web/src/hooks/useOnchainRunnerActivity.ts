@@ -9,6 +9,7 @@ import {
   zeroAddress,
   type Address,
   type Hex,
+  type Log,
 } from "viem";
 import { mantleSepolia } from "@/lib/chains/mantle";
 import {
@@ -269,7 +270,7 @@ async function readLatestValidation(agentId: string) {
     adversarialScore: Number(record.adversarialScore),
     averageScore: Number(record.averageScore),
     basicScore: Number(record.basicScore),
-    blockNumber: eventTx?.blockNumber,
+    blockNumber: eventTx?.blockNumber ?? undefined,
     externalScore: Number(record.externalScore),
     harnessHash: record.harnessHash,
     modelHash: record.modelHash,
@@ -280,7 +281,7 @@ async function readLatestValidation(agentId: string) {
     suiteHash: record.suiteHash,
     timestamp: Number(record.timestamp),
     toolsHash: record.toolsHash,
-    txHash: eventTx?.txHash,
+    txHash: eventTx?.txHash ?? undefined,
   } satisfies LatestValidation;
 }
 
@@ -296,7 +297,7 @@ async function readOnchainTimeline({
 
   const validationLogs = await (
     isConfigured(mantleSepoliaContracts.agentValidationRegistry)
-      ? getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
+      ? getLogsChunked<Log<bigint, number, boolean, typeof validationRecordedEvent>>({
           address: mantleSepoliaContracts.agentValidationRegistry,
           args: { agentId: BigInt(agentId) },
           event: validationRecordedEvent,
@@ -306,7 +307,7 @@ async function readOnchainTimeline({
       : Promise.resolve([])
   );
 
-  const executionLogs = await getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
+  const executionLogs = await getLogsChunked<Log<bigint, number, boolean, typeof walletExecutedEvent>>({
       address: walletAddress,
       event: walletExecutedEvent,
       fromBlock,
@@ -315,7 +316,7 @@ async function readOnchainTimeline({
 
   const reputationLogs = await (
     isConfigured(mantleSepoliaContracts.agentReputationRegistry)
-      ? getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
+      ? getLogsChunked<Log<bigint, number, boolean, typeof reputationSignalEvent>>({
           address: mantleSepoliaContracts.agentReputationRegistry,
           args: { agentId: BigInt(agentId) },
           event: reputationSignalEvent,
@@ -325,9 +326,13 @@ async function readOnchainTimeline({
       : Promise.resolve([])
   );
 
+  // Pending logs have a null transaction hash; the timeline only shows mined events.
+  const mined = <T extends { transactionHash: Hex | null }>(logs: T[]) =>
+    logs.filter((log): log is T & { transactionHash: Hex } => log.transactionHash !== null);
+
   return [
-    ...validationLogs.map((log) => ({
-      blockNumber: log.blockNumber,
+    ...mined(validationLogs).map((log) => ({
+      blockNumber: log.blockNumber ?? undefined,
       label: log.args.passed
         ? "Benchmark validation passed"
         : "Benchmark validation failed",
@@ -335,16 +340,16 @@ async function readOnchainTimeline({
       txHash: log.transactionHash,
       type: "validation" as const,
     })),
-    ...executionLogs.map((log) => ({
-      blockNumber: log.blockNumber,
+    ...mined(executionLogs).map((log) => ({
+      blockNumber: log.blockNumber ?? undefined,
       label: `Wallet executed action to ${formatAddress(log.args.target ?? "")}`,
       status: "success" as const,
       txHash: log.transactionHash,
       type: "execution" as const,
       value: log.args.value ? `${formatEther(log.args.value)} MNT` : undefined,
     })),
-    ...reputationLogs.map((log) => ({
-      blockNumber: log.blockNumber,
+    ...mined(reputationLogs).map((log) => ({
+      blockNumber: log.blockNumber ?? undefined,
       label: log.args.executed
         ? "Safe execution reputation recorded"
         : "Blocked execution reputation recorded",

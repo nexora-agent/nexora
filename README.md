@@ -98,6 +98,22 @@ pnpm --filter @nexora/web test:e2e
 
 The wallet E2E tests inject a mock EIP-1193 provider, so they do not require the real MetaMask extension.
 
+### Optional runner API key
+
+For local demos, the runner API can be protected with:
+
+```bash
+NEXORA_RUNNER_API_KEY=<random-hex-key>
+```
+
+When this variable is set, the frontend must send the same key using the local browser setting:
+
+```js
+localStorage.setItem("nexora.runnerApiKey", "<random-hex-key>")
+```
+
+The API binds to `127.0.0.1` by default and only allows the local web origin through CORS unless `HOST` or `NEXORA_CORS_ORIGINS` is explicitly changed.
+
 ## Mantle Deployment Shape
 
 Contracts:

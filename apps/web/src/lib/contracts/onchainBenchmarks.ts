@@ -1,5 +1,5 @@
 import { readContract, waitForTransactionReceipt, writeContract } from "@wagmi/core";
-import type { Address, Hex } from "viem";
+import type { Address, Hex, Log } from "viem";
 import { createPublicClient, decodeFunctionData, http, parseAbiItem, zeroAddress } from "viem";
 import { mantleSepolia } from "@/lib/chains/mantle";
 import { nexoraBenchmarkRegistryAbi } from "@/lib/contracts/abis";
@@ -223,7 +223,7 @@ export async function readBenchmarkRecordsOfOwner(owner?: Address): Promise<Onch
   }
 
   const latestBlock = await publicClient.getBlockNumber();
-  const logs = await getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
+  const logs = await getLogsChunked<Log<bigint, number, false, typeof benchmarkRegisteredEvent>>({
     address: mantleSepoliaContracts.benchmarkRegistry,
     args: { owner },
     event: benchmarkRegisteredEvent,

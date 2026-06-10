@@ -15,10 +15,35 @@ import {
   type RunnerConfig,
 } from "../runner/runnerControlService";
 
+function runnerApiKey() {
+  return process.env.NEXORA_RUNNER_API_KEY?.trim();
+}
+
+function firstHeaderValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export async function runnerControlRoute(app: FastifyInstance) {
   const badRequest = (error: unknown) => ({
     message: error instanceof Error ? error.message : "Runner request failed.",
     ok: false,
+  });
+
+  app.addHook("preHandler", async (request, reply) => {
+    const expected = runnerApiKey();
+
+    if (!expected) {
+      return;
+    }
+
+    const received = firstHeaderValue(request.headers["x-nexora-runner-key"])?.trim();
+
+    if (received !== expected) {
+      return reply.code(401).send({
+        message: "Unauthorized runner request.",
+        ok: false,
+      });
+    }
   });
 
   app.get("/runner/status", async () => getRunnerStatus());

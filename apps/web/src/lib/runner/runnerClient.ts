@@ -90,19 +90,33 @@ function getRunnerApiBase() {
   return "http://127.0.0.1:4000";
 }
 
-function hasRequestBody(init?: RequestInit) {
-  return init?.body !== undefined && init.body !== null;
+function getRunnerApiKey() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  return window.localStorage.getItem("nexora.runnerApiKey")?.trim() ?? "";
+}
+
+function runnerHeaders(init?: RequestInit) {
+  const headers = new Headers(init?.headers);
+  const apiKey = getRunnerApiKey();
+
+  if (init?.body !== undefined && init.body !== null && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+
+  if (apiKey) {
+    headers.set("x-nexora-runner-key", apiKey);
+  }
+
+  return headers;
 }
 
 async function runnerRequest<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${getRunnerApiBase()}${path}`, {
     ...init,
-    headers: hasRequestBody(init)
-      ? {
-          "content-type": "application/json",
-          ...(init?.headers ?? {}),
-        }
-      : init?.headers,
+    headers: runnerHeaders(init),
   });
 
   const text = await response.text();
