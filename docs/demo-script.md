@@ -1,5 +1,23 @@
 # Demo Script
 
+## Hosted Preview vs Local Live Mode
+
+**Hosted Preview Mode** (public Vercel app): deterministic browser preview, no
+private key, no live transactions, shows recorded Mantle proof links.
+
+**Local Live Mode** (local operator runner): model + MCP tools + executor key,
+can create live Mantle transactions. Used for the actual end-to-end demo/video.
+
+### Judge flow (hosted preview)
+
+1. Open Vercel URL.
+2. Read hosted preview banner.
+3. Click Run Hosted Preview.
+4. Inspect tool trace, risk score, benchmark score, report hash.
+5. Open Recorded Mantle Proofs.
+6. Watch demo video for live local runner execution.
+7. Review docs for local reproduction.
+
 ## Delivery 1 Script
 
 1. Open the Nexora web app.

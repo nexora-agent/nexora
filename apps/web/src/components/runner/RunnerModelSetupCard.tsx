@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { isHostedPreviewMode } from "@/lib/demo/demoMode";
 import {
   getRunnerStatus,
   saveRunnerConfig,
@@ -62,6 +63,7 @@ export function RunnerModelSetupCard({
   onSaved,
   title = "AI Setup",
 }: Props) {
+  const hostedPreview = isHostedPreviewMode();
   const [baseConfig, setBaseConfig] = useState<RunnerConfig | undefined>();
   const [provider, setProvider] = useState<ModelProvider>(DEFAULT_MODEL.provider);
   const [endpointUrl, setEndpointUrl] = useState(DEFAULT_MODEL.endpointUrl);
@@ -76,6 +78,11 @@ export function RunnerModelSetupCard({
   const [saveMessage, setSaveMessage] = useState("");
 
   useEffect(() => {
+    if (hostedPreview) {
+      setIsLoading(false);
+      return;
+    }
+
     getRunnerStatus()
       .then((status) => {
         const m = status.config.model;
@@ -91,7 +98,7 @@ export function RunnerModelSetupCard({
         // runner offline — keep defaults
       })
       .finally(() => setIsLoading(false));
-  }, []);
+  }, [hostedPreview]);
 
   const handleProviderChange = (next: ModelProvider) => {
     setProvider(next);
@@ -187,6 +194,28 @@ export function RunnerModelSetupCard({
 
   const saveLabel =
     saveState === "saving" ? "Saving..." : saveState === "saved" ? "Saved" : "Save Settings";
+
+  if (hostedPreview) {
+    return (
+      <section
+        className={`runner-model-setup-card${compact ? " runner-model-setup-compact" : ""}`}
+        aria-label="AI model setup"
+      >
+        <div className="runner-model-setup-header">
+          <div>
+            <h3>{title}</h3>
+            <p className="runner-note runner-model-setup-desc">
+              Hosted preview mode. Model and runner configuration require the
+              local operator runner. Run locally for live autonomous execution.
+            </p>
+          </div>
+          <div className="runner-model-status-pills">
+            <span className="status-pill status-current">Hosted preview</span>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <section

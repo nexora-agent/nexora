@@ -3,6 +3,10 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
 import { Header } from "@/components/Header";
+import { HostedPreviewBanner } from "@/components/HostedPreviewBanner";
+import { HostedBenchmarkPreview } from "@/components/demo/HostedBenchmarkPreview";
+import { RecordedMantleProofs } from "@/components/demo/RecordedMantleProofs";
+import { isHostedPreviewMode } from "@/lib/demo/demoMode";
 import { AgentCreationWizard } from "@/components/agent/AgentCreationWizard";
 import { AgentList } from "@/components/agent/AgentList";
 import { AgentProfileCard } from "@/components/agent/AgentProfileCard";
@@ -112,9 +116,12 @@ export default function DashboardPage() {
     setSelectedAgent(undefined);
   };
 
+  const hostedPreview = isHostedPreviewMode();
+
   return (
     <main>
       <Header />
+      <HostedPreviewBanner />
       <section className="page-shell">
         <div className="dashboard-container" data-testid="dashboard-container">
           <section className="dashboard-hero" aria-label="Dashboard overview">
@@ -167,9 +174,12 @@ export default function DashboardPage() {
             />
           )}
 
-          {activeView === "agent-config" && (
-            <AgentConfigurationPanel agents={agents} />
-          )}
+          {activeView === "agent-config" &&
+            (hostedPreview ? (
+              <HostedBenchmarkPreview />
+            ) : (
+              <AgentConfigurationPanel agents={agents} />
+            ))}
 
           {activeView === "benchmarks" && (
             <BenchmarkDashboard
@@ -178,6 +188,8 @@ export default function DashboardPage() {
               refreshKey={benchmarkRefreshKey}
             />
           )}
+
+          {hostedPreview && <RecordedMantleProofs />}
         </div>
       </section>
 

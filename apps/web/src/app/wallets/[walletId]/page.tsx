@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Header } from "@/components/Header";
+import { HostedPreviewBanner } from "@/components/HostedPreviewBanner";
 import { AgentProfileCard } from "@/components/agent/AgentProfileCard";
 import { useAgentProfile } from "@/hooks/useAgentProfile";
 import { useWalletConnection } from "@/hooks/useWalletConnection";
@@ -20,6 +21,7 @@ export default function SmartWalletPage() {
   return (
     <main>
       <Header />
+      <HostedPreviewBanner />
       <section className="page-shell">
         <div className="section-heading">
           <h1>Smart Wallet</h1>

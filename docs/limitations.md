@@ -4,6 +4,10 @@ This repository is hackathon-grade.
 
 Known limitations:
 
+- The hosted Vercel deployment is a deterministic preview: it never holds
+  private keys, never submits transactions, and replaces live runner controls
+  with a browser-side benchmark preview. Live execution requires the local
+  operator runner.
 - The frontend demo stores local agent state in browser storage.
 - Byreal integration is currently an adapter, not a live trading integration.
 - Wallet balances are demo-mode values unless connected to live services.

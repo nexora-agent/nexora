@@ -53,6 +53,50 @@ Agent
 - `packages/shared`: Shared TypeScript types and utilities.
 - `docs`: Project documentation.
 
+## Execution Modes
+
+Nexora runs in two modes:
+
+**Hosted Preview Mode**
+
+- Public Vercel app.
+- Deterministic browser preview (`Run Hosted Preview`).
+- No private key.
+- No live transactions.
+- Shows recorded Mantle proof links.
+
+**Local Live Mode**
+
+- Local operator runner.
+- Model + MCP tools + executor key.
+- Can create live Mantle transactions.
+- Used for the actual end-to-end demo/video.
+
+Frontend env flags:
+
+```bash
+# Hosted preview (Vercel)
+NEXT_PUBLIC_NEXORA_DEMO_MODE=hosted
+NEXT_PUBLIC_NEXORA_HOSTED_PREVIEW=true
+NEXT_PUBLIC_API_BASE_URL=
+NEXT_PUBLIC_MANTLE_EXPLORER_URL=https://explorer.sepolia.mantle.xyz
+
+# Local live mode
+NEXT_PUBLIC_NEXORA_DEMO_MODE=local
+NEXT_PUBLIC_NEXORA_HOSTED_PREVIEW=false
+NEXT_PUBLIC_API_BASE_URL=http://127.0.0.1:4000
+```
+
+### Judge flow
+
+1. Open Vercel URL.
+2. Read hosted preview banner.
+3. Click Run Hosted Preview.
+4. Inspect tool trace, risk score, benchmark score, report hash.
+5. Open Recorded Mantle Proofs.
+6. Watch demo video for live local runner execution.
+7. Review docs for local reproduction.
+
 ## Local Setup
 
 Requirements:

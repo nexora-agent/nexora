@@ -79,6 +79,10 @@ export type RunnerStatus = {
 };
 
 function getRunnerApiBase() {
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+
   if (process.env.NEXT_PUBLIC_NEXORA_RUNNER_API_URL) {
     return process.env.NEXT_PUBLIC_NEXORA_RUNNER_API_URL;
   }

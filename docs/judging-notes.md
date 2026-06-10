@@ -1,5 +1,19 @@
 # Judging Notes
 
+## How to judge Nexora
+
+- **Hosted Preview Mode** (public Vercel app): deterministic browser preview
+  with banner, tool trace, risk report, benchmark score, report hash, and
+  recorded Mantle proof links. No private keys, no live transactions.
+- **Local Live Mode** (local operator runner): model + MCP tools + executor
+  key, live Mantle transactions. Shown in the demo video and reproducible from
+  the docs.
+
+Judge flow: open the Vercel URL, read the hosted preview banner, click
+`Run Hosted Preview`, inspect the tool trace / risk score / benchmark score /
+report hash, open Recorded Mantle Proofs, then watch the demo video for the
+live local runner execution.
+
 Nexora focuses on three sponsor-aligned surfaces.
 
 Mantle:
