@@ -1,1 +1,1 @@
-export { listByrealPoolsReadOnly as getByrealPools } from "../../../integrations/byreal/byrealAdapter";
+export { listByrealPoolsReadOnly as getByrealPools } from "../../../integrations/byreal";

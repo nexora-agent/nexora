@@ -14,7 +14,7 @@ import {
   getByrealStatusTool,
   inspectByrealPoolReadOnly,
   listByrealPoolsReadOnly,
-} from "../integrations/byreal/byrealAdapter";
+} from "../integrations/byreal";
 import type { NexoraTool } from "./toolTypes";
 
 const allHarnesses = ["safe-approval", "wallet-defense", "safe-yield", "byreal-defi"];
