@@ -19,10 +19,11 @@
     }
   ],
   "model": {
-    "endpointUrl": "http://172.18.197.120:11434/api/generate",
-    "maxTokens": 1600,
-    "modelName": "qwen2.5:7b",
-    "provider": "ollama",
-    "temperature": 0.2
+    "endpointUrl": "https://api.openai.com/v1/chat/completions",
+    "maxTokens": 50,
+    "modelName": "gpt-5.4-mini",
+    "provider": "openai",
+    "temperature": 0.2,
+    "apiKeyEnvVar": "OPENAI_API_KEY"
   }
 }

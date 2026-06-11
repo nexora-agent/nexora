@@ -1492,7 +1492,13 @@ async function askModel(prompt: string, demoResponse: Record<string, unknown>) {
       throw new Error(`Missing API key env var: ${keyVar} is not set in .env.`);
     }
     headers["authorization"] = `Bearer ${apiKey}`;
-    requestBody = { max_tokens: maxTokens, messages: [{ content: prompt, role: "user" }], model, temperature };
+    const requiresCompletionTokens = model.startsWith("o1") || model.startsWith("o3") || model.includes("gpt-5");
+    requestBody = {
+      ...(requiresCompletionTokens ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens }),
+      messages: [{ content: prompt, role: "user" }],
+      model,
+      ...((model.startsWith("o1") || model.startsWith("o3")) ? {} : { temperature })
+    };
   } else {
     await checkOllamaHealth(endpoint);
     requestBody = {
