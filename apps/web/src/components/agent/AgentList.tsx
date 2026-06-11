@@ -244,6 +244,21 @@ export function AgentList({
 
   return (
     <section className="agent-table-card" aria-label="Smart wallets table">
+      <div className="agent-table-header">
+        <div>
+          <h2>Smart Wallets</h2>
+          <p>{agents.length} wallet{agents.length === 1 ? "" : "s"} created</p>
+        </div>
+
+        <button
+          className="primary-action"
+          onClick={onCreateSmartWallet}
+          type="button"
+        >
+          Create Smart Wallet
+        </button>
+      </div>
+
       <div className="agent-table-scroll">
         <table>
           <thead>

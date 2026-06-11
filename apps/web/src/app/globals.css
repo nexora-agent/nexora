@@ -546,6 +546,25 @@ h1 {
   width: 100%;
 }
 
+.agent-table-header {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  padding: 16px;
+}
+
+.agent-table-header h2,
+.agent-table-header p {
+  margin: 0;
+}
+
+.agent-table-header p {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
 .agent-table-scroll {
   overflow-x: auto;
 }
