@@ -2212,7 +2212,11 @@ async function readAllowedExecutionTargets({
   activeBenchmark?: ActiveBenchmark;
   publicClient: ReturnType<typeof createPublicClient>;
   walletAddress: Address;
-}) {
+}): Promise<{
+  allowedTargets: Address[];
+  executionTargets: Address[];
+  missingSelectorTargets: Address[];
+}> {
   try {
     const [targets, allowedStatuses] = await publicClient.readContract({
       abi: walletAbi,
@@ -2228,11 +2232,15 @@ async function readAllowedExecutionTargets({
     ).map((action) => action.selector);
 
     if (actionSelectors.length === 0) {
-      return allowedTargets;
+      return {
+        allowedTargets,
+        executionTargets: allowedTargets,
+        missingSelectorTargets: [],
+      };
     }
 
     const matchingTargets: Address[] = [];
-    const missingSelectorTargets: string[] = [];
+    const missingSelectorTargets: Address[] = [];
 
     for (const target of allowedTargets) {
       const selectorAllowed = await Promise.all(
@@ -2259,7 +2267,11 @@ async function readAllowedExecutionTargets({
       );
     }
 
-    return matchingTargets;
+    return {
+      allowedTargets,
+      executionTargets: matchingTargets,
+      missingSelectorTargets,
+    };
   } catch (error) {
     console.log(
       error instanceof Error
@@ -2267,8 +2279,15 @@ async function readAllowedExecutionTargets({
         : "Could not read wallet allowed targets.",
     );
 
-    return [];
+    return { allowedTargets: [], executionTargets: [], missingSelectorTargets: [] };
   }
+}
+
+// Fails the run before any model call so incomplete setup produces a clear
+// message instead of UNPARSED proposals or zero scores.
+function stopWithSetupError(message: string): never {
+  console.log(`NEXORA_RUNNER_SETUP_ERROR: ${message}`);
+  process.exit(1);
 }
 
 async function executorPolicyAllowsRun({
@@ -2409,21 +2428,32 @@ async function main() {
   console.log(`Byreal / RealClaw mode: ${byrealStatus.mode}`);
 
   if (!activeBenchmark) {
-    console.log("No benchmark selected for this agent. Create or select a benchmark before running the agent.");
-    return;
+    stopWithSetupError("No active benchmark selected");
   }
 
-  const allowedExecutionTargets = await readAllowedExecutionTargets({
+  if ((activeBenchmark.metadata.allowedActions ?? []).length === 0) {
+    stopWithSetupError("Benchmark has no allowed actions");
+  }
+
+  const targetPermissions = await readAllowedExecutionTargets({
     activeBenchmark,
     publicClient,
     walletAddress,
   });
+
+  if (targetPermissions.allowedTargets.length === 0) {
+    stopWithSetupError("Smart wallet has no allowed target addresses");
+  }
+
+  if (targetPermissions.executionTargets.length === 0) {
+    stopWithSetupError(
+      "Smart wallet target is missing benchmark action selector permission",
+    );
+  }
+
+  const allowedExecutionTargets = targetPermissions.executionTargets;
   console.log(
-    `Wallet allowed execution targets for benchmark action: ${
-      allowedExecutionTargets.length > 0
-        ? allowedExecutionTargets.join(", ")
-        : "none"
-    }`,
+    `Wallet allowed execution targets for benchmark action: ${allowedExecutionTargets.join(", ")}`,
   );
 
   console.log("Running benchmark suite...");

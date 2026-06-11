@@ -566,6 +566,166 @@ function selectorsForBenchmark(benchmark?: OnchainBenchmark) {
     .filter((selector): selector is Hex => Boolean(selector));
 }
 
+type AgentReadiness = {
+  actionSignatures: string[];
+  allowedTargetCount: number;
+  benchmarkName?: string;
+  checking: boolean;
+  executorLinked: boolean;
+  missing: string[];
+  ready: boolean;
+  reason?: string;
+  selectorsReady: boolean;
+};
+
+function computeAgentReadiness({
+  activeBenchmark,
+  allowedContractAddresses,
+  allowedSelectorStatus,
+  isLoadingBenchmarkPreview,
+  linkStatus,
+}: {
+  activeBenchmark?: OnchainBenchmark;
+  allowedContractAddresses: string[];
+  allowedSelectorStatus: Record<string, boolean | undefined>;
+  isLoadingBenchmarkPreview: boolean;
+  linkStatus: WalletLinkStatus;
+}): AgentReadiness {
+  const actionSignatures = actionSignaturesForBenchmark(activeBenchmark);
+  const executorLinked = linkStatus === "linked" || linkStatus === "expiring";
+  const selectorStatuses = allowedContractAddresses.map(
+    (address) => allowedSelectorStatus[normalizeAddressValue(address) ?? address],
+  );
+  const selectorsReady = selectorStatuses.some((status) => status === true);
+  const selectorsChecking =
+    actionSignatures.length > 0 &&
+    allowedContractAddresses.length > 0 &&
+    !selectorsReady &&
+    selectorStatuses.some((status) => status === undefined);
+  const checking =
+    linkStatus === "checking" || isLoadingBenchmarkPreview || selectorsChecking;
+
+  const missing: string[] = [];
+  let reason: string | undefined;
+
+  const addMissing = (item: string, itemReason: string) => {
+    missing.push(item);
+    reason = reason ?? itemReason;
+  };
+
+  if (linkStatus === "missing-wallet") {
+    addMissing("smart wallet", "Create a smart wallet before running.");
+  } else if (!executorLinked) {
+    addMissing("executor link", "Link the executor to this wallet before running.");
+  }
+
+  if (!activeBenchmark) {
+    addMissing("active benchmark", "Select an active benchmark before running.");
+  } else if (actionSignatures.length === 0) {
+    addMissing("benchmark allowed actions", "Benchmark has no allowed actions.");
+  }
+
+  if (allowedContractAddresses.length === 0) {
+    addMissing("allowed target", "Add an allowed target before running.");
+  } else if (actionSignatures.length > 0 && !selectorsReady && !selectorsChecking) {
+    addMissing(
+      "allowed action selector",
+      "Allow benchmark action selectors before running.",
+    );
+  }
+
+  return {
+    actionSignatures,
+    allowedTargetCount: allowedContractAddresses.length,
+    benchmarkName: activeBenchmark ? getBenchmarkName(activeBenchmark) : undefined,
+    checking,
+    executorLinked,
+    missing,
+    ready: !checking && missing.length === 0,
+    reason,
+    selectorsReady,
+  };
+}
+
+function AgentReadinessCard({ readiness }: { readiness: AgentReadiness }) {
+  const statusLabel = readiness.checking
+    ? "Checking..."
+    : readiness.ready
+      ? "Ready to run"
+      : "Needs setup";
+
+  return (
+    <section className="summary-card" aria-label="Agent readiness">
+      <div className="card-heading-row">
+        <h3>Agent readiness</h3>
+
+        <span
+          className={`status-pill ${
+            readiness.checking
+              ? "status-pill-skeleton"
+              : readiness.ready
+                ? "status-ready"
+                : "status-wrong-network"
+          }`}
+        >
+          {readiness.checking ? "" : statusLabel}
+        </span>
+      </div>
+
+      <dl className="runner-control-details">
+        <div>
+          <dt>Executor linked</dt>
+          <dd>{readiness.executorLinked ? "Ready" : "Missing"}</dd>
+        </div>
+
+        <div>
+          <dt>Benchmark</dt>
+          <dd>{readiness.benchmarkName ?? "None selected"}</dd>
+        </div>
+
+        <div>
+          <dt>Allowed actions</dt>
+          <dd>
+            {readiness.actionSignatures.length > 0
+              ? readiness.actionSignatures
+                  .map((signature) => signature.split("(")[0])
+                  .join(", ")
+              : "None"}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Allowed targets</dt>
+          <dd>
+            {readiness.allowedTargetCount} address
+            {readiness.allowedTargetCount === 1 ? "" : "es"}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Selectors</dt>
+          <dd>
+            {readiness.selectorsReady
+              ? "Ready"
+              : readiness.checking
+                ? "Checking"
+                : "Missing"}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Status</dt>
+          <dd>{statusLabel}</dd>
+        </div>
+      </dl>
+
+      {!readiness.checking && readiness.missing.length > 0 && (
+        <p className="error-text">Missing: {readiness.missing.join(", ")}</p>
+      )}
+    </section>
+  );
+}
+
 function getExecutorAddress(status?: RunnerStatus) {
   return (status as RunnerStatusWithExecutor | undefined)?.executorAddress;
 }
@@ -1049,6 +1209,7 @@ function AgentWalletLinkCard({
   allowedContractAddresses,
   allowedSelectorStatus,
   autonomyState,
+  benchmarkActionSignatures = [],
   agents,
   config,
   executionThresholds,
@@ -1072,6 +1233,7 @@ function AgentWalletLinkCard({
   allowedContractAddresses: string[];
   allowedSelectorStatus: Record<string, boolean | undefined>;
   autonomyState?: AutonomyOnchainState;
+  benchmarkActionSignatures?: string[];
   agents: AgentRecord[];
   config: RunnerConfig;
   executionThresholds?: PreflightThresholds;
@@ -1334,14 +1496,18 @@ function AgentWalletLinkCard({
                 <div>
                   <strong>{formatAddress(address)}</strong>
                   <span>{address}</span>
-                  <span>
-                    Benchmark action:{" "}
-                    {allowedSelectorStatus[normalizeAddressValue(address) ?? address] === true
-                      ? "synced"
-                      : allowedSelectorStatus[normalizeAddressValue(address) ?? address] === false
-                        ? "missing permission"
-                        : "checking"}
-                  </span>
+                  {benchmarkActionSignatures.length === 0 ? (
+                    <span>No benchmark actions to sync.</span>
+                  ) : (
+                    <span>
+                      {allowedSelectorStatus[normalizeAddressValue(address) ?? address] === true
+                        ? "Allowed actions: "
+                        : allowedSelectorStatus[normalizeAddressValue(address) ?? address] === false
+                          ? "Missing actions: "
+                          : "Checking actions: "}
+                      {benchmarkActionSignatures.join(", ")}
+                    </span>
+                  )}
                 </div>
 
                 <button
@@ -1380,6 +1546,7 @@ function RunnerControlCard({
   onRunOnce,
   onStartAuto,
   onStopAuto,
+  readiness,
   selectedAgent,
   status,
 }: {
@@ -1392,9 +1559,13 @@ function RunnerControlCard({
   onRunOnce: () => void;
   onStartAuto: () => void;
   onStopAuto: () => void;
+  readiness: AgentReadiness;
   selectedAgent?: AgentRecord;
   status?: RunnerStatus;
 }) {
+  const blockedReason = readiness.checking
+    ? "Checking agent readiness..."
+    : readiness.reason;
   return (
     <section className="summary-card runner-control-card">
       <div className="card-heading-row">
@@ -1481,8 +1652,9 @@ function RunnerControlCard({
       <div className="runner-actions">
         <button
           className="primary-action"
-          disabled={isBusy || status?.running}
+          disabled={isBusy || status?.running || !readiness.ready}
           onClick={onRunOnce}
+          title={blockedReason}
           type="button"
         >
           {status?.running && !status?.autoMode ? "Running..." : "Run Once"}
@@ -1490,8 +1662,9 @@ function RunnerControlCard({
 
         <button
           className="secondary-action"
-          disabled={isBusy || status?.autoMode}
+          disabled={isBusy || status?.autoMode || !readiness.ready}
           onClick={onStartAuto}
+          title={blockedReason}
           type="button"
         >
           {status?.autoMode
@@ -1508,6 +1681,10 @@ function RunnerControlCard({
           Stop Auto
         </button>
       </div>
+
+      {!readiness.ready && blockedReason && (
+        <p className="error-text">{blockedReason}</p>
+      )}
 
       <p className="runner-note">
         Run Once starts one benchmark + optional action cycle. Start Auto
@@ -2005,6 +2182,33 @@ export function AgentConfigurationPanel({
     };
   }, [activeBenchmarkPreview, allowedContractAddresses, selectedAgent?.walletAddress]);
 
+  const agentReadiness = useMemo(
+    () =>
+      computeAgentReadiness({
+        activeBenchmark: activeBenchmarkPreview,
+        allowedContractAddresses,
+        allowedSelectorStatus,
+        isLoadingBenchmarkPreview,
+        linkStatus: getWalletLinkStatus({
+          executorAddress,
+          isLoading: !status || isLoadingWalletLink,
+          selectedAgent,
+          state: autonomyState,
+        }),
+      }),
+    [
+      activeBenchmarkPreview,
+      allowedContractAddresses,
+      allowedSelectorStatus,
+      autonomyState,
+      executorAddress,
+      isLoadingBenchmarkPreview,
+      isLoadingWalletLink,
+      selectedAgent,
+      status,
+    ],
+  );
+
   useEffect(() => {
     if (!isDirty) return undefined;
 
@@ -2441,7 +2645,7 @@ export function AgentConfigurationPanel({
     }
 
     setIsBusy(true);
-    setNotice("Confirm wallet allowlist transaction in MetaMask...");
+    setNotice("Adding target... Confirm the allowlist transaction in MetaMask.");
 
     try {
       const target = address as Address;
@@ -2450,10 +2654,12 @@ export function AgentConfigurationPanel({
         target,
         walletAddress: selectedAgent.walletAddress,
       });
-      const selectors = Array.from(new Set(selectorsForBenchmark(activeBenchmarkPreview)));
+      const signatures = Array.from(
+        new Set(actionSignaturesForBenchmark(activeBenchmarkPreview)),
+      );
       const selectorHashes = [];
 
-      if (selectors.length === 0) {
+      if (signatures.length === 0) {
         setNotice(
           "Address is allowed, but the active benchmark has no executable action selector to sync.",
         );
@@ -2461,7 +2667,15 @@ export function AgentConfigurationPanel({
         return;
       }
 
-      for (const selector of selectors) {
+      for (const signature of signatures) {
+        const selector = selectorFromSignature(signature);
+
+        if (!selector) {
+          continue;
+        }
+
+        setNotice(`Allowing ${signature.split("(")[0]}...`);
+
         const selectorHash = await setAllowedSelectorOnchain({
           allowed: true,
           selector,
@@ -2477,8 +2691,8 @@ export function AgentConfigurationPanel({
       await refreshAutonomyFromChain();
       setNotice(
         targetHash || selectorHashes.length > 0
-          ? `Allowed ${formatAddress(address)} and synced ${selectorHashes.length || selectors.length} benchmark action selector${selectors.length === 1 ? "" : "s"}.`
-          : `${formatAddress(address)} already has the active benchmark action selector.`,
+          ? `Ready: allowed ${formatAddress(address)} and synced ${selectorHashes.length || signatures.length} benchmark action selector${signatures.length === 1 ? "" : "s"}.`
+          : `Ready: ${formatAddress(address)} already has the active benchmark action selector.`,
       );
     } catch (error) {
       setNotice(
@@ -2712,6 +2926,7 @@ export function AgentConfigurationPanel({
         allowedSelectorStatus={allowedSelectorStatus}
         autonomyState={autonomyState}
         agents={agents}
+        benchmarkActionSignatures={agentReadiness.actionSignatures}
         config={config}
         executionThresholds={executionThresholds}
         isBusy={isBusy}
@@ -2766,9 +2981,17 @@ export function AgentConfigurationPanel({
           <button
             className={`ghost-action benchmark-test-button benchmark-test-${benchmarkState}`}
             disabled={
-              isBusy || saveState === "saving" || benchmarkState === "running"
+              isBusy ||
+              saveState === "saving" ||
+              benchmarkState === "running" ||
+              !agentReadiness.ready
             }
             onClick={testBenchmark}
+            title={
+              agentReadiness.checking
+                ? "Checking agent readiness..."
+                : agentReadiness.reason
+            }
             type="button"
           >
             {benchmarkState === "running"
@@ -2780,6 +3003,14 @@ export function AgentConfigurationPanel({
                   : "Test Benchmark"}
           </button>
         </div>
+
+        {!agentReadiness.ready && (
+          <p className="error-text">
+            {agentReadiness.checking
+              ? "Checking agent readiness..."
+              : agentReadiness.reason}
+          </p>
+        )}
 
         <AgentBenchmarkSelectorCard
           activeBenchmark={activeBenchmarkPreview}
@@ -3234,6 +3465,8 @@ export function AgentConfigurationPanel({
         </div>
       </section>
 
+      <AgentReadinessCard readiness={agentReadiness} />
+
       <RunnerControlCard
         activeBenchmark={activeBenchmarkPreview}
         allowedContractAddresses={allowedContractAddresses}
@@ -3244,6 +3477,7 @@ export function AgentConfigurationPanel({
         onRunOnce={runOnce}
         onStartAuto={startAuto}
         onStopAuto={stopAuto}
+        readiness={agentReadiness}
         selectedAgent={selectedAgent}
         status={status}
       />

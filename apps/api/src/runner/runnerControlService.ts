@@ -1646,6 +1646,7 @@ export async function testBenchmark(): Promise<{
   return new Promise((resolve, reject) => {
     const logs: string[] = [];
     let resultJson: string | undefined;
+    let setupError: string | undefined;
 
     const child = spawn("pnpm", ["--filter", "@nexora/api", "agent:runner"], {
       cwd: repoRoot,
@@ -1684,6 +1685,14 @@ export async function testBenchmark(): Promise<{
           continue;
         }
 
+        const setupMarker = "NEXORA_RUNNER_SETUP_ERROR:";
+        const setupIndex = line.indexOf(setupMarker);
+        if (setupIndex >= 0) {
+          setupError = line.slice(setupIndex + setupMarker.length).trim();
+          addLog("error", `Setup check failed: ${setupError}`);
+          continue;
+        }
+
         if (line.trim()) {
           addLog("info", line);
         }
@@ -1704,6 +1713,11 @@ export async function testBenchmark(): Promise<{
       clearTimeout(timeout);
 
       if (!resultJson) {
+        if (setupError) {
+          reject(new Error(setupError));
+          return;
+        }
+
         const logPreview = logs.join("").slice(-800);
         reject(
           new Error(
@@ -1823,6 +1837,12 @@ export function runAgentOnce() {
     const text = chunk.toString();
     addLog("info", text);
     for (const line of text.split("\n")) {
+      const setupMatch = line.match(/^NEXORA_RUNNER_SETUP_ERROR: (.+)$/);
+      if (setupMatch) {
+        addLog("error", `Setup check failed: ${setupMatch[1]}`);
+        continue;
+      }
+
       const match = line.match(/^NEXORA_BENCHMARK_RESULT: (.+)$/);
       if (match) {
         try {
