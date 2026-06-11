@@ -116,6 +116,13 @@ export default function DashboardPage() {
     setSelectedAgent(undefined);
   };
 
+  const handleSmartWalletCreated = () => {
+    setActiveView("wallets");
+    setModal(null);
+    setSelectedAgent(undefined);
+    void refreshAgents();
+  };
+
   const hostedPreview = isHostedPreviewMode();
 
   return (
@@ -195,7 +202,7 @@ export default function DashboardPage() {
 
       {modal === "smart-wallet" && (
         <DashboardModalShell label="Create Smart Wallet" onClose={closeModal}>
-          <AgentCreationWizard />
+          <AgentCreationWizard onComplete={handleSmartWalletCreated} />
         </DashboardModalShell>
       )}
 

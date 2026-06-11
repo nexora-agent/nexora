@@ -24,7 +24,7 @@ import {
   type AutonomyOnchainState,
 } from "@/lib/contracts/onchainAutonomy";
 import {
-  readPreflightThresholdsOnchain,
+  readPreflightThresholdStateOnchain,
   savePreflightThresholdsOnchain,
 } from "@/lib/contracts/onchainPreflight";
 import {
@@ -582,6 +582,16 @@ function getExecutorKeySourceLabel(status?: RunnerStatus) {
   return "Not configured";
 }
 
+function SkeletonPill({ label = "Loading" }: { label?: string }) {
+  return (
+    <span
+      aria-label={label}
+      className="status-pill status-pill-skeleton"
+      role="status"
+    />
+  );
+}
+
 function getAutonomyExecutorAddress(state?: AutonomyOnchainState) {
   return state?.executor;
 }
@@ -605,12 +615,12 @@ function getWalletLinkStatus({
     return "missing-identity";
   }
 
-  if (!executorAddress) {
-    return "missing-executor";
-  }
-
   if (isLoading) {
     return "checking";
+  }
+
+  if (!executorAddress) {
+    return "missing-executor";
   }
 
   if (!state) {
@@ -697,7 +707,7 @@ function clampThreshold(value: number, minimum: number, maximum: number) {
 
 function thresholdSummary(thresholds?: PreflightThresholds) {
   if (!thresholds) {
-    return "Loading...";
+    return "";
   }
 
   return `${thresholds.averageMinScore} minimum`;
@@ -709,6 +719,20 @@ function unifiedExecutionScore(thresholds?: PreflightThresholds) {
   }
 
   return thresholds.averageMinScore;
+}
+
+function thresholdSourceLabel({
+  existsOnchain,
+  isDirty,
+}: {
+  existsOnchain?: boolean;
+  isDirty: boolean;
+}) {
+  if (isDirty) {
+    return "Unsaved changes";
+  }
+
+  return existsOnchain ? "On-chain saved" : "On-chain default";
 }
 
 function getExecutionStatus(result: LastRunResult): string {
@@ -803,16 +827,20 @@ function AgentExecutionThresholdsCard({
   isBusy,
   isLoading,
   isSaving,
+  onchainThresholds,
   onPresetSelected,
   onSave,
   onScoreChange,
   onThresholdChange,
+  thresholdsDirty,
+  thresholdsExistOnchain,
   thresholds,
 }: {
   agentId?: string;
   isBusy: boolean;
   isLoading: boolean;
   isSaving: boolean;
+  onchainThresholds?: PreflightThresholds;
   onPresetSelected: (preset: PreflightPresetId) => void;
   onSave: () => void;
   onScoreChange: (score: number) => void;
@@ -820,6 +848,8 @@ function AgentExecutionThresholdsCard({
     key: Key,
     value: PreflightThresholds[Key],
   ) => void;
+  thresholdsDirty: boolean;
+  thresholdsExistOnchain?: boolean;
   thresholds?: PreflightThresholds;
 }) {
   const disabled = isBusy || isSaving || isLoading || !agentId || !thresholds;
@@ -836,9 +866,13 @@ function AgentExecutionThresholdsCard({
           </p>
         </div>
 
-        <span className="status-pill status-current">
-          {thresholds ? preflightPresetLabel(thresholds.preset) : "Loading"}
-        </span>
+        {isLoading || !thresholds ? (
+          <SkeletonPill label="Loading threshold preset" />
+        ) : (
+          <span className="status-pill status-current">
+            {preflightPresetLabel(thresholds.preset)}
+          </span>
+        )}
       </div>
 
       <dl className="runner-control-details">
@@ -848,21 +882,73 @@ function AgentExecutionThresholdsCard({
         </div>
 
         <div>
-          <dt>Required score</dt>
-          <dd>{thresholdSummary(thresholds)}</dd>
-        </div>
-
-        <div>
-          <dt>Risk ceiling</dt>
-          <dd>{thresholds ? `${thresholds.maxRiskScore} / 100` : "Loading..."}</dd>
-        </div>
-
-        <div>
-          <dt>Freshness</dt>
+          <dt>On-chain source</dt>
           <dd>
-            {thresholds
-              ? `${thresholds.freshnessMinutes} min`
-              : "Loading..."}
+            {isLoading || !onchainThresholds ? (
+              <SkeletonPill label="Loading threshold source" />
+            ) : (
+              thresholdSourceLabel({
+                existsOnchain: thresholdsExistOnchain,
+                isDirty: false,
+              })
+            )}
+          </dd>
+        </div>
+
+        <div>
+          <dt>On-chain score</dt>
+          <dd>
+            {isLoading || !onchainThresholds ? (
+              <SkeletonPill label="Loading required score" />
+            ) : (
+              thresholdSummary(onchainThresholds)
+            )}
+          </dd>
+        </div>
+
+        <div>
+          <dt>On-chain risk</dt>
+          <dd>
+            {isLoading || !onchainThresholds ? (
+              <SkeletonPill label="Loading risk ceiling" />
+            ) : (
+              `${onchainThresholds.maxRiskScore} / 100`
+            )}
+          </dd>
+        </div>
+
+        <div>
+          <dt>On-chain freshness</dt>
+          <dd>
+            {isLoading || !onchainThresholds ? (
+              <SkeletonPill label="Loading freshness window" />
+            ) : (
+              `${onchainThresholds.freshnessMinutes} min`
+            )}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Draft state</dt>
+          <dd>
+            {isLoading || !thresholds ? (
+              <SkeletonPill label="Loading draft threshold state" />
+            ) : thresholdsDirty ? (
+              "Unsaved changes"
+            ) : (
+              "Matches chain"
+            )}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Draft score</dt>
+          <dd>
+            {isLoading || !thresholds ? (
+              <SkeletonPill label="Loading draft required score" />
+            ) : (
+              thresholdSummary(thresholds)
+            )}
           </dd>
         </div>
       </dl>
@@ -965,8 +1051,10 @@ function AgentWalletLinkCard({
   autonomyState,
   agents,
   config,
+  executionThresholds,
   isBusy,
   isLinkingWallet,
+  isLoadingThresholds,
   isLoadingWalletLink,
   onAddAllowedContractAddress,
   onAllowedContractAddressInputChange,
@@ -974,8 +1062,11 @@ function AgentWalletLinkCard({
   onRemoveAllowedContractAddress,
   onSyncAllowedContractSelectors,
   onSelectAgent,
+  onchainThresholds,
   selectedAgent,
   status,
+  thresholdsDirty,
+  thresholdsExistOnchain,
 }: {
   allowedContractAddressInput: string;
   allowedContractAddresses: string[];
@@ -983,8 +1074,10 @@ function AgentWalletLinkCard({
   autonomyState?: AutonomyOnchainState;
   agents: AgentRecord[];
   config: RunnerConfig;
+  executionThresholds?: PreflightThresholds;
   isBusy: boolean;
   isLinkingWallet: boolean;
+  isLoadingThresholds: boolean;
   isLoadingWalletLink: boolean;
   onAddAllowedContractAddress: () => Promise<void> | void;
   onAllowedContractAddressInputChange: (value: string) => void;
@@ -992,14 +1085,19 @@ function AgentWalletLinkCard({
   onRemoveAllowedContractAddress: (address: string) => Promise<void> | void;
   onSyncAllowedContractSelectors: (address: string) => Promise<void> | void;
   onSelectAgent: (agentId: string) => void;
+  onchainThresholds?: PreflightThresholds;
   selectedAgent?: AgentRecord;
   status?: RunnerStatus;
+  thresholdsDirty: boolean;
+  thresholdsExistOnchain?: boolean;
 }) {
   const executorAddress = getExecutorAddress(status);
+  const isRunnerStatusLoading = !status;
+  const isLinkDataLoading = isRunnerStatusLoading || isLoadingWalletLink;
   const identityId = getAgentRuntimeId(selectedAgent) ?? config.agentId;
   const linkStatus = getWalletLinkStatus({
     executorAddress,
-    isLoading: isLoadingWalletLink,
+    isLoading: isLinkDataLoading,
     selectedAgent,
     state: autonomyState,
   });
@@ -1026,9 +1124,13 @@ function AgentWalletLinkCard({
           </p>
         </div>
 
-        <span className={`status-pill ${getWalletLinkStatusClass(linkStatus)}`}>
-          {getWalletLinkStatusLabel(linkStatus)}
-        </span>
+        {linkStatus === "checking" ? (
+          <SkeletonPill label="Loading wallet link status" />
+        ) : (
+          <span className={`status-pill ${getWalletLinkStatusClass(linkStatus)}`}>
+            {getWalletLinkStatusLabel(linkStatus)}
+          </span>
+        )}
       </div>
 
       <div className="form-grid">
@@ -1075,28 +1177,102 @@ function AgentWalletLinkCard({
         <div>
           <dt>Local Executor</dt>
           <dd title={executorAddress}>
-            {executorAddress
-              ? formatAddress(executorAddress)
-              : "Runner key not configured"}
+            {isRunnerStatusLoading ? (
+              <SkeletonPill label="Loading local executor" />
+            ) : executorAddress ? (
+              formatAddress(executorAddress)
+            ) : (
+              "Runner key not configured"
+            )}
           </dd>
         </div>
 
         <div>
           <dt>Executor key</dt>
           <dd title={status?.executorKeyPath}>
-            {getExecutorKeySourceLabel(status)}
+            {isRunnerStatusLoading ? (
+              <SkeletonPill label="Loading executor key source" />
+            ) : (
+              getExecutorKeySourceLabel(status)
+            )}
           </dd>
         </div>
 
         <div>
           <dt>Status</dt>
-          <dd>{getWalletLinkStatusLabel(linkStatus)}</dd>
+          <dd>
+            {linkStatus === "checking" ? (
+              <SkeletonPill label="Loading wallet link status" />
+            ) : (
+              getWalletLinkStatusLabel(linkStatus)
+            )}
+          </dd>
         </div>
 
         <div>
           <dt>Executor expires</dt>
-          <dd>{formatUnixSeconds(autonomyState?.validUntil)}</dd>
+          <dd>
+            {isLinkDataLoading ? (
+              <SkeletonPill label="Loading executor expiration" />
+            ) : (
+              formatUnixSeconds(autonomyState?.validUntil)
+            )}
+          </dd>
         </div>
+
+        <div>
+          <dt>On-chain threshold</dt>
+          <dd>
+            {isLoadingThresholds || !onchainThresholds ? (
+              <SkeletonPill label="Loading benchmark threshold" />
+            ) : (
+              `${onchainThresholds.averageMinScore} minimum`
+            )}
+          </dd>
+        </div>
+
+        <div>
+          <dt>On-chain source</dt>
+          <dd>
+            {isLoadingThresholds || !onchainThresholds ? (
+              <SkeletonPill label="Loading threshold source" />
+            ) : (
+              thresholdSourceLabel({
+                existsOnchain: thresholdsExistOnchain,
+                isDirty: false,
+              })
+            )}
+          </dd>
+        </div>
+
+        <div>
+          <dt>On-chain risk</dt>
+          <dd>
+            {isLoadingThresholds || !onchainThresholds ? (
+              <SkeletonPill label="Loading risk ceiling" />
+            ) : (
+              `${onchainThresholds.maxRiskScore} / 100`
+            )}
+          </dd>
+        </div>
+
+        <div>
+          <dt>On-chain freshness</dt>
+          <dd>
+            {isLoadingThresholds || !onchainThresholds ? (
+              <SkeletonPill label="Loading freshness window" />
+            ) : (
+              `${onchainThresholds.freshnessMinutes} min`
+            )}
+          </dd>
+        </div>
+
+        {thresholdsDirty && executionThresholds ? (
+          <div>
+            <dt>Draft threshold</dt>
+            <dd>{`${executionThresholds.averageMinScore} minimum unsaved`}</dd>
+          </div>
+        ) : null}
 
         {linkedExecutor && linkStatus === "linked-other" ? (
           <div>
@@ -1621,6 +1797,12 @@ export function AgentConfigurationPanel({
   const [executionThresholds, setExecutionThresholds] = useState<
     PreflightThresholds | undefined
   >();
+  const [onchainExecutionThresholds, setOnchainExecutionThresholds] = useState<
+    PreflightThresholds | undefined
+  >();
+  const [thresholdsExistOnchain, setThresholdsExistOnchain] =
+    useState<boolean | undefined>();
+  const [thresholdsDirty, setThresholdsDirty] = useState(false);
   const [isLoadingThresholds, setIsLoadingThresholds] = useState(false);
   const [isSavingThresholds, setIsSavingThresholds] = useState(false);
 
@@ -1928,25 +2110,40 @@ export function AgentConfigurationPanel({
     let cancelled = false;
 
     async function loadExecutionThresholds() {
+      setExecutionThresholds(undefined);
+      setOnchainExecutionThresholds(undefined);
+      setThresholdsExistOnchain(undefined);
+      setThresholdsDirty(false);
+
       if (!selectedAgentIdentityId) {
-        setExecutionThresholds(undefined);
         return;
       }
 
       setIsLoadingThresholds(true);
 
       try {
-        const thresholds = await readPreflightThresholdsOnchain(
+        const thresholdState = await readPreflightThresholdStateOnchain(
           selectedAgentIdentityId,
-          { useAgentValidation: true },
+          { skipCache: true, useAgentValidation: true },
         );
 
         if (!cancelled) {
-          setExecutionThresholds(thresholds);
+          setExecutionThresholds(thresholdState.thresholds);
+          setOnchainExecutionThresholds(thresholdState.thresholds);
+          setThresholdsExistOnchain(thresholdState.exists);
+          setThresholdsDirty(false);
         }
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setExecutionThresholds(preflightPresets.conservative);
+          setExecutionThresholds(undefined);
+          setOnchainExecutionThresholds(undefined);
+          setThresholdsExistOnchain(undefined);
+          setThresholdsDirty(false);
+          setNotice(
+            error instanceof Error
+              ? `Could not read execution thresholds from Mantle: ${error.message}`
+              : "Could not read execution thresholds from Mantle.",
+          );
         }
       } finally {
         if (!cancelled) {
@@ -2349,6 +2546,7 @@ export function AgentConfigurationPanel({
     key: Key,
     value: PreflightThresholds[Key],
   ) => {
+    setThresholdsDirty(true);
     setExecutionThresholds((current) => ({
       ...(current ?? preflightPresets.conservative),
       preset: key === "preset" ? (value as PreflightPresetId) : "custom",
@@ -2357,6 +2555,7 @@ export function AgentConfigurationPanel({
   };
 
   const updateUnifiedExecutionScore = (score: number) => {
+    setThresholdsDirty(true);
     setExecutionThresholds((current) => ({
       ...(current ?? preflightPresets.conservative),
       adversarialYieldTrapMinScore: score,
@@ -2368,6 +2567,7 @@ export function AgentConfigurationPanel({
   };
 
   const selectExecutionThresholdPreset = (preset: PreflightPresetId) => {
+    setThresholdsDirty(true);
     if (preset === "custom") {
       setExecutionThresholds((current) => ({
         ...(current ?? preflightPresets.conservative),
@@ -2400,6 +2600,14 @@ export function AgentConfigurationPanel({
         executionThresholds,
         { useAgentValidation: true },
       );
+      const thresholdState = await readPreflightThresholdStateOnchain(
+        selectedAgentIdentityId,
+        { skipCache: true, useAgentValidation: true },
+      );
+      setExecutionThresholds(thresholdState.thresholds);
+      setOnchainExecutionThresholds(thresholdState.thresholds);
+      setThresholdsExistOnchain(thresholdState.exists);
+      setThresholdsDirty(false);
       setNotice(
         `Execution thresholds saved for ERC-8004 #${selectedAgentIdentityId}.`,
       );
@@ -2505,8 +2713,10 @@ export function AgentConfigurationPanel({
         autonomyState={autonomyState}
         agents={agents}
         config={config}
+        executionThresholds={executionThresholds}
         isBusy={isBusy}
         isLinkingWallet={isLinkingWallet}
+        isLoadingThresholds={isLoadingThresholds}
         isLoadingWalletLink={isLoadingWalletLink}
         onAddAllowedContractAddress={addAllowedContractAddress}
         onAllowedContractAddressInputChange={setAllowedContractAddressInput}
@@ -2519,8 +2729,11 @@ export function AgentConfigurationPanel({
             agentId,
           })
         }
+        onchainThresholds={onchainExecutionThresholds}
         selectedAgent={selectedAgent}
         status={status}
+        thresholdsDirty={thresholdsDirty}
+        thresholdsExistOnchain={thresholdsExistOnchain}
       />
 
       {notice && <p className="ownership-note runner-notice">{notice}</p>}
@@ -2536,10 +2749,13 @@ export function AgentConfigurationPanel({
         isBusy={isBusy}
         isLoading={isLoadingThresholds}
         isSaving={isSavingThresholds}
+        onchainThresholds={onchainExecutionThresholds}
         onPresetSelected={selectExecutionThresholdPreset}
         onSave={saveExecutionThresholds}
         onScoreChange={updateUnifiedExecutionScore}
         onThresholdChange={updateExecutionThreshold}
+        thresholdsDirty={thresholdsDirty}
+        thresholdsExistOnchain={thresholdsExistOnchain}
         thresholds={executionThresholds}
       />
 

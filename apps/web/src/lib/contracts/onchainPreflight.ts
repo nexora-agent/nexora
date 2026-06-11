@@ -18,7 +18,7 @@ import { wagmiConfig } from "@/lib/wagmi/config";
 
 const preflightThresholdCache = new Map<
   string,
-  { expiresAt: number; thresholds: PreflightThresholds }
+  { exists?: boolean; expiresAt: number; thresholds: PreflightThresholds }
 >();
 let nextRpcSlotAt = 0;
 
@@ -421,6 +421,7 @@ export async function savePreflightThresholdsOnchain(
 
     await waitForMantleReceipt(transactionHash, "Validation settings");
     preflightThresholdCache.set(`agent:${walletId}`, {
+      exists: true,
       expiresAt: Date.now() + 30_000,
       thresholds,
     });
@@ -454,6 +455,7 @@ export async function savePreflightThresholdsOnchain(
 
   await waitForMantleReceipt(transactionHash, "Preflight settings");
   preflightThresholdCache.set(walletId, {
+    exists: true,
     expiresAt: Date.now() + 30_000,
     thresholds,
   });
@@ -463,12 +465,26 @@ export async function savePreflightThresholdsOnchain(
 
 export async function readPreflightThresholdsOnchain(
   walletId: string,
-  options: { useAgentValidation?: boolean } = {},
+  options: { skipCache?: boolean; useAgentValidation?: boolean } = {},
+) {
+  const state = await readPreflightThresholdStateOnchain(walletId, options);
+  return state.thresholds;
+}
+
+export async function readPreflightThresholdStateOnchain(
+  walletId: string,
+  options: { skipCache?: boolean; useAgentValidation?: boolean } = {},
 ) {
   const cacheKey = options.useAgentValidation ? `agent:${walletId}` : walletId;
   const cached = preflightThresholdCache.get(cacheKey);
-  if (cached && cached.expiresAt > Date.now()) {
-    return cached.thresholds;
+  if (!options.skipCache && cached && cached.expiresAt > Date.now()) {
+    return {
+      exists: Boolean(cached.exists),
+      source: options.useAgentValidation
+        ? "agent-validation"
+        : "preflight-registry",
+      thresholds: cached.thresholds,
+    } as const;
   }
 
   if (options.useAgentValidation) {
@@ -494,11 +510,16 @@ export async function readPreflightThresholdsOnchain(
     } satisfies PreflightThresholds;
 
     preflightThresholdCache.set(cacheKey, {
+      exists: result.exists,
       expiresAt: Date.now() + 30_000,
       thresholds,
     });
 
-    return thresholds;
+    return {
+      exists: result.exists,
+      source: "agent-validation",
+      thresholds,
+    } as const;
   }
 
   const registryAddress = requirePreflightRegistry();
@@ -523,9 +544,14 @@ export async function readPreflightThresholdsOnchain(
   } satisfies PreflightThresholds;
 
   preflightThresholdCache.set(cacheKey, {
+    exists: result.exists,
     expiresAt: Date.now() + 30_000,
     thresholds,
   });
 
-  return thresholds;
+  return {
+    exists: result.exists,
+    source: "preflight-registry",
+    thresholds,
+  } as const;
 }
