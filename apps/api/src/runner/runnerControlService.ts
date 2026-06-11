@@ -12,8 +12,8 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import { normalizeBenchmarkJson } from "./benchmarkJson.js";
+import { executorKeyInfo } from "./executorKeyStore.js";
 
 export type RunnerMcpServerConfig = {
   enabled: boolean;
@@ -462,14 +462,16 @@ export function updateRunnerConfig(input: Partial<RunnerConfig>) {
 }
 
 export function getRunnerStatus() {
-  const executorAddress = process.env.NEXORA_AGENT_EXECUTOR_PRIVATE_KEY
-    ? privateKeyToAccount(process.env.NEXORA_AGENT_EXECUTOR_PRIVATE_KEY as Hex).address
-    : undefined;
+  const executor = executorKeyInfo();
 
   return {
     autoMode: Boolean(autoTimer),
     config,
-    executorAddress,
+    executorAddress: executor.address,
+    executorConfigured: Boolean(executor.address),
+    executorKeyCreatedAt: executor.createdAt,
+    executorKeyPath: executor.keyPath,
+    executorKeySource: executor.source,
     lastRunExitCode,
     lastRunFinishedAt,
     lastRunResult,

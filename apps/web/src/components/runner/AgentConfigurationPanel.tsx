@@ -570,6 +570,18 @@ function getExecutorAddress(status?: RunnerStatus) {
   return (status as RunnerStatusWithExecutor | undefined)?.executorAddress;
 }
 
+function getExecutorKeySourceLabel(status?: RunnerStatus) {
+  if (status?.executorKeySource === "env") {
+    return ".env";
+  }
+
+  if (status?.executorKeySource === "local-file") {
+    return "Local key file";
+  }
+
+  return "Not configured";
+}
+
 function getAutonomyExecutorAddress(state?: AutonomyOnchainState) {
   return state?.executor;
 }
@@ -1066,6 +1078,13 @@ function AgentWalletLinkCard({
             {executorAddress
               ? formatAddress(executorAddress)
               : "Runner key not configured"}
+          </dd>
+        </div>
+
+        <div>
+          <dt>Executor key</dt>
+          <dd title={status?.executorKeyPath}>
+            {getExecutorKeySourceLabel(status)}
           </dd>
         </div>
 

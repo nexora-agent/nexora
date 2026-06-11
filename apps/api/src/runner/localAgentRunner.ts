@@ -27,6 +27,7 @@ import {
   type ProposalCheck,
 } from "./actionRegistry";
 import { normalizeBenchmarkJson, type NormalizedBenchmark } from "./benchmarkJson";
+import { requiredExecutorPrivateKey } from "./executorKeyStore";
 
 type DeploymentFile = {
   contracts?: Record<string, string>;
@@ -2309,7 +2310,7 @@ async function main() {
   const deployments = deployment();
   const rpcUrl = requiredEnv("MANTLE_RPC_URL");
   const useBundler = process.env.NEXORA_USE_BUNDLER === "true";
-  const privateKey = requiredEnv("NEXORA_AGENT_EXECUTOR_PRIVATE_KEY") as Hex;
+  const privateKey = requiredExecutorPrivateKey();
   const agentId = BigInt(requiredEnv("NEXORA_SMART_WALLET_ID"));
   const account = privateKeyToAccount(privateKey);
   const defaultValueMnt = process.env.NEXORA_AGENT_ACTION_AMOUNT_MNT ?? "0.01";

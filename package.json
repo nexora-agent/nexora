@@ -6,6 +6,7 @@
   "packageManager": "pnpm@10.13.1",
   "scripts": {
     "dev": "pnpm --parallel dev",
+    "start:project": "pnpm --filter @nexora/api exec tsx src/runner/startProject.ts",
     "dev:web": "pnpm --filter @nexora/web dev",
     "dev:api": "pnpm --filter @nexora/api dev",
     "dev:local-harness": "node tools/local-harness-example.mjs",
@@ -27,6 +28,8 @@
     "contracts:redeploy:clean": "bash contracts/script/redeploy-clean-state.sh",
     "agent:runner": "pnpm --filter @nexora/api agent:runner",
     "nexora:dev": "bash tools/nexora-manual-test.sh dev",
+    "nexora:start": "pnpm start:project",
+    "nexora:executor": "pnpm --filter @nexora/api exec tsx src/runner/startProject.ts --setup-only",
     "nexora:api": "bash tools/nexora-manual-test.sh api",
     "nexora:web": "bash tools/nexora-manual-test.sh web",
     "nexora:harness": "bash tools/nexora-manual-test.sh harness",

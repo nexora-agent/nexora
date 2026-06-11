@@ -69,6 +69,10 @@ export type RunnerStatus = {
   autoMode: boolean;
   config: RunnerConfig;
   executorAddress?: string;
+  executorConfigured?: boolean;
+  executorKeyCreatedAt?: string;
+  executorKeyPath?: string;
+  executorKeySource?: "env" | "local-file" | "missing";
   lastRunExitCode?: number | null;
   lastRunFinishedAt?: string;
   lastRunResult?: LastRunResult;

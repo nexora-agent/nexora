@@ -9,5 +9,6 @@ playwright-report/
 test-results/
 .env
 .env.local
+.nexora/keys/
 *.log
 tools/foundry/
