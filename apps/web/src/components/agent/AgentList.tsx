@@ -3,11 +3,12 @@
 import type { AgentRecord } from "@nexora/shared";
 import Link from "next/link";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
+import { useSmartWalletReadiness } from "@/hooks/useSmartWalletReadiness";
 import {
-  AgentStatusBadge,
-  getAgentAvailableActions,
   getAgentStatus,
-  MINIMUM_MNT_READY_BALANCE,
+  getReadinessAction,
+  SmartWalletReadinessBadge,
+  type ReadinessActionKind,
 } from "./AgentStatusBadge";
 
 type AgentListProps = {
@@ -29,23 +30,6 @@ function formatAddress(address?: string) {
 
 function getAgentDescription(agent: AgentRecord) {
   return agent.description ?? agent.primaryPurpose ?? agent.goal ?? "—";
-}
-
-function parseMntBalance(formattedBalance?: string | null) {
-  if (!formattedBalance) {
-    return null;
-  }
-
-  const normalizedBalance = formattedBalance.replaceAll(",", "").trim();
-  const balanceMatch = normalizedBalance.match(/-?\d+(\.\d+)?/);
-
-  if (!balanceMatch) {
-    return null;
-  }
-
-  const parsedBalance = Number(balanceMatch[0]);
-
-  return Number.isFinite(parsedBalance) ? parsedBalance : null;
 }
 
 function WalletBalanceCell({
@@ -142,22 +126,23 @@ function AgentTableRow({
     agent.walletAddress as `0x${string}` | undefined,
   );
 
-  const balanceMnt = parseMntBalance(formattedBalance);
+  const readiness = useSmartWalletReadiness(agent);
+  const readinessAction = getReadinessAction(readiness);
 
-  const status = getAgentStatus(agent, {
-    balanceMnt,
-    minimumReadyBalanceMnt: MINIMUM_MNT_READY_BALANCE,
-  });
+  const handleAction = (actionKind: ReadinessActionKind) => {
+    if (actionKind === "create-wallet") {
+      onWalletAction?.(agent, "needs-wallet");
+      return;
+    }
 
-  const availableActions = getAgentAvailableActions(agent, status);
-
-  const handleAction = (actionKind: string) => {
     if (actionKind === "fund-wallet") {
       onWalletAction?.(agent, "needs-funding");
       return;
     }
 
-    onWalletAction?.(agent, status);
+    // Setup, executor, benchmark, and ready actions all open the wallet page,
+    // which hosts the configuration surfaces for this smart wallet.
+    onWalletAction?.(agent, "ready-to-benchmark");
   };
 
   return (
@@ -183,7 +168,7 @@ function AgentTableRow({
       </td>
 
       <td>
-        <AgentStatusBadge status={status} />
+        <SmartWalletReadinessBadge readiness={readiness} />
       </td>
 
       <td>
@@ -196,16 +181,21 @@ function AgentTableRow({
             View
           </button>
 
-          {availableActions.map((action) => (
-            <button
-              className={action.primary ? "primary-action" : "secondary-action"}
-              key={action.kind}
-              onClick={() => handleAction(action.kind)}
-              type="button"
-            >
-              {action.label}
+          {readiness.status === "loading" ? (
+            <button className="secondary-action" disabled type="button">
+              Loading...
             </button>
-          ))}
+          ) : (
+            readinessAction && (
+              <button
+                className="primary-action"
+                onClick={() => handleAction(readinessAction.kind)}
+                type="button"
+              >
+                {readinessAction.label}
+              </button>
+            )
+          )}
         </div>
       </td>
     </tr>

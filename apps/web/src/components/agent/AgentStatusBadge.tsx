@@ -1,4 +1,8 @@
 import type { AgentRecord } from "@nexora/shared";
+import type {
+  SmartWalletMissingRequirement,
+  SmartWalletReadiness,
+} from "@/hooks/useSmartWalletReadiness";
 
 export const MINIMUM_MNT_READY_BALANCE = 0.02;
 
@@ -191,6 +195,130 @@ export function AgentStatusBadge({ status }: AgentStatusBadgeProps) {
   return (
     <span className={`status-pill ${statusClasses[status]}`}>
       {statusLabels[status]}
+    </span>
+  );
+}
+
+// --- Smart wallet readiness (loading-aware status model) ---
+
+const missingRequirementLabels: Record<SmartWalletMissingRequirement, string> = {
+  benchmark: "benchmark",
+  executor: "executor link",
+  funding: "funding",
+};
+
+const singleMissingLabels: Record<SmartWalletMissingRequirement, string> = {
+  benchmark: "Benchmark missing",
+  executor: "Executor link missing",
+  funding: "Needs funding",
+};
+
+export function getReadinessLabel(readiness: SmartWalletReadiness): string {
+  if (readiness.status === "loading") {
+    return "Loading";
+  }
+
+  if (readiness.status === "wallet-missing") {
+    return "Wallet missing";
+  }
+
+  if (readiness.status === "executor-expired") {
+    return "Executor expired";
+  }
+
+  if (readiness.status === "setup-missing") {
+    return readiness.missing.length === 1
+      ? singleMissingLabels[readiness.missing[0]]
+      : "Setup incomplete";
+  }
+
+  return "Ready to use";
+}
+
+export function getReadinessTitle(readiness: SmartWalletReadiness): string | undefined {
+  if (readiness.status === "setup-missing" && readiness.missing.length > 1) {
+    const order: SmartWalletMissingRequirement[] = ["funding", "benchmark", "executor"];
+    const parts = order
+      .filter((item) => readiness.missing.includes(item))
+      .map((item) => missingRequirementLabels[item]);
+    return `Missing: ${parts.join(", ")}`;
+  }
+
+  return undefined;
+}
+
+export type ReadinessActionKind =
+  | "create-wallet"
+  | "select-benchmark"
+  | "link-executor"
+  | "fund-wallet"
+  | "open-setup"
+  | "renew-executor"
+  | "open-wallet";
+
+export function getReadinessAction(
+  readiness: SmartWalletReadiness,
+): { kind: ReadinessActionKind; label: string } | undefined {
+  if (readiness.status === "loading") {
+    return undefined;
+  }
+
+  if (readiness.status === "wallet-missing") {
+    return { kind: "create-wallet", label: "Create Wallet" };
+  }
+
+  if (readiness.status === "executor-expired") {
+    return { kind: "renew-executor", label: "Renew Executor" };
+  }
+
+  if (readiness.status === "setup-missing") {
+    if (readiness.missing.length > 1) {
+      return { kind: "open-setup", label: "Open Setup" };
+    }
+
+    const actionsByMissing: Record<
+      SmartWalletMissingRequirement,
+      { kind: ReadinessActionKind; label: string }
+    > = {
+      benchmark: { kind: "select-benchmark", label: "Select Benchmark" },
+      executor: { kind: "link-executor", label: "Link Executor" },
+      funding: { kind: "fund-wallet", label: "Fund Wallet" },
+    };
+
+    return actionsByMissing[readiness.missing[0]];
+  }
+
+  return { kind: "open-wallet", label: "Open Wallet" };
+}
+
+const readinessClasses: Record<SmartWalletReadiness["status"], string> = {
+  "executor-expired": "status-wrong-network",
+  loading: "status-pill-skeleton",
+  ready: "status-ready",
+  "setup-missing": "status-wrong-network",
+  "wallet-missing": "status-disconnected",
+};
+
+export function SmartWalletReadinessBadge({
+  readiness,
+}: {
+  readiness: SmartWalletReadiness;
+}) {
+  if (readiness.status === "loading") {
+    return (
+      <span
+        aria-label="Loading wallet status"
+        className="status-pill status-pill-skeleton"
+      />
+    );
+  }
+
+  return (
+    <span
+      className={`status-pill ${readinessClasses[readiness.status]}`}
+      title={getReadinessTitle(readiness)}
+    >
+      {getReadinessLabel(readiness)}
     </span>
   );
 }
