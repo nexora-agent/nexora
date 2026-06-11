@@ -12,3 +12,5 @@ test-results/
 .nexora/keys/
 *.log
 tools/foundry/
+
+.vercel
