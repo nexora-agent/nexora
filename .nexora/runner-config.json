@@ -1,6 +1,6 @@
 {
   "actionAmountMnt": "0.01",
-  "agentId": "7",
+  "agentId": "8",
   "agentObjective": "Evaluate the active benchmark and execute only when the live case passes the configured policy.",
   "autoIntervalSeconds": 121,
   "modelHarness": {
@@ -19,10 +19,10 @@
     }
   ],
   "model": {
-    "endpointUrl": "https://api.openai.com/v1/chat/completions",
-    "maxTokens": 50,
-    "modelName": "gpt-5.4-mini",
-    "provider": "openai",
+    "endpointUrl": "http://127.0.0.1:11434/api/generate",
+    "maxTokens": 4096,
+    "modelName": "qwen2.5:7b",
+    "provider": "ollama",
     "temperature": 0.2,
     "apiKeyEnvVar": "OPENAI_API_KEY"
   }

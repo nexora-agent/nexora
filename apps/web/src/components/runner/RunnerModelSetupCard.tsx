@@ -44,7 +44,7 @@ const NEEDS_ENDPOINT: ModelProvider[] = ["ollama", "openai-compatible", "custom"
 
 const DEFAULT_MODEL: RunnerConfig["model"] = {
   endpointUrl: "http://127.0.0.1:11434/api/generate",
-  maxTokens: 1600,
+  maxTokens: 4096,
   modelName: "qwen2.5:7b",
   provider: "ollama",
   temperature: 0.2,

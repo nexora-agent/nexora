@@ -260,7 +260,7 @@ const defaultConfig: RunnerConfig = {
   model: {
     apiKeyEnvVar: process.env.NEXORA_MODEL_API_KEY_ENV_VAR || undefined,
     endpointUrl: process.env.NEXORA_MODEL_ENDPOINT_URL ?? defaultOllamaEndpoint(),
-    maxTokens: Number(process.env.NEXORA_MODEL_MAX_TOKENS ?? "1600"),
+    maxTokens: Number(process.env.NEXORA_MODEL_MAX_TOKENS ?? "4096"),
     modelName: process.env.NEXORA_MODEL_NAME ?? "qwen2.5:7b",
     provider: (process.env.NEXORA_MODEL_PROVIDER as ModelProvider | undefined) ?? "ollama",
     temperature: Number(process.env.NEXORA_MODEL_TEMPERATURE ?? "0.2"),

@@ -1458,7 +1458,7 @@ async function askModel(prompt: string, demoResponse: Record<string, unknown>) {
   const provider =
     process.env.NEXORA_MODEL_PROVIDER ?? (endpoint ? "ollama" : "demo");
   const model = process.env.NEXORA_MODEL_NAME ?? "Nexora Demo Model";
-  const maxTokens = Number(process.env.NEXORA_MODEL_MAX_TOKENS ?? "1600");
+  const maxTokens = Number(process.env.NEXORA_MODEL_MAX_TOKENS ?? "4096");
   const temperature = Number(process.env.NEXORA_MODEL_TEMPERATURE ?? "0.2");
   const apiKeyEnvVar = process.env.NEXORA_MODEL_API_KEY_ENV_VAR || undefined;
 
@@ -2587,7 +2587,7 @@ async function main() {
 
   const modelHash = hashJson({
     harnessPrompt: process.env.NEXORA_MODEL_HARNESS_PROMPT ?? "",
-    maxTokens: process.env.NEXORA_MODEL_MAX_TOKENS ?? "1600",
+    maxTokens: process.env.NEXORA_MODEL_MAX_TOKENS ?? "4096",
     modelName: process.env.NEXORA_MODEL_NAME ?? "demo",
     provider: process.env.NEXORA_MODEL_PROVIDER ?? "demo",
     temperature: process.env.NEXORA_MODEL_TEMPERATURE ?? "0.2",
