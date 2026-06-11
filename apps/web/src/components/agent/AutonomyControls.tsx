@@ -84,6 +84,7 @@ export function AutonomyControls({
     AutonomyOnchainState | undefined
   >();
   const [executorEdited, setExecutorEdited] = useState(false);
+  const [showTooltip, setShowTooltip] = useState(false);
 
   const isIdentityWallet = agent.identityStandard === "erc-8004";
   const isAutonomyReady = isAgentWalletDeploymentReady();
@@ -418,7 +419,53 @@ export function AutonomyControls({
 
       <div className="executor-form">
         <label>
-          <span>Executor address</span>
+          <span style={{ display: "flex", alignItems: "center", gap: "6px", position: "relative" }}>
+            Executor address
+            <span
+              onMouseEnter={() => setShowTooltip(true)}
+              onMouseLeave={() => setShowTooltip(false)}
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "16px",
+                height: "16px",
+                borderRadius: "50%",
+                background: "var(--surface-soft)",
+                border: "1px solid var(--line)",
+                color: "var(--muted)",
+                fontSize: "11px",
+                cursor: "help",
+              }}
+            >
+              ?
+            </span>
+            {showTooltip && (
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: "100%",
+                  left: "50%",
+                  transform: "translateX(-15%)",
+                  marginBottom: "8px",
+                  width: "260px",
+                  padding: "12px",
+                  background: "var(--surface-strong)",
+                  border: "1px solid var(--line)",
+                  borderRadius: "6px",
+                  boxShadow: "var(--shadow-strong)",
+                  color: "var(--ink)",
+                  fontSize: "13px",
+                  lineHeight: "1.4",
+                  zIndex: 50,
+                  fontWeight: "normal",
+                  textTransform: "none",
+                }}
+              >
+                The executor address is used by the local runner to execute actions for this agent. You can find it in the console output when starting the API server (derived from NEXORA_AGENT_EXECUTOR_PRIVATE_KEY).
+              </div>
+            )}
+          </span>
           <input
             onChange={(event) => {
               setExecutor(event.target.value);
