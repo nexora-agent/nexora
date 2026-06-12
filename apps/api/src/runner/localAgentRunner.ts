@@ -1979,12 +1979,15 @@ async function runBenchmarkSuite({
     );
   }
   if (marketCases.length > 0) {
+    const caseDecisionById = new Map(
+      (decision.caseDecisions ?? []).map((caseDecision) => [
+        caseDecision.caseId,
+        normalizeTradeDecision(caseDecision.decision),
+      ]),
+    );
     const matchedCases = marketCases.filter(
       (item) =>
-        normalizeTradeDecision(
-          decision.caseDecisions?.find((caseDecision) => caseDecision.caseId === item.caseId)
-            ?.decision,
-        ) === item.expectedDecision,
+        caseDecisionById.get(item.caseId ?? "") === item.expectedDecision,
     ).length;
     console.log(
       `Market cases: matched=${matchedCases}/${marketCases.length}, live=${liveCase?.caseId ?? "none"}:${liveCase?.expectedDecision ?? "unknown"}`,
@@ -1992,6 +1995,16 @@ async function runBenchmarkSuite({
     console.log(
       `Market thresholds: ${formatTradeDecisionThresholds(tradeDecisionThresholdsFor(metadata))}`,
     );
+    for (const item of marketCases) {
+      const caseId = item.caseId ?? "";
+      const modelCaseDecision = caseDecisionById.get(caseId);
+      const matched = modelCaseDecision === item.expectedDecision;
+      const liveLabel = caseId && caseId === liveCase?.caseId ? " live" : "";
+
+      console.log(
+        `Market case ${caseId || "unknown"}${liveLabel}: expected=${item.expectedDecision}, model=${modelCaseDecision ?? "missing"}, matched=${matched ? "yes" : "no"}, edge=${item.expectedEdgeBps} bps, liquidity=${item.liquidityScore}/100, impact=${item.priceImpactBps} bps, volatility=${item.volatilityBps} bps`,
+      );
+    }
   }
 
   const expectedSelectedVault =

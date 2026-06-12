@@ -4553,6 +4553,10 @@ pre, code {
   padding-top: 20px;
 }
 
+.benchmark-json-editor-authoring {
+  margin-top: 0;
+}
+
 .benchmark-json-editor textarea {
   font-family: var(--font-mono);
   min-height: 360px;
@@ -4591,6 +4595,17 @@ pre, code {
 .benchmark-prompt-preview textarea:focus {
   border-color: var(--accent);
   outline: none;
+}
+
+.ai-generate-action {
+  gap: 8px;
+}
+
+.ai-sparkles-icon {
+  display: block;
+  fill: currentColor;
+  height: 16px;
+  width: 16px;
 }
 
 .secondary-action.compact {

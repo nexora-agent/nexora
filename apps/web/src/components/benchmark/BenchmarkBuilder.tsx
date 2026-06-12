@@ -143,6 +143,16 @@ function parseEditableBenchmarkJson(value: string) {
   return JSON.parse(withoutTrailingCommas) as CustomBenchmarkDefinition;
 }
 
+function SparklesIcon() {
+  return (
+    <svg aria-hidden="true" className="ai-sparkles-icon" viewBox="0 0 24 24">
+      <path d="M12 2.8l1.46 4.34 4.33 1.45-4.33 1.46L12 14.38l-1.46-4.33-4.33-1.46 4.33-1.45L12 2.8z" />
+      <path d="M18.5 13.25l.86 2.39 2.39.86-2.39.86-.86 2.39-.86-2.39-2.39-.86 2.39-.86.86-2.39z" />
+      <path d="M5.75 14.5l.58 1.67 1.67.58-1.67.58-.58 1.67-.58-1.67-1.67-.58 1.67-.58.58-1.67z" />
+    </svg>
+  );
+}
+
 function buildBenchmarkDraftPrompt({
   allowedActions,
   authoringPolicy,
@@ -250,6 +260,26 @@ Rules:
 - Make the expectedAnswer useful for automatic scoring.`;
 }
 
+function normalizeEditableBenchmark(
+  parsedBenchmark: CustomBenchmarkDefinition,
+): CustomBenchmarkDefinition {
+  return {
+    ...parsedBenchmark,
+    createdAt: parsedBenchmark.createdAt ?? new Date().toISOString(),
+    simulation: {
+      ...parsedBenchmark.simulation,
+      durationDays: parsedBenchmark.simulation?.durationDays ?? 30,
+      randomSeed:
+        parsedBenchmark.simulation?.randomSeed ??
+        `${parsedBenchmark.name ?? "benchmark"}:${Date.now()}`,
+      scenarioProfile: parsedBenchmark.simulation?.scenarioProfile,
+      scenarioText: parsedBenchmark.simulation?.scenarioText,
+      startingCapitalUsd: parsedBenchmark.simulation?.startingCapitalUsd ?? 200,
+    },
+    targetContracts: parsedBenchmark.targetContracts ?? [],
+  };
+}
+
 export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
   const { isConnected } = useWalletConnection();
   const [step, setStep] = useState<BenchmarkBuilderStep>("target");
@@ -317,6 +347,7 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
   const [isSaving, setIsSaving] = useState(false);
   const [authoringPolicy, setAuthoringPolicy] = useState("");
   const [promptCopied, setPromptCopied] = useState(false);
+  const [jsonSource, setJsonSource] = useState<"ai" | "editor" | "form">("form");
 
   const isPreview = step === "preview";
   const currentSetupIndex = SETUP_STEPS.indexOf(step);
@@ -365,6 +396,83 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
       scoringRulesText,
     ],
   );
+  const formBenchmarkDraft = useMemo((): CustomBenchmarkDefinition => {
+    const targetAddress = contractAddress.trim();
+    const validTargetAddress = targetAddress && isAddress(targetAddress)
+      ? targetAddress
+      : undefined;
+    const allowedActions = actionRowsToDefinitions(allowedActionRows).filter((action) =>
+      typeof action === "string" ? action.trim() : action.name.trim(),
+    );
+    const fallbackAction = allowedActions[0];
+    const fallbackActionName =
+      typeof fallbackAction === "string" ? fallbackAction : fallbackAction?.name;
+    const expectedAnswer: CustomBenchmarkDefinition["expectedAnswer"] = {
+      action: fallbackActionName,
+      decision: expectedDecision === "auto" ? undefined : expectedDecision,
+      rejectedActions: blockedActions,
+      reasoning: expectedReasoning,
+      selectedTarget: validTargetAddress,
+    };
+
+    const seedBase =
+      validTargetAddress ?? (protocolName.trim() || benchmarkName.trim() || "benchmark");
+
+    return {
+      allowedActions,
+      benchmarkType,
+      blockedActions,
+      contractAddress: validTargetAddress,
+      createdAt: new Date().toISOString(),
+      description: objective,
+      expectedAnswer,
+      interfaceAbi: interfaceAbi.trim() || undefined,
+      name: benchmarkName.trim() || `${protocolName || "Custom Protocol"} Benchmark`,
+      riskMode,
+      scoringRules,
+      simulation: {
+        decisionThresholds:
+          benchmarkType === "dex-trading"
+            ? {
+                maxPriceImpactBps: 240,
+                maxVolatilityBps: 650,
+                minExpectedEdgeBps: 55,
+                minLiquidityScore: 55,
+              }
+            : undefined,
+        durationDays: 30,
+        randomSeed: `${seedBase.toLowerCase()}:nexora:${dexScenarioProfile}`,
+        scenarioProfile: dexScenarioProfile,
+        scenarioText,
+        startingCapitalUsd: 200,
+      },
+      targetContracts: validTargetAddress ? [validTargetAddress] : [],
+    };
+  }, [
+    allowedActionRows,
+    benchmarkName,
+    benchmarkType,
+    blockedActions,
+    contractAddress,
+    dexScenarioProfile,
+    expectedDecision,
+    expectedReasoning,
+    interfaceAbi,
+    objective,
+    protocolName,
+    riskMode,
+    scenarioText,
+    scoringRules,
+  ]);
+
+  useEffect(() => {
+    if (jsonSource !== "form") {
+      return;
+    }
+
+    setBenchmark(formBenchmarkDraft);
+    setBenchmarkJson(JSON.stringify(formBenchmarkDraft, null, 2));
+  }, [formBenchmarkDraft, jsonSource]);
 
   useEffect(() => {
     let cancelled = false;
@@ -407,6 +515,8 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
   const applyBenchmarkDraft = (draft: CustomBenchmarkDefinition) => {
     setBenchmark(draft);
     setBenchmarkJson(JSON.stringify(draft, null, 2));
+    setJsonSource("ai");
+    setJsonError("");
     setBenchmarkName(draft.name);
     setProtocolName(protocolName || draft.name.replace(/\s*Benchmark\s*$/i, ""));
     setContractAddress(draft.contractAddress ?? draft.targetContracts[0] ?? "");
@@ -463,8 +573,7 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
         scoringRules: scoringRulesText,
       });
       applyBenchmarkDraft(result.draft);
-      setStep("preview");
-      setNotice(`AI generated benchmark draft in ${result.latencyMs}ms. Review and edit before storing.`);
+      setNotice(`AI generated benchmark draft in ${result.latencyMs}ms. Review and edit the JSON before storing.`);
     } catch (caughtError) {
       const base =
         caughtError instanceof Error
@@ -480,10 +589,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
     setError("");
     setJsonError("");
     setNotice("");
-    if (!benchmark) {
-      setError("Generate a benchmark first.");
-      return;
-    }
 
     if (!isConnected) {
       setError("Connect your wallet before storing the benchmark on-chain.");
@@ -497,22 +602,7 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
 
     setIsSaving(true);
     try {
-      const parsedBenchmark = parseEditableBenchmarkJson(benchmarkJson);
-      const benchmarkToStore: CustomBenchmarkDefinition = {
-        ...parsedBenchmark,
-        createdAt: parsedBenchmark.createdAt ?? new Date().toISOString(),
-        simulation: {
-          ...parsedBenchmark.simulation,
-          durationDays: parsedBenchmark.simulation?.durationDays ?? 30,
-          randomSeed:
-            parsedBenchmark.simulation?.randomSeed ??
-            `${parsedBenchmark.name ?? "benchmark"}:${Date.now()}`,
-          scenarioProfile: parsedBenchmark.simulation?.scenarioProfile,
-          scenarioText: parsedBenchmark.simulation?.scenarioText,
-          startingCapitalUsd: parsedBenchmark.simulation?.startingCapitalUsd ?? 200,
-        },
-        targetContracts: parsedBenchmark.targetContracts ?? [],
-      };
+      const benchmarkToStore = normalizeEditableBenchmark(parseEditableBenchmarkJson(benchmarkJson));
 
       setNotice("Confirm benchmark registration in your wallet...");
       await registerBenchmarkOnchain(benchmarkToStore);
@@ -526,6 +616,26 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
       );
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const reviewBenchmarkJson = () => {
+    setError("");
+    setJsonError("");
+    setNotice("");
+
+    try {
+      const parsedBenchmark = normalizeEditableBenchmark(parseEditableBenchmarkJson(benchmarkJson));
+      setBenchmark(parsedBenchmark);
+      setBenchmarkJson(JSON.stringify(parsedBenchmark, null, 2));
+      setJsonSource("editor");
+      setStep("preview");
+    } catch (caughtError) {
+      setJsonError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Benchmark JSON is not valid.",
+      );
     }
   };
 
@@ -827,8 +937,8 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
           <div className="benchmark-wizard-panel-header">
             <h4>Scoring</h4>
             <p>
-              Define how Nexora grades the agent. This is the benchmark answer key — the AI will
-              generate a complete version, but you can customize it here first.
+              Define how Nexora grades the agent. The JSON editor below can be stored directly,
+              generated with AI, or replaced with output from another chatbot.
             </p>
           </div>
 
@@ -914,6 +1024,35 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
               value={benchmarkDraftPrompt}
             />
           </div>
+
+          <div className="benchmark-json-editor benchmark-json-editor-authoring">
+            <div className="console-topline">
+              <span>Editable Benchmark JSON</span>
+              <button
+                aria-label="Generate benchmark with AI"
+                className="secondary-action compact ai-generate-action"
+                disabled={isGenerating}
+                onClick={() => void generateBenchmark()}
+                title="Generate benchmark with AI"
+                type="button"
+              >
+                <SparklesIcon />
+                <span>{isGenerating ? "Generating" : "Generate"}</span>
+              </button>
+            </div>
+            <textarea
+              aria-label="Editable benchmark JSON"
+              className={jsonError ? "benchmark-json-invalid" : undefined}
+              onChange={(e) => {
+                setBenchmarkJson(e.target.value);
+                setJsonSource("editor");
+                setJsonError("");
+              }}
+              rows={18}
+              value={benchmarkJson}
+            />
+            {jsonError && <p className="error-text benchmark-json-error">{jsonError}</p>}
+          </div>
         </div>
       )}
 
@@ -922,7 +1061,7 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
         <section className="tool-builder-panel" aria-label="Generated benchmark">
           <div className="console-topline">
             <span>{benchmark.name}</span>
-            <span className="status-pill status-ready">Ready to store</span>
+            {/* <span className="status-pill status-ready">Ready to store</span> */}
           </div>
           {notice && <p className="ownership-note">{notice}</p>}
 
@@ -994,12 +1133,16 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
           <div className="benchmark-json-editor">
             <div className="console-topline">
               <span>Editable Benchmark JSON</span>
-              <span className="status-pill status-ready">Saved from editor</span>
+              {/* <span className="status-pill status-ready">Saved from editor</span> */}
             </div>
             <textarea
               aria-label="Editable benchmark JSON"
               className={jsonError ? "benchmark-json-invalid" : undefined}
-              onChange={(e) => setBenchmarkJson(e.target.value)}
+              onChange={(e) => {
+                setBenchmarkJson(e.target.value);
+                setJsonSource("editor");
+                setJsonError("");
+              }}
               rows={16}
               value={benchmarkJson}
             />
@@ -1029,17 +1172,16 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
 
         {step === "scoring" && (
           <>
-            <p className="benchmark-builder-generate-hint">
-              Benchmark generation uses your local Ollama model. Test the connection in the{" "}
-              <strong>Benchmarks → AI Setup</strong> card if generation fails.
-            </p>
+            {/* <p className="benchmark-builder-generate-hint">
+              AI generation is optional. You can edit the JSON directly, copy the prompt to another
+              chatbot, or use the sparkle button above.
+            </p> */}
             <button
               className="primary-action"
-              disabled={isGenerating}
-              onClick={() => void generateBenchmark()}
+              onClick={reviewBenchmarkJson}
               type="button"
             >
-              {isGenerating ? "Generating..." : "Generate Benchmark"}
+              Review Benchmark
             </button>
           </>
         )}
