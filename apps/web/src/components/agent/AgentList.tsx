@@ -16,6 +16,7 @@ type AgentListProps = {
   isLoading?: boolean;
   onCreateSmartWallet?: () => void;
   onOpenWallet?: (agent: AgentRecord) => void;
+  onUseWallet?: (agent: AgentRecord) => void;
   onWalletAction?: (
     agent: AgentRecord,
     status: ReturnType<typeof getAgentStatus>,
@@ -113,10 +114,12 @@ export function AgentListSkeleton() {
 function AgentTableRow({
   agent,
   onOpenWallet,
+  onUseWallet,
   onWalletAction,
 }: {
   agent: AgentRecord;
   onOpenWallet?: (agent: AgentRecord) => void;
+  onUseWallet?: (agent: AgentRecord) => void;
   onWalletAction?: (
     agent: AgentRecord,
     status: ReturnType<typeof getAgentStatus>,
@@ -140,8 +143,13 @@ function AgentTableRow({
       return;
     }
 
-    // Setup, executor, benchmark, and ready actions all open the wallet page,
-    // which hosts the configuration surfaces for this smart wallet.
+    if (actionKind === "open-wallet" && onUseWallet) {
+      onUseWallet(agent);
+      return;
+    }
+
+    // Setup, executor, and benchmark actions open the wallet page, which
+    // hosts the configuration surfaces for this smart wallet.
     onWalletAction?.(agent, "ready-to-benchmark");
   };
 
@@ -207,6 +215,7 @@ export function AgentList({
   isLoading = false,
   onCreateSmartWallet,
   onOpenWallet,
+  onUseWallet,
   onWalletAction,
 }: AgentListProps) {
   if (isLoading) {
@@ -268,6 +277,7 @@ export function AgentList({
                 agent={agent}
                 key={agent.id}
                 onOpenWallet={onOpenWallet}
+                onUseWallet={onUseWallet}
                 onWalletAction={onWalletAction}
               />
             ))}

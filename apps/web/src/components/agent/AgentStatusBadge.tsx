@@ -288,7 +288,7 @@ export function getReadinessAction(
     return actionsByMissing[readiness.missing[0]];
   }
 
-  return { kind: "open-wallet", label: "Open Wallet" };
+  return { kind: "open-wallet", label: "Use Wallet" };
 }
 
 const readinessClasses: Record<SmartWalletReadiness["status"], string> = {

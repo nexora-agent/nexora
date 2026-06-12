@@ -80,6 +80,7 @@ export default function DashboardPage() {
   const [benchmarkRefreshKey, setBenchmarkRefreshKey] = useState(0);
   const [modal, setModal] = useState<DashboardModal>(null);
   const [selectedAgent, setSelectedAgent] = useState<AgentRecord | undefined>();
+  const [configAgentId, setConfigAgentId] = useState<string | undefined>();
 
   const closeModal = () => {
     setModal(null);
@@ -90,6 +91,11 @@ export default function DashboardPage() {
   const openWalletDetail = (agent: AgentRecord) => {
     setSelectedAgent(agent);
     setModal("wallet-detail");
+  };
+
+  const useWalletInAgentConfig = (agent: AgentRecord) => {
+    setConfigAgentId(agent.agentIdentityId ?? agent.id);
+    setActiveView("agent-config");
   };
 
   const openWalletAction = (agent: AgentRecord, statusOverride?: AgentStatus) => {
@@ -177,6 +183,7 @@ export default function DashboardPage() {
               isLoading={!loaded}
               onCreateSmartWallet={() => setModal("smart-wallet")}
               onOpenWallet={openWalletDetail}
+              onUseWallet={useWalletInAgentConfig}
               onWalletAction={openWalletAction}
             />
           )}
@@ -185,7 +192,10 @@ export default function DashboardPage() {
             (hostedPreview ? (
               <HostedBenchmarkPreview />
             ) : (
-              <AgentConfigurationPanel agents={agents} />
+              <AgentConfigurationPanel
+                agents={agents}
+                initialAgentId={configAgentId}
+              />
             ))}
 
           {activeView === "benchmarks" && (

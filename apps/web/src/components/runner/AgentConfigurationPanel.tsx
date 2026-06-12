@@ -1925,8 +1925,10 @@ function AgentBenchmarkSelectorCard({
 
 export function AgentConfigurationPanel({
   agents = [],
+  initialAgentId,
 }: {
   agents?: AgentRecord[];
+  initialAgentId?: string;
 }) {
   const [status, setStatus] = useState<RunnerStatus | undefined>();
   const [config, setConfig] = useState<RunnerConfig>(emptyConfig);
@@ -2132,6 +2134,25 @@ export function AgentConfigurationPanel({
       agentId: selectedAgentIdentityId,
     });
   }, [selectedAgentIdentityId]);
+
+  // Preselect the wallet the user clicked "Use Wallet" on in the dashboard.
+  // Applied once per requested id, and only after the runner config loaded,
+  // so the autosave never overwrites the stored config with the empty one.
+  const appliedInitialAgentId = useRef<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!initialAgentId || !status) return;
+    if (appliedInitialAgentId.current === initialAgentId) return;
+
+    appliedInitialAgentId.current = initialAgentId;
+
+    if (config.agentId !== initialAgentId) {
+      updateConfig({
+        ...config,
+        agentId: initialAgentId,
+      });
+    }
+  }, [initialAgentId, status]);
 
   useEffect(() => {
     const selectors = Array.from(new Set(selectorsForBenchmark(activeBenchmarkPreview)));
