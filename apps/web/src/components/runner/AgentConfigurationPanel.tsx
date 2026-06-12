@@ -497,6 +497,10 @@ function getAgentRuntimeId(agent?: AgentRecord) {
   return agent?.agentIdentityId ?? agent?.id;
 }
 
+function sameAgentId(left?: string, right?: string) {
+  return Boolean(left && right && String(left) === String(right));
+}
+
 function getWalletDisplayName(agent?: AgentRecord) {
   return agent?.name ?? "No wallet selected";
 }
@@ -2001,7 +2005,10 @@ export function AgentConfigurationPanel({
   const selectedAgent = useMemo(
     () =>
       agents.find(
-        (agent) => (agent.agentIdentityId ?? agent.id) === config.agentId,
+        (agent) => sameAgentId(getAgentRuntimeId(agent), config.agentId),
+      ) ??
+      agents.find(
+        (agent) => sameAgentId(agent.id, config.agentId),
       ) ?? (agents.length === 1 ? agents[0] : undefined),
     [agents, config.agentId],
   );
@@ -2136,23 +2143,36 @@ export function AgentConfigurationPanel({
   }, [selectedAgentIdentityId]);
 
   // Preselect the wallet the user clicked "Use Wallet" on in the dashboard.
-  // Applied once per requested id, and only after the runner config loaded,
-  // so the autosave never overwrites the stored config with the empty one.
+  // Runner status refreshes can restore the saved agent id, so keep the
+  // dashboard-requested id applied until it is reflected in config.
   const appliedInitialAgentId = useRef<string | undefined>(undefined);
 
   useEffect(() => {
-    if (!initialAgentId || !status) return;
-    if (appliedInitialAgentId.current === initialAgentId) return;
+    if (!initialAgentId) return;
+    if (
+      appliedInitialAgentId.current === initialAgentId &&
+      sameAgentId(config.agentId, initialAgentId)
+    ) {
+      return;
+    }
 
     appliedInitialAgentId.current = initialAgentId;
 
-    if (config.agentId !== initialAgentId) {
-      updateConfig({
-        ...config,
+    setConfig((current) => {
+      if (sameAgentId(current.agentId, initialAgentId)) return current;
+
+      isDirtyRef.current = true;
+      setIsDirty(true);
+      setSaveState("saving");
+      setBenchmarkState("idle");
+      setShowBenchmarkDetails(false);
+
+      return {
+        ...current,
         agentId: initialAgentId,
-      });
-    }
-  }, [initialAgentId, status]);
+      };
+    });
+  }, [config.agentId, initialAgentId]);
 
   useEffect(() => {
     const selectors = Array.from(new Set(selectorsForBenchmark(activeBenchmarkPreview)));

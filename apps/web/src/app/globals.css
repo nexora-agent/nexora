@@ -4558,6 +4558,41 @@ pre, code {
   min-height: 360px;
 }
 
+.benchmark-json-editor textarea.benchmark-json-invalid {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--danger) 35%, transparent);
+}
+
+.benchmark-json-error {
+  margin-top: 0;
+}
+
+.benchmark-prompt-preview {
+  border-top: 1px solid var(--border);
+  display: grid;
+  gap: 12px;
+  padding-top: 18px;
+}
+
+.benchmark-prompt-preview textarea {
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  min-height: 300px;
+  padding: 12px 14px;
+  resize: vertical;
+  width: 100%;
+}
+
+.benchmark-prompt-preview textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+
 .secondary-action.compact {
   min-height: 0;
   padding: 8px 12px;

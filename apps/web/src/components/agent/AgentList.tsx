@@ -2,6 +2,7 @@
 
 import type { AgentRecord } from "@nexora/shared";
 import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useWalletBalance } from "@/hooks/useWalletBalance";
 import { useSmartWalletReadiness } from "@/hooks/useSmartWalletReadiness";
 import {
@@ -16,12 +17,26 @@ type AgentListProps = {
   isLoading?: boolean;
   onCreateSmartWallet?: () => void;
   onOpenWallet?: (agent: AgentRecord) => void;
+  onRenewExecutor?: (agent: AgentRecord) => void;
+  onSelectBenchmark?: (agent: AgentRecord) => void;
   onUseWallet?: (agent: AgentRecord) => void;
   onWalletAction?: (
     agent: AgentRecord,
     status: ReturnType<typeof getAgentStatus>,
   ) => void;
 };
+
+type RowLoadingState = Record<
+  string,
+  {
+    isLoading: boolean;
+    key: string;
+  }
+>;
+
+function getAgentLoadingKey(agent: AgentRecord) {
+  return `${agent.walletAddress ?? "no-wallet"}:${agent.agentIdentityId ?? agent.id}`;
+}
 
 function formatAddress(address?: string) {
   return address
@@ -113,12 +128,22 @@ export function AgentListSkeleton() {
 
 function AgentTableRow({
   agent,
+  onLoadingChange,
   onOpenWallet,
+  onRenewExecutor,
+  onSelectBenchmark,
   onUseWallet,
   onWalletAction,
 }: {
   agent: AgentRecord;
+  onLoadingChange?: (
+    agentId: string,
+    loadingKey: string,
+    isLoading: boolean,
+  ) => void;
   onOpenWallet?: (agent: AgentRecord) => void;
+  onRenewExecutor?: (agent: AgentRecord) => void;
+  onSelectBenchmark?: (agent: AgentRecord) => void;
   onUseWallet?: (agent: AgentRecord) => void;
   onWalletAction?: (
     agent: AgentRecord,
@@ -131,6 +156,14 @@ function AgentTableRow({
 
   const readiness = useSmartWalletReadiness(agent);
   const readinessAction = getReadinessAction(readiness);
+  const isInitialRowLoading = Boolean(
+    agent.walletAddress && (isLoading || readiness.status === "loading"),
+  );
+  const loadingKey = getAgentLoadingKey(agent);
+
+  useEffect(() => {
+    onLoadingChange?.(agent.id, loadingKey, isInitialRowLoading);
+  }, [agent.id, isInitialRowLoading, loadingKey, onLoadingChange]);
 
   const handleAction = (actionKind: ReadinessActionKind) => {
     if (actionKind === "create-wallet") {
@@ -145,6 +178,16 @@ function AgentTableRow({
 
     if (actionKind === "open-wallet" && onUseWallet) {
       onUseWallet(agent);
+      return;
+    }
+
+    if (actionKind === "renew-executor" && onRenewExecutor) {
+      onRenewExecutor(agent);
+      return;
+    }
+
+    if (actionKind === "select-benchmark" && onSelectBenchmark) {
+      onSelectBenchmark(agent);
       return;
     }
 
@@ -215,9 +258,74 @@ export function AgentList({
   isLoading = false,
   onCreateSmartWallet,
   onOpenWallet,
+  onRenewExecutor,
+  onSelectBenchmark,
   onUseWallet,
   onWalletAction,
 }: AgentListProps) {
+  const [rowLoadingState, setRowLoadingState] = useState<RowLoadingState>({});
+
+  useEffect(() => {
+    setRowLoadingState((current) => {
+      const next = Object.fromEntries(
+        agents.map((agent) => {
+          const loadingKey = getAgentLoadingKey(agent);
+          const currentState = current[agent.id];
+
+          return [
+            agent.id,
+            currentState?.key === loadingKey
+              ? currentState
+              : {
+                  isLoading: Boolean(agent.walletAddress),
+                  key: loadingKey,
+                },
+          ];
+        }),
+      ) as RowLoadingState;
+
+      return next;
+    });
+  }, [agents]);
+
+  const isInitialTableLoading = useMemo(
+    () =>
+      agents.some((agent) => {
+        if (!agent.walletAddress) return false;
+
+        const currentState = rowLoadingState[agent.id];
+        return (
+          currentState?.key !== getAgentLoadingKey(agent) ||
+          currentState.isLoading
+        );
+      }),
+    [agents, rowLoadingState],
+  );
+
+  const handleRowLoadingChange = useCallback((
+    agentId: string,
+    loadingKey: string,
+    rowIsLoading: boolean,
+  ) => {
+    setRowLoadingState((current) => {
+      const currentState = current[agentId];
+      if (
+        currentState?.key === loadingKey &&
+        currentState.isLoading === rowIsLoading
+      ) {
+        return current;
+      }
+
+      return {
+        ...current,
+        [agentId]: {
+          isLoading: rowIsLoading,
+          key: loadingKey,
+        },
+      };
+    });
+  }, []);
+
   if (isLoading) {
     return <AgentListSkeleton />;
   }
@@ -241,7 +349,7 @@ export function AgentList({
     );
   }
 
-  return (
+  const walletTable = (
     <section className="agent-table-card" aria-label="Smart wallets table">
       <div className="agent-table-header">
         <div>
@@ -276,7 +384,10 @@ export function AgentList({
               <AgentTableRow
                 agent={agent}
                 key={agent.id}
+                onLoadingChange={handleRowLoadingChange}
                 onOpenWallet={onOpenWallet}
+                onRenewExecutor={onRenewExecutor}
+                onSelectBenchmark={onSelectBenchmark}
                 onUseWallet={onUseWallet}
                 onWalletAction={onWalletAction}
               />
@@ -285,5 +396,12 @@ export function AgentList({
         </table>
       </div>
     </section>
+  );
+
+  return (
+    <>
+      {isInitialTableLoading && <AgentListSkeleton />}
+      <div hidden={isInitialTableLoading}>{walletTable}</div>
+    </>
   );
 }

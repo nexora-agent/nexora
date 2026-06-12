@@ -24,6 +24,7 @@ import type { AgentRecord } from "@nexora/shared";
 import type { AgentStatus } from "@/components/agent/AgentStatusBadge";
 
 type ActiveView = "wallets" | "agent-config" | "benchmarks";
+type WalletDetailIntent = "default" | "renew-executor" | "select-benchmark";
 
 type DashboardModal =
   | "smart-wallet"
@@ -80,16 +81,32 @@ export default function DashboardPage() {
   const [benchmarkRefreshKey, setBenchmarkRefreshKey] = useState(0);
   const [modal, setModal] = useState<DashboardModal>(null);
   const [selectedAgent, setSelectedAgent] = useState<AgentRecord | undefined>();
+  const [walletDetailIntent, setWalletDetailIntent] =
+    useState<WalletDetailIntent>("default");
   const [configAgentId, setConfigAgentId] = useState<string | undefined>();
 
   const closeModal = () => {
     setModal(null);
     setSelectedAgent(undefined);
+    setWalletDetailIntent("default");
     void refreshAgents();
   };
 
   const openWalletDetail = (agent: AgentRecord) => {
     setSelectedAgent(agent);
+    setWalletDetailIntent("default");
+    setModal("wallet-detail");
+  };
+
+  const openRenewExecutor = (agent: AgentRecord) => {
+    setSelectedAgent(agent);
+    setWalletDetailIntent("renew-executor");
+    setModal("wallet-detail");
+  };
+
+  const openSelectBenchmark = (agent: AgentRecord) => {
+    setSelectedAgent(agent);
+    setWalletDetailIntent("select-benchmark");
     setModal("wallet-detail");
   };
 
@@ -183,6 +200,8 @@ export default function DashboardPage() {
               isLoading={!loaded}
               onCreateSmartWallet={() => setModal("smart-wallet")}
               onOpenWallet={openWalletDetail}
+              onRenewExecutor={openRenewExecutor}
+              onSelectBenchmark={openSelectBenchmark}
               onUseWallet={useWalletInAgentConfig}
               onWalletAction={openWalletAction}
             />
@@ -224,7 +243,20 @@ export default function DashboardPage() {
 
       {modal === "wallet-detail" && selectedAgent && (
         <DashboardModalShell label={selectedAgent.name} onClose={closeModal}>
-          <AgentProfileCard agent={selectedAgent} connectedAddress={address} />
+          <AgentProfileCard
+            agent={selectedAgent}
+            connectedAddress={address}
+            executorActionLabel={
+              walletDetailIntent === "renew-executor"
+                ? "Renew Executor"
+                : undefined
+            }
+            initialTab={
+              walletDetailIntent !== "default"
+                ? "agent-access"
+                : "overview"
+            }
+          />
         </DashboardModalShell>
       )}
 

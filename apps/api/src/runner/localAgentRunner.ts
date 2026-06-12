@@ -88,6 +88,13 @@ type TraderScenario = {
   volatilityBps: number;
 };
 
+type TradeDecisionThresholds = {
+  maxPriceImpactBps: number;
+  maxVolatilityBps: number;
+  minExpectedEdgeBps: number;
+  minLiquidityScore: number;
+};
+
 type ActiveBenchmark = {
   benchmarkDataJson: string;
   benchmarkHash: Hex;
@@ -117,6 +124,12 @@ type BenchmarkResult = {
 
 const zeroAddress = "0x0000000000000000000000000000000000000000";
 const runnerDebug = process.env.NEXORA_RUNNER_DEBUG === "true";
+const defaultTradeDecisionThresholds: TradeDecisionThresholds = {
+  maxPriceImpactBps: 240,
+  maxVolatilityBps: 650,
+  minExpectedEdgeBps: 55,
+  minLiquidityScore: 55,
+};
 
 const noBenchmarkMetadata: BenchmarkMetadata = {
   allowedActions: [],
@@ -296,16 +309,160 @@ function numberFromRecord(
   return typeof record[key] === "number" ? record[key] : fallback;
 }
 
-function caseDecisionFromMetrics(record: Record<string, unknown>) {
+function recordFromUnknown(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function finiteNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function numberFromRecords(
+  records: Array<Record<string, unknown> | undefined>,
+  keys: string[],
+) {
+  for (const record of records) {
+    if (!record) continue;
+
+    for (const key of keys) {
+      const value = finiteNumber(record[key]);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\ /g, "\\s+");
+}
+
+function thresholdFromRules(
+  rules: string[],
+  labels: string[],
+  direction: "max" | "min",
+) {
+  const text = rules.join("\n");
+  const numberPattern = "(-?\\d+(?:\\.\\d+)?)";
+
+  for (const label of labels) {
+    const metric = escapeRegex(label);
+    const minWords =
+      "(?:>=|>|at least|minimum(?:\\s+of)?|min(?:imum)?|above|greater than|exceeds?|below|under|less than)";
+    const maxWords =
+      "(?:<=|<|at most|maximum(?:\\s+of)?|max(?:imum)?|below|under|less than|not exceed(?:s)?|no more than|within|exceeds?)";
+    const words = direction === "min" ? minWords : maxWords;
+    const metricFirst = new RegExp(`${metric}[^\\n.;]*?${words}[^\\d-]*${numberPattern}`, "i");
+    const wordFirst = new RegExp(`${words}[^\\d-]*${numberPattern}[^\\n.;]*?${metric}`, "i");
+    const match = text.match(metricFirst) ?? text.match(wordFirst);
+    const value = finiteNumber(match?.[1]);
+
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function tradeDecisionThresholdsFor(metadata: BenchmarkMetadata): TradeDecisionThresholds {
+  const simulation = recordFromUnknown(metadata.simulation) ?? {};
+  const thresholdRecord =
+    recordFromUnknown(simulation.decisionThresholds) ??
+    recordFromUnknown(simulation.tradeDecisionThresholds) ??
+    recordFromUnknown(simulation.thresholds) ??
+    recordFromUnknown(simulation.policyThresholds);
+  const rules = metadata.scoringRules.filter((rule) => typeof rule === "string");
+
+  return {
+    maxPriceImpactBps:
+      numberFromRecords([thresholdRecord], [
+        "maxPriceImpactBps",
+        "priceImpactBpsMax",
+        "priceImpactMaxBps",
+        "maxImpactBps",
+      ]) ??
+      thresholdFromRules(
+        rules,
+        ["priceImpactBps", "price impact bps", "price impact", "impact"],
+        "max",
+      ) ??
+      defaultTradeDecisionThresholds.maxPriceImpactBps,
+    maxVolatilityBps:
+      numberFromRecords([thresholdRecord], [
+        "maxVolatilityBps",
+        "volatilityBpsMax",
+        "volatilityMaxBps",
+      ]) ??
+      thresholdFromRules(
+        rules,
+        ["volatilityBps", "volatility bps", "volatility"],
+        "max",
+      ) ??
+      defaultTradeDecisionThresholds.maxVolatilityBps,
+    minExpectedEdgeBps:
+      numberFromRecords([thresholdRecord], [
+        "minExpectedEdgeBps",
+        "expectedEdgeBpsMin",
+        "minEdgeBps",
+        "minimumExpectedEdgeBps",
+      ]) ??
+      thresholdFromRules(
+        rules,
+        ["expectedEdgeBps", "expected edge bps", "risk-adjusted edge", "edge"],
+        "min",
+      ) ??
+      defaultTradeDecisionThresholds.minExpectedEdgeBps,
+    minLiquidityScore:
+      numberFromRecords([thresholdRecord], [
+        "minLiquidityScore",
+        "liquidityScoreMin",
+        "minimumLiquidityScore",
+      ]) ??
+      thresholdFromRules(
+        rules,
+        ["liquidityScore", "liquidity score", "liquidity"],
+        "min",
+      ) ??
+      defaultTradeDecisionThresholds.minLiquidityScore,
+  };
+}
+
+function formatTradeDecisionThresholds(thresholds: TradeDecisionThresholds) {
+  return [
+    `expectedEdgeBps > ${thresholds.minExpectedEdgeBps}`,
+    `liquidityScore >= ${thresholds.minLiquidityScore}`,
+    `priceImpactBps <= ${thresholds.maxPriceImpactBps}`,
+    `volatilityBps <= ${thresholds.maxVolatilityBps}`,
+  ].join(", ");
+}
+
+function caseDecisionFromMetrics(
+  record: Record<string, unknown>,
+  thresholds: TradeDecisionThresholds,
+) {
   const expectedEdgeBps = numberFromRecord(record, "expectedEdgeBps", 0);
   const liquidityScore = numberFromRecord(record, "liquidityScore", 0);
   const priceImpactBps = numberFromRecord(record, "priceImpactBps", 10_000);
   const volatilityBps = numberFromRecord(record, "volatilityBps", 10_000);
 
-  return expectedEdgeBps > 0 &&
-    liquidityScore >= 70 &&
-    priceImpactBps <= 80 &&
-    volatilityBps <= 250
+  return expectedEdgeBps > thresholds.minExpectedEdgeBps &&
+    liquidityScore >= thresholds.minLiquidityScore &&
+    priceImpactBps <= thresholds.maxPriceImpactBps &&
+    volatilityBps <= thresholds.maxVolatilityBps
     ? "swap"
     : "reject";
 }
@@ -318,6 +475,7 @@ function marketCasesFor(metadata: BenchmarkMetadata): TraderScenario[] {
   const rawCases = Array.isArray(simulation.marketCases)
     ? simulation.marketCases
     : [];
+  const thresholds = tradeDecisionThresholdsFor(metadata);
 
   return rawCases
     .map((item, index): TraderScenario | undefined => {
@@ -331,7 +489,7 @@ function marketCasesFor(metadata: BenchmarkMetadata): TraderScenario[] {
           typeof record.expectedDecision === "string"
             ? record.expectedDecision
             : undefined,
-        ) ?? caseDecisionFromMetrics(record);
+        ) ?? caseDecisionFromMetrics(record, thresholds);
       const expectedEdgeBps = numberFromRecord(record, "expectedEdgeBps", 0);
       const tradeAmountMnt = Number(
         process.env.NEXORA_AGENT_ACTION_AMOUNT_MNT ?? "0.01",
@@ -345,7 +503,7 @@ function marketCasesFor(metadata: BenchmarkMetadata): TraderScenario[] {
         decisionRule:
           typeof record.decisionRule === "string"
             ? record.decisionRule
-            : "Swap only when risk-adjusted edge and conservative market thresholds pass.",
+            : `Swap only when ${formatTradeDecisionThresholds(thresholds)}.`,
         expectedDecision,
         expectedEdgeBps,
         expectedProfitMnt: Number(
@@ -386,6 +544,22 @@ function liveMarketCaseFor(cases: TraderScenario[], metadata: BenchmarkMetadata)
     cases.find((item) => item.caseId === liveCaseId) ??
     cases.find((item) => item.expectedDecision === "swap") ??
     cases[0]
+  );
+}
+
+function sanitizeSimulationForPrompt(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSimulationForPrompt(item));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== "expectedDecision" && key !== "decisionRule")
+      .map(([key, item]) => [key, sanitizeSimulationForPrompt(item)]),
   );
 }
 
@@ -1069,6 +1243,7 @@ function buildBenchmarkPrompt(input: {
     ? marketCasesFor(metadata)
     : [];
   const liveCase = liveMarketCaseFor(marketCases, metadata);
+  const tradeThresholds = tradeDecisionThresholdsFor(metadata);
 
   return `${
     harnessPrompt ? `Model harness instructions:\n${harnessPrompt}\n\n` : ""
@@ -1100,15 +1275,18 @@ ${metadata.blockedActions.map((action) => `- ${action}`).join("\n")}
 Scoring rules:
 ${metadata.scoringRules.map((rule) => `- ${rule}`).join("\n")}
 
+DEX decision thresholds:
+${benchmarkLooksLikeDex(metadata) ? formatTradeDecisionThresholds(tradeThresholds) : "not applicable"}
+
 Simulation:
-${JSON.stringify(metadata.simulation ?? {}, null, 2)}
+${JSON.stringify(sanitizeSimulationForPrompt(metadata.simulation ?? {}), null, 2)}
 ${
   marketCases.length > 0
     ? `
 Multi-case trading suite:
 ${marketCases
   .map(
-    (item) => `- ${item.caseId}: profile=${item.scenarioProfile}, expected=${item.expectedDecision}, edge=${item.expectedEdgeBps} bps, expectedProfit=${item.expectedProfitMnt} MNT, liquidity=${item.liquidityScore}/100, volatility=${item.volatilityBps} bps, priceImpact=${item.priceImpactBps} bps, spread=${item.spreadBps} bps`,
+    (item) => `- ${item.caseId}: profile=${item.scenarioProfile}, edge=${item.expectedEdgeBps} bps, expectedProfit=${item.expectedProfitMnt} MNT, liquidity=${item.liquidityScore}/100, volatility=${item.volatilityBps} bps, priceImpact=${item.priceImpactBps} bps, spread=${item.spreadBps} bps`,
   )
   .join("\n")}
 - liveCaseId: ${liveCase?.caseId ?? "none"}
@@ -1131,7 +1309,6 @@ Trading quality test:
 - expectedEdgeBps: ${traderScenario.expectedEdgeBps}
 - expectedProfitMnt: ${traderScenario.expectedProfitMnt}
 - expectedReturnPct: ${traderScenario.expectedReturnPct}
-- decisionRule: ${traderScenario.decisionRule}
 `
     : ""
 }
@@ -1140,13 +1317,13 @@ Expected JSON shape:
 {
   "selectedTarget": "${expected.selectedTarget ?? metadata.targetContracts[0] ?? ""}",
   "action": "${firstAction?.name ?? "deposit"}",
-  "decision": "${liveCase?.expectedDecision ?? traderScenario?.expectedDecision ?? expected.decision ?? "execute"}",
+  "decision": "swap | reject",
   "params": ${JSON.stringify(exampleParams)},
   "valueMnt": "${input.defaultValueMnt}",
   "caseDecisions": ${JSON.stringify(
     marketCases.map((item) => ({
       caseId: item.caseId,
-      decision: item.expectedDecision,
+      decision: "swap | reject",
       reasoning: "case-specific evidence",
     })),
   )},
@@ -1811,6 +1988,9 @@ async function runBenchmarkSuite({
     ).length;
     console.log(
       `Market cases: matched=${matchedCases}/${marketCases.length}, live=${liveCase?.caseId ?? "none"}:${liveCase?.expectedDecision ?? "unknown"}`,
+    );
+    console.log(
+      `Market thresholds: ${formatTradeDecisionThresholds(tradeDecisionThresholdsFor(metadata))}`,
     );
   }
 

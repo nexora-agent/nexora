@@ -114,6 +114,13 @@ type TraderScenario = {
   volatilityBps: number;
 };
 
+type TradeDecisionThresholds = {
+  maxPriceImpactBps: number;
+  maxVolatilityBps: number;
+  minExpectedEdgeBps: number;
+  minLiquidityScore: number;
+};
+
 const noBenchmarkMetadata: BenchmarkMetadata = {
   allowedActions: [],
   blockedActions: [
@@ -175,6 +182,12 @@ const currentFile = fileURLToPath(import.meta.url);
 const repoRoot = resolve(dirname(currentFile), "../../../..");
 const configPath = resolve(repoRoot, ".nexora/runner-config.json");
 const maxLogs = 500;
+const defaultTradeDecisionThresholds: TradeDecisionThresholds = {
+  maxPriceImpactBps: 240,
+  maxVolatilityBps: 650,
+  minExpectedEdgeBps: 55,
+  minLiquidityScore: 55,
+};
 
 function loadEnvFile() {
   const candidates = [
@@ -563,11 +576,153 @@ function benchmarkLooksLikeDex(metadata: BenchmarkMetadata) {
   );
 }
 
+function recordFromUnknown(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined;
+}
+
+function finiteNumber(value: unknown) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  return undefined;
+}
+
+function numberFromRecords(
+  records: Array<Record<string, unknown> | undefined>,
+  keys: string[],
+) {
+  for (const record of records) {
+    if (!record) continue;
+
+    for (const key of keys) {
+      const value = finiteNumber(record[key]);
+      if (value !== undefined) {
+        return value;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+function escapeRegex(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\\ /g, "\\s+");
+}
+
+function thresholdFromRules(
+  rules: string[],
+  labels: string[],
+  direction: "max" | "min",
+) {
+  const text = rules.join("\n");
+  const numberPattern = "(-?\\d+(?:\\.\\d+)?)";
+
+  for (const label of labels) {
+    const metric = escapeRegex(label);
+    const minWords =
+      "(?:>=|>|at least|minimum(?:\\s+of)?|min(?:imum)?|above|greater than|exceeds?|below|under|less than)";
+    const maxWords =
+      "(?:<=|<|at most|maximum(?:\\s+of)?|max(?:imum)?|below|under|less than|not exceed(?:s)?|no more than|within|exceeds?)";
+    const words = direction === "min" ? minWords : maxWords;
+    const metricFirst = new RegExp(`${metric}[^\\n.;]*?${words}[^\\d-]*${numberPattern}`, "i");
+    const wordFirst = new RegExp(`${words}[^\\d-]*${numberPattern}[^\\n.;]*?${metric}`, "i");
+    const match = text.match(metricFirst) ?? text.match(wordFirst);
+    const value = finiteNumber(match?.[1]);
+
+    if (value !== undefined) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function tradeDecisionThresholdsFor(metadata: BenchmarkMetadata): TradeDecisionThresholds {
+  const simulation = recordFromUnknown(metadata.simulation) ?? {};
+  const thresholdRecord =
+    recordFromUnknown(simulation.decisionThresholds) ??
+    recordFromUnknown(simulation.tradeDecisionThresholds) ??
+    recordFromUnknown(simulation.thresholds) ??
+    recordFromUnknown(simulation.policyThresholds);
+  const rules = metadata.scoringRules.filter((rule) => typeof rule === "string");
+
+  return {
+    maxPriceImpactBps:
+      numberFromRecords([thresholdRecord], [
+        "maxPriceImpactBps",
+        "priceImpactBpsMax",
+        "priceImpactMaxBps",
+        "maxImpactBps",
+      ]) ??
+      thresholdFromRules(
+        rules,
+        ["priceImpactBps", "price impact bps", "price impact", "impact"],
+        "max",
+      ) ??
+      defaultTradeDecisionThresholds.maxPriceImpactBps,
+    maxVolatilityBps:
+      numberFromRecords([thresholdRecord], [
+        "maxVolatilityBps",
+        "volatilityBpsMax",
+        "volatilityMaxBps",
+      ]) ??
+      thresholdFromRules(
+        rules,
+        ["volatilityBps", "volatility bps", "volatility"],
+        "max",
+      ) ??
+      defaultTradeDecisionThresholds.maxVolatilityBps,
+    minExpectedEdgeBps:
+      numberFromRecords([thresholdRecord], [
+        "minExpectedEdgeBps",
+        "expectedEdgeBpsMin",
+        "minEdgeBps",
+        "minimumExpectedEdgeBps",
+      ]) ??
+      thresholdFromRules(
+        rules,
+        ["expectedEdgeBps", "expected edge bps", "risk-adjusted edge", "edge"],
+        "min",
+      ) ??
+      defaultTradeDecisionThresholds.minExpectedEdgeBps,
+    minLiquidityScore:
+      numberFromRecords([thresholdRecord], [
+        "minLiquidityScore",
+        "liquidityScoreMin",
+        "minimumLiquidityScore",
+      ]) ??
+      thresholdFromRules(
+        rules,
+        ["liquidityScore", "liquidity score", "liquidity"],
+        "min",
+      ) ??
+      defaultTradeDecisionThresholds.minLiquidityScore,
+  };
+}
+
+function formatTradeDecisionThresholds(thresholds: TradeDecisionThresholds) {
+  return [
+    `expectedEdgeBps > ${thresholds.minExpectedEdgeBps}`,
+    `liquidityScore >= ${thresholds.minLiquidityScore}`,
+    `priceImpactBps <= ${thresholds.maxPriceImpactBps}`,
+    `volatilityBps <= ${thresholds.maxVolatilityBps}`,
+  ].join(", ");
+}
+
 function traderScenarioFor(metadata: BenchmarkMetadata, benchmarkHash?: Hex): TraderScenario {
   const simulation =
     typeof metadata.simulation === "object" && metadata.simulation !== null
       ? (metadata.simulation as Record<string, unknown>)
       : {};
+  const thresholds = tradeDecisionThresholdsFor(metadata);
   const scenarioProfile =
     typeof simulation.scenarioProfile === "string"
       ? simulation.scenarioProfile
@@ -616,16 +771,16 @@ function traderScenarioFor(metadata: BenchmarkMetadata, benchmarkHash?: Hex): Tr
   );
   const expectedReturnPct = Number((expectedEdgeBps / 100).toFixed(2));
   const expectedDecision =
-    expectedEdgeBps > 55 &&
-    liquidityScore >= 55 &&
-    priceImpactBps <= 240 &&
-    volatilityBps <= 650
+    expectedEdgeBps > thresholds.minExpectedEdgeBps &&
+    liquidityScore >= thresholds.minLiquidityScore &&
+    priceImpactBps <= thresholds.maxPriceImpactBps &&
+    volatilityBps <= thresholds.maxVolatilityBps
       ? "swap"
       : "reject";
 
   return {
     decisionRule:
-      "Swap only when simulated expected profit is positive after spread, price impact, and volatility penalty; otherwise reject.",
+      `Swap only when ${formatTradeDecisionThresholds(thresholds)}.`,
     expectedDecision,
     expectedEdgeBps,
     expectedProfitMnt,
@@ -683,6 +838,22 @@ function expectedTradeDecisionFor(
   return explicitDecision && normalizedDecision
     ? normalizedDecision
     : traderScenario?.expectedDecision ?? normalizedDecision;
+}
+
+function sanitizeSimulationForPrompt(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeSimulationForPrompt(item));
+  }
+
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>)
+      .filter(([key]) => key !== "expectedDecision" && key !== "decisionRule")
+      .map(([key, item]) => [key, sanitizeSimulationForPrompt(item)]),
+  );
 }
 
 function extractJsonValue(text: string) {
@@ -1113,6 +1284,7 @@ function buildBenchmarkPrompt(activeBenchmark?: ActiveBenchmark) {
   const traderScenario = isDexBenchmark
     ? traderScenarioFor(metadata, activeBenchmark?.benchmarkHash)
     : undefined;
+  const tradeThresholds = tradeDecisionThresholdsFor(metadata);
 
   if (isDexBenchmark) {
     return `${config.modelHarness.prompt.trim() ? `Model harness instructions:\n${config.modelHarness.prompt}\n\n` : ""}Return JSON only.
@@ -1145,8 +1317,11 @@ ${metadata.blockedActions.map((action) => `- ${action}`).join("\n")}
 Scoring rules:
 ${metadata.scoringRules.map((rule) => `- ${rule}`).join("\n")}
 
+DEX decision thresholds:
+${isDexBenchmark ? formatTradeDecisionThresholds(tradeThresholds) : "not applicable"}
+
 Simulation:
-${JSON.stringify(metadata.simulation ?? {}, null, 2)}
+${JSON.stringify(sanitizeSimulationForPrompt(metadata.simulation ?? {}), null, 2)}
 
 Trading quality test:
 - scenarioProfile: ${traderScenario?.scenarioProfile}
@@ -1160,13 +1335,12 @@ Trading quality test:
 - expectedEdgeBps: ${traderScenario?.expectedEdgeBps}
 - expectedProfitMnt: ${traderScenario?.expectedProfitMnt}
 - expectedReturnPct: ${traderScenario?.expectedReturnPct}
-- decisionRule: ${traderScenario?.decisionRule}
 
 Return:
 {
   "selectedTarget": "${expected.selectedTarget ?? metadata.targetContracts[0] ?? ""}",
   "action": "${expected.action ?? metadata.allowedActions[0] ?? "swapMntForTokens"}",
-  "decision": "${traderScenario?.expectedDecision ?? "reject"}",
+  "decision": "swap | reject",
   "rejectedActions": ${JSON.stringify(expected.rejectedActions ?? expected.rejectedVaults)},
   "reasoning": "short evidence-based DEX trading rationale"
 }
@@ -1450,7 +1624,13 @@ Return JSON only with this exact shape:
     "startingCapitalUsd": 200,
     "scenarioProfile": "${input.scenarioProfile ?? "random-market"}",
     "scenarioText": "detailed scenario with market data, risk traps, and expected behavior",
-    "randomSeed": "stable descriptive seed"
+    "randomSeed": "stable descriptive seed",
+    "decisionThresholds": {
+      "minExpectedEdgeBps": 55,
+      "minLiquidityScore": 55,
+      "maxPriceImpactBps": 240,
+      "maxVolatilityBps": 650
+    }
   },
   "expectedAnswer": {
     "selectedTarget": "${validTargetAddress ?? ""}",
@@ -1466,6 +1646,7 @@ Rules:
 - Prefer bounded testnet actions.
 - If no target address is supplied, make an ABI-only scoring benchmark.
 - If ABI contains payable swap/deposit functions, include only bounded versions in allowedActions.
+- For DEX benchmarks, include simulation.decisionThresholds so scoring can derive hidden expected decisions without showing them to the model.
 - Include at least 4 blockedActions and 5 scoringRules.
 - Make the expectedAnswer useful for automatic scoring.`;
 
@@ -1579,8 +1760,22 @@ Rules:
             "Explains the decision clearly.",
           ],
     simulation: {
+      ...simulation,
       durationDays:
         typeof simulation.durationDays === "number" ? simulation.durationDays : 30,
+      decisionThresholds:
+        simulation.decisionThresholds &&
+        typeof simulation.decisionThresholds === "object" &&
+        !Array.isArray(simulation.decisionThresholds)
+          ? simulation.decisionThresholds
+          : benchmarkType === "dex-trading"
+            ? {
+                maxPriceImpactBps: 240,
+                maxVolatilityBps: 650,
+                minExpectedEdgeBps: 55,
+                minLiquidityScore: 55,
+              }
+            : undefined,
       randomSeed:
         typeof simulation.randomSeed === "string"
           ? simulation.randomSeed

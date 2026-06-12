@@ -23,6 +23,7 @@ import {
 
 type AutonomyControlsProps = {
   agent: AgentRecord;
+  executorActionLabel?: string;
   isOwner: boolean;
   onSaved: (agent: AgentRecord) => void;
 };
@@ -60,6 +61,7 @@ function CardSkeleton() {
 
 export function AutonomyControls({
   agent,
+  executorActionLabel,
   isOwner,
   onSaved,
 }: AutonomyControlsProps) {
@@ -492,7 +494,7 @@ export function AutonomyControls({
           {isSaving
             ? "Waiting..."
             : executorConfigured
-              ? "Update Executor"
+              ? executorActionLabel ?? "Update Executor"
               : "Set Executor"}
         </button>
       </div>

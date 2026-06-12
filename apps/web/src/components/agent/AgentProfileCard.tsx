@@ -13,15 +13,17 @@ import { AgentStatusBadge, getAgentStatus } from "./AgentStatusBadge";
 import { AutonomyControls } from "./AutonomyControls";
 import { OnchainAgentReportPanel } from "./OnchainAgentReportPanel";
 
-type AgentProfileCardProps = {
-  agent: AgentRecord;
-  connectedAddress?: `0x${string}`;
-};
-
 type DetailTab =
   | "overview"
   | "agent-access"
   | "results";
+
+type AgentProfileCardProps = {
+  agent: AgentRecord;
+  connectedAddress?: `0x${string}`;
+  executorActionLabel?: string;
+  initialTab?: DetailTab;
+};
 
 type ModalName =
   | "create-wallet"
@@ -160,9 +162,11 @@ function Modal({
 export function AgentProfileCard({
   agent,
   connectedAddress,
+  executorActionLabel,
+  initialTab = "overview",
 }: AgentProfileCardProps) {
   const [currentAgent, setCurrentAgent] = useState(agent);
-  const [activeTab, setActiveTab] = useState<DetailTab>("overview");
+  const [activeTab, setActiveTab] = useState<DetailTab>(initialTab);
   const [modal, setModal] = useState<ModalName>(null);
   const isOwner =
     connectedAddress?.toLowerCase() === currentAgent.ownerAddress.toLowerCase();
@@ -197,6 +201,12 @@ export function AgentProfileCard({
         ? "passed"
         : "failed"
       : latestRun?.riskReport?.policyDecision;
+
+  useEffect(() => {
+    setCurrentAgent(agent);
+    setActiveTab(initialTab);
+  }, [agent, initialTab]);
+
   useEffect(() => {
     if (!currentAgent.walletAddress || isLoading || isZeroBalance || currentAgent.walletFundedAt) {
       return;
@@ -441,6 +451,7 @@ export function AgentProfileCard({
           <div className="single-panel-grid">
             <AutonomyControls
               agent={currentAgent}
+              executorActionLabel={executorActionLabel}
               isOwner={Boolean(isOwner)}
               onSaved={setCurrentAgent}
             />

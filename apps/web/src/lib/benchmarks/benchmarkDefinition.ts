@@ -34,6 +34,7 @@ export type CustomBenchmarkDefinition = {
   scoringRules: string[];
   simulation: {
     durationDays: number;
+    [key: string]: unknown;
     randomSeed: string;
     scenarioProfile?: DexScenarioProfile;
     scenarioText?: string;
