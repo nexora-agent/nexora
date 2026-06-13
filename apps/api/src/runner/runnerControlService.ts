@@ -1812,6 +1812,8 @@ export async function testBenchmark(): Promise<{
 
     const child = spawn("pnpm", ["--filter", "@nexora/api", "agent:runner"], {
       cwd: repoRoot,
+      // pnpm is a .cmd shim on Windows, which Node can only spawn via a shell.
+      shell: process.platform === "win32",
       env: {
         ...process.env,
         NEXORA_AGENT_ACTION_AMOUNT_MNT: config.actionAmountMnt,
@@ -1985,6 +1987,8 @@ export function runAgentOnce() {
 
   const child = spawn("pnpm", ["--filter", "@nexora/api", "agent:runner"], {
     cwd: repoRoot,
+    // pnpm is a .cmd shim on Windows, which Node can only spawn via a shell.
+    shell: process.platform === "win32",
     env: {
       ...process.env,
       NEXORA_AGENT_ACTION_AMOUNT_MNT: config.actionAmountMnt,

@@ -110,6 +110,8 @@ async function main() {
       ...process.env,
       NEXORA_AGENT_EXECUTOR_PRIVATE_KEY: info.privateKey,
     },
+    // pnpm is a .cmd shim on Windows, which Node can only spawn via a shell.
+    shell: process.platform === "win32",
     stdio: "inherit",
   });
 
