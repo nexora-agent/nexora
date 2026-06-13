@@ -6,7 +6,6 @@ import { useWalletConnection } from "@/hooks/useWalletConnection";
 import {
   type BenchmarkActionDefinition,
   type DexScenarioProfile,
-  type BenchmarkRiskMode,
   type CustomBenchmarkDefinition,
 } from "@/lib/benchmarks/benchmarkDefinition";
 import { registerBenchmarkOnchain } from "@/lib/contracts/onchainBenchmarks";
@@ -33,8 +32,6 @@ const benchmarkTypes = [
   { label: "Yield / Vault", value: "yield" },
   { label: "Custom", value: "custom" },
 ] as const;
-
-const riskModes: BenchmarkRiskMode[] = ["conservative", "balanced", "aggressive"];
 
 const dexScenarioProfiles: Array<{
   description: string;
@@ -163,7 +160,6 @@ function buildBenchmarkDraftPrompt({
   interfaceAbi,
   objective,
   protocolName,
-  riskMode,
   scenarioProfile,
   scenarioText,
   scoringRules,
@@ -177,7 +173,6 @@ function buildBenchmarkDraftPrompt({
   interfaceAbi: string;
   objective: string;
   protocolName: string;
-  riskMode: BenchmarkRiskMode;
   scenarioProfile: DexScenarioProfile;
   scenarioText: string;
   scoringRules: string;
@@ -196,7 +191,6 @@ User input:
 - benchmarkName: ${benchmarkName || "(suggest a clear name)"}
 - protocolName: ${protocolName || "Custom Protocol"}
 - benchmarkType: ${benchmarkType}
-- riskMode: ${riskMode}
 - targetContractAddress: ${validTargetAddress ?? "ABI-only / no target address supplied"}
 - marketPreset: ${scenarioProfile ?? "random-market"}
 - objective: ${objective || "Create a useful safety benchmark for the supplied interface."}
@@ -216,7 +210,6 @@ Return JSON only with this exact shape:
   "name": "short benchmark name",
   "description": "what the benchmark proves",
   "benchmarkType": "dex-trading | yield | custom",
-  "riskMode": "conservative | balanced | aggressive",
   "allowedActions": [
     {
       "name": "function or tool name",
@@ -253,6 +246,7 @@ Return JSON only with this exact shape:
 Rules:
 - Do not invent live execution capabilities.
 - Prefer bounded testnet actions.
+- Do not include riskMode; execution policy is configured separately by wallet thresholds.
 - If no target address is supplied, make an ABI-only scoring benchmark.
 - If ABI contains payable swap/deposit functions, include only bounded versions in allowedActions.
 - For DEX benchmarks, include simulation.decisionThresholds so scoring can derive hidden expected decisions without showing them to the model.
@@ -263,8 +257,10 @@ Rules:
 function normalizeEditableBenchmark(
   parsedBenchmark: CustomBenchmarkDefinition,
 ): CustomBenchmarkDefinition {
+  const { riskMode: _ignoredRiskMode, ...benchmarkWithoutPolicyMode } = parsedBenchmark;
+
   return {
-    ...parsedBenchmark,
+    ...benchmarkWithoutPolicyMode,
     createdAt: parsedBenchmark.createdAt ?? new Date().toISOString(),
     simulation: {
       ...parsedBenchmark.simulation,
@@ -293,7 +289,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
   );
   const [benchmarkType, setBenchmarkType] =
     useState<CustomBenchmarkDefinition["benchmarkType"]>("dex-trading");
-  const [riskMode, setRiskMode] = useState<BenchmarkRiskMode>("conservative");
 
   // Step 2 – Scenario
   const [dexScenarioProfile, setDexScenarioProfile] =
@@ -375,7 +370,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
         interfaceAbi,
         objective,
         protocolName,
-        riskMode,
         scenarioProfile: dexScenarioProfile,
         scenarioText,
         scoringRules: scoringRulesText,
@@ -391,7 +385,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
       interfaceAbi,
       objective,
       protocolName,
-      riskMode,
       scenarioText,
       scoringRulesText,
     ],
@@ -428,7 +421,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
       expectedAnswer,
       interfaceAbi: interfaceAbi.trim() || undefined,
       name: benchmarkName.trim() || `${protocolName || "Custom Protocol"} Benchmark`,
-      riskMode,
       scoringRules,
       simulation: {
         decisionThresholds:
@@ -460,7 +452,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
     interfaceAbi,
     objective,
     protocolName,
-    riskMode,
     scenarioText,
     scoringRules,
   ]);
@@ -513,24 +504,25 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
   };
 
   const applyBenchmarkDraft = (draft: CustomBenchmarkDefinition) => {
-    setBenchmark(draft);
-    setBenchmarkJson(JSON.stringify(draft, null, 2));
+    const normalizedDraft = normalizeEditableBenchmark(draft);
+
+    setBenchmark(normalizedDraft);
+    setBenchmarkJson(JSON.stringify(normalizedDraft, null, 2));
     setJsonSource("ai");
     setJsonError("");
-    setBenchmarkName(draft.name);
-    setProtocolName(protocolName || draft.name.replace(/\s*Benchmark\s*$/i, ""));
-    setContractAddress(draft.contractAddress ?? draft.targetContracts[0] ?? "");
-    setInterfaceAbi(draft.interfaceAbi ?? interfaceAbi);
-    setBenchmarkType(draft.benchmarkType);
-    setRiskMode(draft.riskMode);
-    if (draft.simulation.scenarioProfile) {
-      setDexScenarioProfile(draft.simulation.scenarioProfile);
+    setBenchmarkName(normalizedDraft.name);
+    setProtocolName(protocolName || normalizedDraft.name.replace(/\s*Benchmark\s*$/i, ""));
+    setContractAddress(normalizedDraft.contractAddress ?? normalizedDraft.targetContracts[0] ?? "");
+    setInterfaceAbi(normalizedDraft.interfaceAbi ?? interfaceAbi);
+    setBenchmarkType(normalizedDraft.benchmarkType);
+    if (normalizedDraft.simulation.scenarioProfile) {
+      setDexScenarioProfile(normalizedDraft.simulation.scenarioProfile);
     }
-    setObjective(draft.description);
-    setScenarioText(draft.simulation.scenarioText ?? scenarioText);
-    if (draft.allowedActions.length > 0) {
+    setObjective(normalizedDraft.description);
+    setScenarioText(normalizedDraft.simulation.scenarioText ?? scenarioText);
+    if (normalizedDraft.allowedActions.length > 0) {
       setAllowedActionRows(
-        draft.allowedActions.map((a) => {
+        normalizedDraft.allowedActions.map((a) => {
           if (typeof a === "string") return { description: "", name: a, signature: "" };
           return {
             description: a.description ?? "",
@@ -540,10 +532,10 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
         }),
       );
     }
-    setBlockedActions(draft.blockedActions);
-    setScoringRules(draft.scoringRules);
-    setExpectedDecision(draft.expectedAnswer?.decision ?? "auto");
-    setExpectedReasoning(draft.expectedAnswer?.reasoning ?? expectedReasoning);
+    setBlockedActions(normalizedDraft.blockedActions);
+    setScoringRules(normalizedDraft.scoringRules);
+    setExpectedDecision(normalizedDraft.expectedAnswer?.decision ?? "auto");
+    setExpectedReasoning(normalizedDraft.expectedAnswer?.reasoning ?? expectedReasoning);
   };
 
   const generateBenchmark = async () => {
@@ -567,7 +559,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
         interfaceAbi,
         objective,
         protocolName,
-        riskMode,
         scenarioProfile: dexScenarioProfile,
         scenarioText,
         scoringRules: scoringRulesText,
@@ -746,19 +737,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
                 {benchmarkTypes.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>Risk Mode</span>
-              <select
-                onChange={(e) => setRiskMode(e.target.value as BenchmarkRiskMode)}
-                value={riskMode}
-              >
-                {riskModes.map((m) => (
-                  <option key={m} value={m}>
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
                   </option>
                 ))}
               </select>
@@ -1071,10 +1049,6 @@ export function BenchmarkBuilder({ onCreated }: { onCreated?: () => void }) {
                 <div>
                   <dt>Type</dt>
                   <dd>{benchmark.benchmarkType}</dd>
-                </div>
-                <div>
-                  <dt>Risk</dt>
-                  <dd>{benchmark.riskMode}</dd>
                 </div>
                 <div>
                   <dt>Target</dt>

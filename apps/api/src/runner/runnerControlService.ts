@@ -58,7 +58,6 @@ export type BenchmarkDraftInput = {
   interfaceAbi?: string;
   objective?: string;
   protocolName?: string;
-  riskMode?: "aggressive" | "balanced" | "conservative";
   scenarioProfile?: "profit-opportunity" | "random-market" | "risk-trap";
   scenarioText?: string;
   scoringRules?: string;
@@ -829,15 +828,9 @@ function expectedTradeDecisionFor(
   expected: BenchmarkMetadata["expectedAnswer"],
   traderScenario?: TraderScenario,
 ) {
-  const rawDecision = expected.decision?.toLowerCase().trim() ?? "";
   const normalizedDecision = normalizeTradeDecision(expected.decision);
-  const explicitDecision = /^(swap|trade|execute|reject|skip|block)\.?$/.test(
-    rawDecision,
-  );
 
-  return explicitDecision && normalizedDecision
-    ? normalizedDecision
-    : traderScenario?.expectedDecision ?? normalizedDecision;
+  return traderScenario?.expectedDecision ?? normalizedDecision;
 }
 
 function sanitizeSimulationForPrompt(value: unknown): unknown {
@@ -948,12 +941,6 @@ function safeBenchmarkType(value: unknown): "custom" | "dex-trading" | "yield" {
   return value === "yield" || value === "custom" || value === "dex-trading"
     ? value
     : "dex-trading";
-}
-
-function safeRiskMode(value: unknown): "aggressive" | "balanced" | "conservative" {
-  return value === "balanced" || value === "aggressive" || value === "conservative"
-    ? value
-    : "conservative";
 }
 
 function isTradeDecisionWord(value?: string) {
@@ -1173,19 +1160,6 @@ function normalizeBenchmarkMetadata(
   };
 }
 
-function riskModeLabel(riskMode?: number) {
-  switch (riskMode) {
-    case 0:
-      return "conservative";
-    case 1:
-      return "balanced";
-    case 2:
-      return "aggressive";
-    default:
-      return "unspecified";
-  }
-}
-
 async function readActiveBenchmarkForConfiguredAgent() {
   const deployments = deployment();
   const benchmarkRegistry = optionalContractAddress(
@@ -1295,9 +1269,6 @@ ${metadata.name}
 Description:
 ${metadata.description}
 
-Risk mode:
-${riskModeLabel(activeBenchmark?.riskMode)}
-
 Smart wallet / agent id:
 ${config.agentId}
 
@@ -1362,9 +1333,6 @@ ${metadata.name}
 
 Description:
 ${metadata.description}
-
-Risk mode:
-${riskModeLabel(activeBenchmark?.riskMode)}
 
 Smart wallet / agent id:
 ${config.agentId}
@@ -1571,7 +1539,6 @@ export async function generateBenchmarkDraft(input: BenchmarkDraftInput) {
   const started = Date.now();
   const endpoint = config.model.endpointUrl || defaultEndpointFor(config.model.provider);
   const benchmarkType = input.benchmarkType ?? "dex-trading";
-  const riskMode = input.riskMode ?? "conservative";
   const targetAddress = input.contractAddress?.trim();
   const validTargetAddress =
     targetAddress && /^0x[a-fA-F0-9]{40}$/.test(targetAddress)
@@ -1587,7 +1554,6 @@ User input:
 - benchmarkName: ${input.benchmarkName || "(suggest a clear name)"}
 - protocolName: ${input.protocolName || "Custom Protocol"}
 - benchmarkType: ${benchmarkType}
-- riskMode: ${riskMode}
 - targetContractAddress: ${validTargetAddress ?? "ABI-only / no target address supplied"}
 - marketPreset: ${input.scenarioProfile ?? "random-market"}
 - objective: ${input.objective || "Create a useful safety benchmark for the supplied interface."}
@@ -1607,7 +1573,6 @@ Return JSON only with this exact shape:
   "name": "short benchmark name",
   "description": "what the benchmark proves",
   "benchmarkType": "dex-trading | yield | custom",
-  "riskMode": "conservative | balanced | aggressive",
   "allowedActions": [
     {
       "name": "function or tool name",
@@ -1644,6 +1609,7 @@ Return JSON only with this exact shape:
 Rules:
 - Do not invent live execution capabilities.
 - Prefer bounded testnet actions.
+- Do not include riskMode; execution policy is configured separately by wallet thresholds.
 - If no target address is supplied, make an ABI-only scoring benchmark.
 - If ABI contains payable swap/deposit functions, include only bounded versions in allowedActions.
 - For DEX benchmarks, include simulation.decisionThresholds so scoring can derive hidden expected decisions without showing them to the model.
@@ -1748,7 +1714,6 @@ Rules:
       typeof generated.name === "string" && generated.name.trim()
         ? generated.name.trim()
         : input.benchmarkName || `${input.protocolName ?? "Custom Protocol"} Benchmark`,
-    riskMode: safeRiskMode(generated.riskMode ?? riskMode),
     scoringRules:
       listFromUnknown(generated.scoringRules).length > 0
         ? listFromUnknown(generated.scoringRules)
@@ -1830,10 +1795,12 @@ export async function testBenchmark(): Promise<{
   };
   expectedAnswer: BenchmarkMetadata["expectedAnswer"];
   externalScore: number;
+  dryRun: boolean;
   latencyMs: number;
   modelResponse?: string;
   ok: boolean;
   passed: boolean;
+  proofPublished: boolean;
   score: number;
 }> {
   const started = Date.now();
@@ -1947,7 +1914,9 @@ export async function testBenchmark(): Promise<{
           expectedAnswer: BenchmarkMetadata["expectedAnswer"];
           externalScore: number;
           executionTargets?: Address[];
+          dryRun?: boolean;
           passed: boolean;
+          proofPublished?: boolean;
           score: number;
         };
 
@@ -1957,14 +1926,20 @@ export async function testBenchmark(): Promise<{
 
         addLog(
           parsed.passed ? "info" : "error",
-          `Benchmark test ${parsed.passed ? "passed" : "needs work"}: ${benchmarkName}, score ${parsed.score}, selected ${parsed.decision?.selectedTarget ?? "unknown"}.`,
+          `Benchmark dry test ${parsed.passed ? "passed" : "needs work"} (no proof tx): ${benchmarkName}, score ${parsed.score}, selected ${parsed.decision?.selectedTarget ?? "unknown"}.`,
+        );
+        addLog(
+          "info",
+          "Dry benchmark test only: no on-chain proof or execution transaction was published. Use Run Once to publish a benchmark proof.",
         );
 
         resolve({
           ...parsed,
+          dryRun: parsed.dryRun ?? true,
           latencyMs: Date.now() - started,
           modelResponse: undefined,
           ok: true,
+          proofPublished: parsed.proofPublished ?? false,
         });
       } catch {
         reject(new Error("Failed to parse benchmark test result."));

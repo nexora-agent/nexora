@@ -214,6 +214,7 @@ export async function testRunnerBenchmark(config?: RunnerConfig) {
       selectedTarget?: string;
       selectedVault?: string;
     };
+    dryRun?: boolean;
     expectedAnswer?: {
       action?: string;
       decision?: string;
@@ -228,6 +229,7 @@ export async function testRunnerBenchmark(config?: RunnerConfig) {
     modelResponse: string;
     ok: boolean;
     passed: boolean;
+    proofPublished?: boolean;
     score: number;
   }>("/runner/test-benchmark", {
     body: config ? JSON.stringify(config) : undefined,
@@ -244,7 +246,6 @@ export async function generateRunnerBenchmarkDraft(input: {
   interfaceAbi?: string;
   objective?: string;
   protocolName?: string;
-  riskMode?: CustomBenchmarkDefinition["riskMode"];
   scenarioProfile?: CustomBenchmarkDefinition["simulation"]["scenarioProfile"];
   scenarioText?: string;
   scoringRules?: string;

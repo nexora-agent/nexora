@@ -173,7 +173,11 @@ export function AgentProfileCard({
   const isViewOnly = Boolean(connectedAddress && !isOwner);
   const latestRun = currentAgent.objectiveRuns?.[0];
   const agentIdentityId = currentAgent.agentIdentityId ?? currentAgent.id;
-  const { activity: onchainActivity } = useOnchainRunnerActivity({
+  const {
+    activity: onchainActivity,
+    error: onchainActivityError,
+    loading: onchainActivityLoading,
+  } = useOnchainRunnerActivity({
     agentId: agentIdentityId,
     walletAddress: currentAgent.walletAddress,
   });
@@ -460,7 +464,12 @@ export function AgentProfileCard({
 
         {activeTab === "results" && (
           <div className="agent-detail-panel">
-            <OnchainAgentReportPanel activity={onchainActivity} agent={currentAgent} />
+            <OnchainAgentReportPanel
+              activity={onchainActivity}
+              activityError={onchainActivityError}
+              activityLoading={onchainActivityLoading}
+              agent={currentAgent}
+            />
           </div>
         )}
         </section>

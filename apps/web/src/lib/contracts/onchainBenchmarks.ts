@@ -167,7 +167,7 @@ export async function registerBenchmarkOnchain(benchmark: CustomBenchmarkDefinit
       benchmark.benchmarkType,
       benchmarkDataJson,
       benchmark.targetContracts,
-      riskModeToChain(benchmark.riskMode),
+      riskModeToChain(benchmark.riskMode ?? "conservative"),
       benchmarkHash(benchmark),
     ],
     chainId: mantleSepolia.id,

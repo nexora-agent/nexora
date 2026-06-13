@@ -1352,6 +1352,168 @@ h1 {
   padding-left: 18px;
 }
 
+.onchain-report-alerts {
+  background: color-mix(in srgb, var(--warning) 8%, var(--surface-strong));
+  border: 1px solid color-mix(in srgb, var(--warning) 30%, var(--line));
+  border-radius: 8px;
+  color: var(--ink);
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  margin: 0;
+  padding: 12px;
+}
+
+.onchain-report-alerts li {
+  color: var(--ink);
+  font-size: 0.86rem;
+  line-height: 1.4;
+}
+
+.onchain-report-alerts li::before {
+  color: var(--warning);
+  content: "!";
+  font-weight: 900;
+  margin-right: 8px;
+}
+
+.onchain-report-overview {
+  border-bottom: 1px solid var(--line);
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  padding-bottom: 14px;
+}
+
+.onchain-report-overview > div,
+.onchain-report-grid > div {
+  min-width: 0;
+}
+
+.onchain-report-overview dd,
+.onchain-report-grid dd {
+  overflow-wrap: anywhere;
+}
+
+.onchain-report-sections {
+  display: grid;
+  gap: 18px;
+}
+
+.onchain-report-section {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  padding-top: 16px;
+}
+
+.onchain-report-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.onchain-address-groups {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.onchain-address-groups > div {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.onchain-address-groups h4 {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  margin: 0;
+  text-transform: uppercase;
+}
+
+.onchain-address-groups p {
+  color: var(--muted);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.onchain-address-list {
+  display: grid;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.summary-card .onchain-address-list {
+  padding-left: 0;
+}
+
+.onchain-address-list li {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 10px 0;
+}
+
+.onchain-address-list li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.onchain-address-list span {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.onchain-address-list strong {
+  color: var(--ink);
+  font-size: 0.9rem;
+}
+
+.onchain-address-list small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.onchain-address-list code {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: rgba(255, 255, 255, 0.84);
+  font-family: var(--font-mono, monospace);
+  font-size: 0.78rem;
+  padding: 4px 6px;
+  white-space: nowrap;
+}
+
+.onchain-transaction-list {
+  margin-top: 2px;
+}
+
+@media (max-width: 760px) {
+  .onchain-report-overview,
+  .onchain-report-grid,
+  .onchain-address-groups {
+    grid-template-columns: 1fr;
+  }
+
+  .onchain-address-list li {
+    grid-template-columns: 1fr;
+  }
+
+  .onchain-address-list code {
+    justify-self: start;
+  }
+}
+
 .setup-detail-card summary {
   cursor: pointer;
   font-weight: 850;

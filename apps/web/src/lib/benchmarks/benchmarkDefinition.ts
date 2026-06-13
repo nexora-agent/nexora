@@ -30,7 +30,7 @@ export type CustomBenchmarkDefinition = {
   };
   name: string;
   interfaceAbi?: string;
-  riskMode: BenchmarkRiskMode;
+  riskMode?: BenchmarkRiskMode;
   scoringRules: string[];
   simulation: {
     durationDays: number;
@@ -53,7 +53,6 @@ export function canonicalBenchmarkJson(benchmark: CustomBenchmarkDefinition) {
     expectedAnswer: benchmark.expectedAnswer,
     interfaceAbi: benchmark.interfaceAbi,
     name: benchmark.name,
-    riskMode: benchmark.riskMode,
     scoringRules: benchmark.scoringRules,
     simulation: benchmark.simulation,
     targetContracts: benchmark.targetContracts.map((target) => target.toLowerCase()),
@@ -65,8 +64,7 @@ export function benchmarkHash(benchmark: CustomBenchmarkDefinition): Hex {
 }
 
 export function riskModeToChain(riskMode: BenchmarkRiskMode) {
-  if (riskMode === "balanced") return 1;
-  if (riskMode === "aggressive") return 2;
+  void riskMode;
   return 0;
 }
 
@@ -75,7 +73,6 @@ export function generateBenchmarkFromContract({
   contractAddress,
   interfaceAbi,
   protocolName,
-  riskMode,
   scenarioProfile = "profit-opportunity",
   userDefinition,
   type,
@@ -84,7 +81,7 @@ export function generateBenchmarkFromContract({
   contractAddress?: Address;
   interfaceAbi?: string;
   protocolName: string;
-  riskMode: BenchmarkRiskMode;
+  riskMode?: BenchmarkRiskMode;
   scenarioProfile?: DexScenarioProfile;
   userDefinition?: {
     allowedActions?: BenchmarkActionDefinition[];
@@ -140,7 +137,6 @@ export function generateBenchmarkFromContract({
     expectedAnswer: userDefinition?.expectedAnswer,
     interfaceAbi: interfaceAbi?.trim() || undefined,
     name,
-    riskMode,
     scoringRules: userDefinition?.scoringRules?.length
       ? userDefinition.scoringRules
       : [

@@ -147,6 +147,7 @@ type BenchmarkActionReport =
 type BenchmarkReport = {
   activeBenchmark?: ActiveBenchmarkReport;
   decision: BenchmarkDecisionReport;
+  dryRun?: boolean;
   expectedAnswer?: {
     action?: string;
     decision?: string;
@@ -160,6 +161,7 @@ type BenchmarkReport = {
   latencyMs?: number;
   modelResponse?: string;
   passed: boolean;
+  proofPublished?: boolean;
   score: number;
 };
 
@@ -297,9 +299,11 @@ function normalizeBenchmarkResult(
     },
     expectedAnswer: report.expectedAnswer,
     executionTargets: report.executionTargets ?? [],
+    dryRun: report.dryRun,
     latencyMs: report.latencyMs,
     modelResponse: report.modelResponse,
     passed: report.passed,
+    proofPublished: report.proofPublished,
     score: report.score,
   };
 }
@@ -1585,7 +1589,7 @@ function RunnerControlCard({
           <h3>Runner Controls</h3>
 
           <p className="runner-note">
-            Run one benchmark, record validation on-chain, and execute only if
+            Run the selected benchmark, publish a proof on-chain, and execute only if
             the result and wallet policy allow it.
           </p>
         </div>
@@ -1621,7 +1625,7 @@ function RunnerControlCard({
 
         <div>
           <dt>Next action</dt>
-          <dd>Run benchmark, record validation, execute if allowed.</dd>
+          <dd>Run benchmark, publish proof, execute if allowed.</dd>
         </div>
 
         <div>
@@ -2527,7 +2531,9 @@ export function AgentConfigurationPanel({
   const testBenchmark = async () => {
     setIsBusy(true);
     setBenchmarkState("running");
-    setNotice("Testing model against benchmark...");
+    setNotice(
+      "Dry-testing the model against the benchmark. No proof transaction will be published.",
+    );
 
     try {
       const result = await testRunnerBenchmark(config);
@@ -2543,15 +2549,15 @@ export function AgentConfigurationPanel({
 
       await refresh({ syncConfig: true });
 
-	      setNotice(
-	        `Benchmark test ${report.passed ? "passed" : "needs work"}: score ${
-	          report.score
-	        }, selected ${
-	          report.decision.selectedTarget ??
-	          report.decision.selectedVault ??
-	          "unknown"
-	        }.`,
-	      );
+      setNotice(
+        `Dry benchmark test ${report.passed ? "passed" : "needs work"}: score ${
+          report.score
+        }, selected ${
+          report.decision.selectedTarget ??
+          report.decision.selectedVault ??
+          "unknown"
+        }. No proof transaction was published.`,
+      );
     } catch (error) {
       setBenchmarkState("error");
       setNotice(
@@ -3029,19 +3035,21 @@ export function AgentConfigurationPanel({
             }
             onClick={testBenchmark}
             title={
-              agentReadiness.checking
+              agentReadiness.ready
+                ? "Dry score check only. No proof or execution transaction."
+                : agentReadiness.checking
                 ? "Checking agent readiness..."
                 : agentReadiness.reason
             }
             type="button"
           >
             {benchmarkState === "running"
-              ? "Running Benchmark..."
+              ? "Running Dry Test..."
               : benchmarkState === "success"
-                ? "Benchmark Passed"
+                ? "Dry Test Passed"
                 : benchmarkState === "error"
-                  ? "Benchmark Needs Work"
-                  : "Test Benchmark"}
+                  ? "Dry Test Needs Work"
+                  : "Dry Test Benchmark"}
           </button>
         </div>
 
@@ -3142,11 +3150,18 @@ export function AgentConfigurationPanel({
               </button>
             </div>
 
+            {benchmarkResult.dryRun && (
+              <p className="runner-note">
+                Dry score check only. No on-chain proof or execution transaction
+                was published.
+              </p>
+            )}
+
             {showBenchmarkDetails && (
               <>
                 <section className="runner-benchmark-report">
                   <h4>
-                    Testing {getBenchmarkName(benchmarkResult.activeBenchmark)}
+                    Dry test for {getBenchmarkName(benchmarkResult.activeBenchmark)}
                   </h4>
 
                   {benchmarkResult.activeBenchmark ? (
@@ -3240,7 +3255,7 @@ export function AgentConfigurationPanel({
                     </>
                   ) : (
                     <p className="runner-note">
-                      No active benchmark assigned. Select a benchmark before testing.
+                      No active benchmark assigned. Select a benchmark before dry testing.
                     </p>
                   )}
                 </section>

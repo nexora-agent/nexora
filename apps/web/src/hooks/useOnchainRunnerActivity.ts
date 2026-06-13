@@ -51,7 +51,7 @@ export type OnchainTimelineEvent = {
   label: string;
   status: "success" | "failed" | "unknown";
   txHash: Hex;
-  type: "validation" | "execution" | "reputation";
+  type: "benchmark" | "execution" | "reputation" | "setup" | "validation";
   value?: string;
 };
 
@@ -82,7 +82,7 @@ const publicClient = createPublicClient({
   transport: http(mantleSepolia.rpcUrls.default.http[0]),
 });
 
-const cacheTtlMs = 90_000;
+const cacheTtlMs = 15_000;
 const validationRecordedEvent = parseAbiItem(
   "event ValidationRecorded(uint256 indexed agentId, bytes32 indexed actionIntentHash, bytes32 indexed reportHash, uint16 averageScore, bool passed, address reporter)",
 );
@@ -92,9 +92,35 @@ const walletExecutedEvent = parseAbiItem(
 const reputationSignalEvent = parseAbiItem(
   "event ReputationSignal(uint256 indexed agentId, bool executed, bool policyViolation, uint16 riskScore, uint16 benchmarkScore, uint256 trustScore, address indexed reporter)",
 );
-const logChunkSize = 10n;
-const recentLogWindowBlocks = BigInt(process.env.NEXT_PUBLIC_NEXORA_ACTIVITY_LOG_WINDOW_BLOCKS ?? "80");
-const logChunkDelayMs = Number(process.env.NEXT_PUBLIC_NEXORA_LOG_CHUNK_DELAY_MS ?? "300");
+const agentBenchmarkSelectedEvent = parseAbiItem(
+  "event AgentBenchmarkSelected(uint256 indexed agentId, uint256 indexed benchmarkId, bytes32 indexed benchmarkHash)",
+);
+const thresholdUpdatedEvent = parseAbiItem(
+  "event ThresholdsUpdated(uint256 indexed agentId, uint16 basicScore, uint16 adversarialScore, uint16 externalScore, uint16 averageScore, uint16 maxRiskScore, uint32 freshnessSeconds)",
+);
+const reporterUpdatedEvent = parseAbiItem(
+  "event ReporterUpdated(uint256 indexed agentId, address indexed reporter, bool enabled)",
+);
+const maxAlchemyFreeTierLogBlocks = 10n;
+const configuredLogChunkSize = BigInt(process.env.NEXT_PUBLIC_NEXORA_LOG_CHUNK_SIZE ?? "10");
+const logChunkSize =
+  configuredLogChunkSize < 1n
+    ? 1n
+    : configuredLogChunkSize > maxAlchemyFreeTierLogBlocks
+      ? maxAlchemyFreeTierLogBlocks
+      : configuredLogChunkSize;
+const maxBrowserLogWindowBlocks = 120n;
+const latestValidationTxSearchBlocks = 5_000n;
+const configuredRecentLogWindowBlocks = BigInt(
+  process.env.NEXT_PUBLIC_NEXORA_ACTIVITY_LOG_WINDOW_BLOCKS ?? "80",
+);
+const recentLogWindowBlocks =
+  configuredRecentLogWindowBlocks < 1n
+    ? 1n
+    : configuredRecentLogWindowBlocks > maxBrowserLogWindowBlocks
+      ? maxBrowserLogWindowBlocks
+      : configuredRecentLogWindowBlocks;
+const logChunkDelayMs = Number(process.env.NEXT_PUBLIC_NEXORA_LOG_CHUNK_DELAY_MS ?? "40");
 const maxLogRetries = 3;
 const activityCache = new Map<
   string,
@@ -163,7 +189,13 @@ async function getLogsChunked<TLog>({
 }: {
   address: Address;
   args?: Record<string, unknown>;
-  event: typeof validationRecordedEvent | typeof walletExecutedEvent | typeof reputationSignalEvent;
+  event:
+    | typeof validationRecordedEvent
+    | typeof walletExecutedEvent
+    | typeof reputationSignalEvent
+    | typeof agentBenchmarkSelectedEvent
+    | typeof thresholdUpdatedEvent
+    | typeof reporterUpdatedEvent;
   fromBlock: bigint;
   toBlock: bigint;
 }) {
@@ -189,6 +221,56 @@ async function getLogsChunked<TLog>({
   }
 
   return allLogs;
+}
+
+async function findLatestLogReverse<TLog>({
+  address,
+  args,
+  event,
+  fromBlock,
+  toBlock,
+}: {
+  address: Address;
+  args?: Record<string, unknown>;
+  event:
+    | typeof validationRecordedEvent
+    | typeof walletExecutedEvent
+    | typeof reputationSignalEvent
+    | typeof agentBenchmarkSelectedEvent
+    | typeof thresholdUpdatedEvent
+    | typeof reporterUpdatedEvent;
+  fromBlock: bigint;
+  toBlock: bigint;
+}) {
+  let cursor = toBlock;
+
+  while (cursor >= fromBlock) {
+    const chunkFromBlock =
+      cursor >= logChunkSize - 1n && cursor - (logChunkSize - 1n) > fromBlock
+        ? cursor - (logChunkSize - 1n)
+        : fromBlock;
+    const logs = await readLogsWithRetry({
+      address,
+      args,
+      event,
+      fromBlock: chunkFromBlock,
+      toBlock: cursor,
+    });
+    const latestLog = logs.at(-1);
+
+    if (latestLog) {
+      return latestLog as TLog;
+    }
+
+    if (chunkFromBlock === fromBlock) {
+      break;
+    }
+
+    cursor = chunkFromBlock - 1n;
+    await sleep(logChunkDelayMs);
+  }
+
+  return undefined;
 }
 
 async function readValidationHashes(agentId: string) {
@@ -219,7 +301,12 @@ async function readValidationEventTx({
   reportHash: Hex;
 }) {
   const latestBlock = await publicClient.getBlockNumber();
-  const logs = await getLogsChunked<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
+  const earliest = logStartBlock();
+  const fromBlock =
+    latestBlock > latestValidationTxSearchBlocks
+      ? latestBlock - latestValidationTxSearchBlocks
+      : earliest;
+  const latestLog = await findLatestLogReverse<Awaited<ReturnType<typeof publicClient.getLogs>>[number]>({
     address: mantleSepoliaContracts.agentValidationRegistry,
     args: {
       actionIntentHash,
@@ -227,11 +314,9 @@ async function readValidationEventTx({
       reportHash,
     },
     event: validationRecordedEvent,
-    fromBlock: recentFromBlock(latestBlock),
+    fromBlock: fromBlock > earliest ? fromBlock : earliest,
     toBlock: latestBlock,
   });
-
-  const latestLog = logs.at(-1);
   if (!latestLog) {
     return undefined;
   }
@@ -295,7 +380,14 @@ async function readOnchainTimeline({
   const latestBlock = await publicClient.getBlockNumber();
   const fromBlock = recentFromBlock(latestBlock);
 
-  const validationLogs = await (
+  const [
+    validationLogs,
+    executionLogs,
+    reputationLogs,
+    benchmarkSelectionLogs,
+    thresholdLogs,
+    reporterLogs,
+  ] = await Promise.all([
     isConfigured(mantleSepoliaContracts.agentValidationRegistry)
       ? getLogsChunked<Log<bigint, number, boolean, typeof validationRecordedEvent>>({
           address: mantleSepoliaContracts.agentValidationRegistry,
@@ -304,17 +396,13 @@ async function readOnchainTimeline({
           fromBlock,
           toBlock: latestBlock,
         }).catch(() => [])
-      : Promise.resolve([])
-  );
-
-  const executionLogs = await getLogsChunked<Log<bigint, number, boolean, typeof walletExecutedEvent>>({
+      : Promise.resolve([]),
+    getLogsChunked<Log<bigint, number, boolean, typeof walletExecutedEvent>>({
       address: walletAddress,
       event: walletExecutedEvent,
       fromBlock,
       toBlock: latestBlock,
-    }).catch(() => []);
-
-  const reputationLogs = await (
+    }).catch(() => []),
     isConfigured(mantleSepoliaContracts.agentReputationRegistry)
       ? getLogsChunked<Log<bigint, number, boolean, typeof reputationSignalEvent>>({
           address: mantleSepoliaContracts.agentReputationRegistry,
@@ -323,14 +411,67 @@ async function readOnchainTimeline({
           fromBlock,
           toBlock: latestBlock,
         }).catch(() => [])
-      : Promise.resolve([])
-  );
+      : Promise.resolve([]),
+    isConfigured(mantleSepoliaContracts.benchmarkRegistry)
+      ? getLogsChunked<Log<bigint, number, boolean, typeof agentBenchmarkSelectedEvent>>({
+          address: mantleSepoliaContracts.benchmarkRegistry,
+          args: { agentId: BigInt(agentId) },
+          event: agentBenchmarkSelectedEvent,
+          fromBlock,
+          toBlock: latestBlock,
+        }).catch(() => [])
+      : Promise.resolve([]),
+    isConfigured(mantleSepoliaContracts.agentValidationRegistry)
+      ? getLogsChunked<Log<bigint, number, boolean, typeof thresholdUpdatedEvent>>({
+          address: mantleSepoliaContracts.agentValidationRegistry,
+          args: { agentId: BigInt(agentId) },
+          event: thresholdUpdatedEvent,
+          fromBlock,
+          toBlock: latestBlock,
+        }).catch(() => [])
+      : Promise.resolve([]),
+    isConfigured(mantleSepoliaContracts.agentValidationRegistry)
+      ? getLogsChunked<Log<bigint, number, boolean, typeof reporterUpdatedEvent>>({
+          address: mantleSepoliaContracts.agentValidationRegistry,
+          args: { agentId: BigInt(agentId) },
+          event: reporterUpdatedEvent,
+          fromBlock,
+          toBlock: latestBlock,
+        }).catch(() => [])
+      : Promise.resolve([]),
+  ]);
 
   // Pending logs have a null transaction hash; the timeline only shows mined events.
   const mined = <T extends { transactionHash: Hex | null }>(logs: T[]) =>
     logs.filter((log): log is T & { transactionHash: Hex } => log.transactionHash !== null);
 
   return [
+    ...mined(benchmarkSelectionLogs).map((log) => ({
+      blockNumber: log.blockNumber ?? undefined,
+      label: `Benchmark #${log.args.benchmarkId?.toString() ?? "unknown"} selected`,
+      status: "success" as const,
+      txHash: log.transactionHash,
+      type: "benchmark" as const,
+    })),
+    ...mined(thresholdLogs).map((log) => ({
+      blockNumber: log.blockNumber ?? undefined,
+      label: "Validation thresholds updated",
+      status: "success" as const,
+      txHash: log.transactionHash,
+      type: "setup" as const,
+      value: `avg ${log.args.averageScore?.toString() ?? "?"}+ / risk <= ${
+        log.args.maxRiskScore?.toString() ?? "?"
+      }`,
+    })),
+    ...mined(reporterLogs).map((log) => ({
+      blockNumber: log.blockNumber ?? undefined,
+      label: `${log.args.enabled ? "Reporter authorized" : "Reporter removed"}: ${formatAddress(
+        log.args.reporter ?? "",
+      )}`,
+      status: log.args.enabled ? "success" as const : "unknown" as const,
+      txHash: log.transactionHash,
+      type: "setup" as const,
+    })),
     ...mined(validationLogs).map((log) => ({
       blockNumber: log.blockNumber ?? undefined,
       label: log.args.passed
@@ -361,11 +502,30 @@ async function readOnchainTimeline({
 }
 
 async function readActivity(agentId: string, walletAddress: `0x${string}`) {
-  const latestValidation = await readLatestValidation(agentId);
-  const [reputation, timeline] = await Promise.all([
+  const [latestValidation, reputation, scannedTimeline] = await Promise.all([
+    readLatestValidation(agentId),
     readReputation(agentId).catch(() => undefined),
     readOnchainTimeline({ agentId, walletAddress }).catch(() => []),
   ]);
+  const latestValidationEvent =
+    latestValidation?.txHash
+      ? {
+          blockNumber: latestValidation.blockNumber,
+          label: latestValidation.passed
+            ? "Benchmark proof passed"
+            : "Benchmark proof failed",
+          status: latestValidation.passed ? "success" as const : "failed" as const,
+          txHash: latestValidation.txHash,
+          type: "validation" as const,
+          value: `score ${latestValidation.averageScore ?? "?"} / risk ${latestValidation.riskScore ?? "?"}`,
+        }
+      : undefined;
+  const timeline = latestValidationEvent &&
+    !scannedTimeline.some((event) => event.txHash === latestValidationEvent.txHash)
+    ? [latestValidationEvent, ...scannedTimeline].sort((left, right) =>
+        Number((right.blockNumber ?? 0n) - (left.blockNumber ?? 0n)),
+      )
+    : scannedTimeline;
 
   return {
     agentId,

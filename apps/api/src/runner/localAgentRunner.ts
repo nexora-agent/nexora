@@ -227,6 +227,7 @@ function traderScenarioFor(metadata: BenchmarkMetadata, benchmarkHash?: Hex): Tr
     typeof metadata.simulation === "object" && metadata.simulation !== null
       ? (metadata.simulation as Record<string, unknown>)
       : {};
+  const thresholds = tradeDecisionThresholdsFor(metadata);
   const scenarioProfile =
     typeof simulation.scenarioProfile === "string"
       ? simulation.scenarioProfile
@@ -275,17 +276,17 @@ function traderScenarioFor(metadata: BenchmarkMetadata, benchmarkHash?: Hex): Tr
   );
   const expectedReturnPct = Number((expectedEdgeBps / 100).toFixed(2));
   const expectedDecision =
-    expectedEdgeBps > 55 &&
-    liquidityScore >= 55 &&
-    priceImpactBps <= 240 &&
-    volatilityBps <= 650
+    expectedEdgeBps > thresholds.minExpectedEdgeBps &&
+    liquidityScore >= thresholds.minLiquidityScore &&
+    priceImpactBps <= thresholds.maxPriceImpactBps &&
+    volatilityBps <= thresholds.maxVolatilityBps
       ? "swap"
       : "reject";
 
   return {
     caseId: "live",
     decisionRule:
-      "Swap only when simulated expected profit is positive after spread, price impact, and volatility penalty; otherwise reject.",
+      `Swap only when ${formatTradeDecisionThresholds(thresholds)}.`,
     expectedDecision,
     expectedEdgeBps,
     expectedProfitMnt,
@@ -647,6 +648,22 @@ const validationAbi = [
   },
 ] as const;
 
+const reputationAbi = [
+  {
+    inputs: [
+      { internalType: "uint256", name: "agentId", type: "uint256" },
+      { internalType: "bool", name: "executed", type: "bool" },
+      { internalType: "bool", name: "policyViolation", type: "bool" },
+      { internalType: "uint16", name: "riskScore", type: "uint16" },
+      { internalType: "uint16", name: "benchmarkScore", type: "uint16" },
+    ],
+    name: "recordSignal",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
 const benchmarkRegistryAbi = [
   {
     inputs: [{ internalType: "uint256", name: "agentId", type: "uint256" }],
@@ -984,19 +1001,6 @@ function parseDecision(text: string): ParsedDecision {
   return fallback;
 }
 
-function riskModeLabel(riskMode?: number) {
-  switch (riskMode) {
-    case 0:
-      return "conservative";
-    case 1:
-      return "balanced";
-    case 2:
-      return "aggressive";
-    default:
-      return "unspecified";
-  }
-}
-
 function normalizedToMetadata(n: NormalizedBenchmark): BenchmarkMetadata {
   return {
     allowedActions: n.allowedActions,
@@ -1257,9 +1261,6 @@ ${metadata.name}
 Description:
 ${metadata.description}
 
-Risk mode:
-${riskModeLabel(input.activeBenchmark?.riskMode)}
-
 Agent:
 ${input.agentId.toString()}
 
@@ -1381,15 +1382,9 @@ function expectedTradeDecisionFor(
   expected: BenchmarkMetadata["expectedAnswer"],
   traderScenario?: TraderScenario,
 ) {
-  const rawDecision = expected.decision?.toLowerCase().trim() ?? "";
   const normalizedDecision = normalizeTradeDecision(expected.decision);
-  const explicitDecision = /^(swap|trade|execute|reject|skip|block)\.?$/.test(
-    rawDecision,
-  );
 
-  return explicitDecision && normalizedDecision
-    ? normalizedDecision
-    : traderScenario?.expectedDecision ?? normalizedDecision;
+  return traderScenario?.expectedDecision ?? normalizedDecision;
 }
 
 function scoreMarketCases(decision: ParsedDecision, cases: TraderScenario[]) {
@@ -2213,6 +2208,83 @@ function gasWithBuffer(estimated: bigint) {
   return estimated + (estimated * bufferBps) / 10_000n + 10_000n;
 }
 
+async function recordReputationSignal({
+  account,
+  agentId,
+  benchmarkScore,
+  executed,
+  policyViolation,
+  publicClient,
+  reputationRegistry,
+  riskScore,
+  walletClient,
+}: {
+  account: ReturnType<typeof privateKeyToAccount>;
+  agentId: bigint;
+  benchmarkScore: number;
+  executed: boolean;
+  policyViolation: boolean;
+  publicClient: ReturnType<typeof createPublicClient>;
+  reputationRegistry?: Address;
+  riskScore: number;
+  walletClient: ReturnType<typeof createWalletClient>;
+}) {
+  if (!reputationRegistry || reputationRegistry.toLowerCase() === zeroAddress) {
+    return;
+  }
+
+  try {
+    const args = [
+      agentId,
+      executed,
+      policyViolation,
+      riskScore,
+      benchmarkScore,
+    ] as const;
+    const estimatedGas = await publicClient.estimateContractGas({
+      account,
+      address: reputationRegistry,
+      abi: reputationAbi,
+      functionName: "recordSignal",
+      args,
+    });
+    const gas = process.env.NEXORA_REPUTATION_GAS_LIMIT
+      ? BigInt(process.env.NEXORA_REPUTATION_GAS_LIMIT)
+      : gasWithBuffer(estimatedGas);
+
+    console.log(`Reputation registry: ${reputationRegistry}`);
+    console.log(
+      `Reputation signal: executed=${executed}, policyViolation=${policyViolation}, score=${benchmarkScore}, risk=${riskScore}`,
+    );
+
+    const reputationHash = await walletClient.writeContract({
+      account,
+      address: reputationRegistry,
+      abi: reputationAbi,
+      chain: mantleSepolia,
+      functionName: "recordSignal",
+      args,
+      gas,
+    });
+    const receipt = await publicClient.waitForTransactionReceipt({
+      hash: reputationHash,
+    });
+
+    if (receipt.status !== "success") {
+      console.log(`Reputation signal transaction failed: ${reputationHash}`);
+      return;
+    }
+
+    console.log(`Reputation signal: ${reputationHash}`);
+  } catch (error) {
+    console.error(
+      error instanceof Error
+        ? `Reputation signal write failed: ${error.message}`
+        : "Reputation signal write failed.",
+    );
+  }
+}
+
 function jsonRpcQuantity(value: bigint) {
   return toHex(value);
 }
@@ -2688,12 +2760,17 @@ async function main() {
       expectedAnswer: activeBenchmark.metadata.expectedAnswer,
       externalScore: benchmark.externalScore,
       executionTargets: allowedExecutionTargets,
+      dryRun: true,
       latencyMs: 0,
       modelResponse: undefined as string | undefined,
       passed: benchmark.passed,
+      proofPublished: false,
       proposalChecks: benchmark.proposalChecks,
       score: benchmark.averageScore,
     };
+    console.log(
+      "Benchmark dry test only: no on-chain proof or execution transaction will be published.",
+    );
     console.log(`NEXORA_BENCHMARK_RESULT: ${JSON.stringify(testResult)}`);
     return;
   }
@@ -2776,11 +2853,15 @@ async function main() {
     return;
   }
 
-  if (!passed && process.env.NEXORA_RECORD_FAILED_VALIDATION !== "true") {
+  if (!passed && process.env.NEXORA_RECORD_FAILED_VALIDATION === "false") {
     console.log(
-      "Skipping failed validation write. Set NEXORA_RECORD_FAILED_VALIDATION=true to record failed benchmark proofs on-chain.",
+      "Skipping failed validation write because NEXORA_RECORD_FAILED_VALIDATION=false.",
     );
     return;
+  }
+
+  if (!passed) {
+    console.log("Recording failed validation proof on-chain for benchmark history.");
   }
 
   if (
@@ -2911,11 +2992,33 @@ async function main() {
   }
 
   if (!passed) {
+    await recordReputationSignal({
+      account,
+      agentId,
+      benchmarkScore: benchmark.averageScore,
+      executed: false,
+      policyViolation: true,
+      publicClient,
+      reputationRegistry,
+      riskScore: benchmark.riskScore,
+      walletClient,
+    });
     console.log("Execution blocked by benchmark thresholds or proposal validation.");
     return;
   }
 
   if (!benchmark.actionCall) {
+    await recordReputationSignal({
+      account,
+      agentId,
+      benchmarkScore: benchmark.averageScore,
+      executed: false,
+      policyViolation: true,
+      publicClient,
+      reputationRegistry,
+      riskScore: benchmark.riskScore,
+      walletClient,
+    });
     console.log("Execution blocked: no safe action calldata was built.");
     return;
   }
@@ -2944,6 +3047,17 @@ async function main() {
     });
 
     console.log(`UserOperation submitted: ${userOpHash}`);
+    await recordReputationSignal({
+      account,
+      agentId,
+      benchmarkScore: benchmark.averageScore,
+      executed: true,
+      policyViolation: false,
+      publicClient,
+      reputationRegistry,
+      riskScore: benchmark.riskScore,
+      walletClient,
+    });
   } else {
     const executionArgs = [
       benchmark.actionCall.target,
@@ -2985,10 +3099,17 @@ async function main() {
     }
 
     console.log(`Delegated execution transaction: ${executionHash}`);
-  }
-
-  if (reputationRegistry) {
-    console.log(`Reputation registry available: ${reputationRegistry}`);
+    await recordReputationSignal({
+      account,
+      agentId,
+      benchmarkScore: benchmark.averageScore,
+      executed: true,
+      policyViolation: false,
+      publicClient,
+      reputationRegistry,
+      riskScore: benchmark.riskScore,
+      walletClient,
+    });
   }
 }
 
