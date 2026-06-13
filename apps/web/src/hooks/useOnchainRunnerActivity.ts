@@ -77,6 +77,138 @@ type UseOnchainRunnerActivityResult = {
   refresh: () => Promise<void>;
 };
 
+// --- Last-known-good merge helpers (keep records from vanishing) ---
+
+export function hasUsefulRecords(activity?: OnchainRunnerActivity): boolean {
+  if (!activity) {
+    return false;
+  }
+
+  return Boolean(
+    activity.latestValidation ||
+      activity.latestExecution ||
+      activity.timeline?.length ||
+      activity.reputation?.benchmarkRuns ||
+      activity.reputation?.safeActions ||
+      activity.reputation?.blockedActions,
+  );
+}
+
+export function mergeTimelineEvents(
+  previous: OnchainTimelineEvent[] = [],
+  next: OnchainTimelineEvent[] = [],
+): OnchainTimelineEvent[] {
+  const byKey = new Map<string, OnchainTimelineEvent>();
+
+  for (const event of previous) {
+    byKey.set(`${event.type}:${event.txHash.toLowerCase()}`, event);
+  }
+
+  for (const event of next) {
+    byKey.set(`${event.type}:${event.txHash.toLowerCase()}`, event);
+  }
+
+  return Array.from(byKey.values()).sort((a, b) => {
+    const blockA = a.blockNumber ?? 0n;
+    const blockB = b.blockNumber ?? 0n;
+    return blockA > blockB ? -1 : blockA < blockB ? 1 : 0;
+  });
+}
+
+function newerByBlock<T extends { blockNumber?: bigint }>(
+  previous?: T,
+  next?: T,
+): T | undefined {
+  if (!previous) {
+    return next;
+  }
+
+  if (!next) {
+    return previous;
+  }
+
+  const previousBlock = previous.blockNumber ?? 0n;
+  const nextBlock = next.blockNumber ?? 0n;
+
+  return nextBlock >= previousBlock ? next : previous;
+}
+
+export function mergeActivity(
+  previous: OnchainRunnerActivity | undefined,
+  next: OnchainRunnerActivity,
+): OnchainRunnerActivity {
+  if (
+    !previous ||
+    previous.agentId !== next.agentId ||
+    previous.walletAddress.toLowerCase() !== next.walletAddress.toLowerCase()
+  ) {
+    return next;
+  }
+
+  return {
+    agentId: next.agentId,
+    latestExecution: newerByBlock(previous.latestExecution, next.latestExecution),
+    latestValidation: newerByBlock(previous.latestValidation, next.latestValidation),
+    reputation: next.reputation ?? previous.reputation,
+    timeline: mergeTimelineEvents(previous.timeline, next.timeline),
+    walletAddress: next.walletAddress,
+  };
+}
+
+// --- sessionStorage persistence (survives tab switch / remount) ---
+
+function activityStorageKey(agentId: string, walletAddress: string) {
+  return `nexora.onchainActivity.${agentId}.${walletAddress.toLowerCase()}`;
+}
+
+// bigint fields (block numbers) cannot be JSON-serialized directly.
+function bigintReplacer(_key: string, value: unknown) {
+  return typeof value === "bigint" ? { __bigint__: value.toString() } : value;
+}
+
+function bigintReviver(_key: string, value: unknown) {
+  if (
+    value &&
+    typeof value === "object" &&
+    "__bigint__" in (value as Record<string, unknown>)
+  ) {
+    return BigInt((value as { __bigint__: string }).__bigint__);
+  }
+
+  return value;
+}
+
+function readActivityFromSession(
+  agentId: string,
+  walletAddress: string,
+): OnchainRunnerActivity | undefined {
+  if (typeof window === "undefined") {
+    return undefined;
+  }
+
+  try {
+    const raw = window.sessionStorage.getItem(activityStorageKey(agentId, walletAddress));
+    return raw ? (JSON.parse(raw, bigintReviver) as OnchainRunnerActivity) : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function writeActivityToSession(activity: OnchainRunnerActivity) {
+  if (typeof window === "undefined" || !hasUsefulRecords(activity)) {
+    return;
+  }
+
+  try {
+    window.sessionStorage.setItem(
+      activityStorageKey(activity.agentId, activity.walletAddress),
+      JSON.stringify(activity, bigintReplacer),
+    );
+  } catch {
+    // sessionStorage may be unavailable or full; ignore.
+  }
+}
+
 const publicClient = createPublicClient({
   chain: mantleSepolia,
   transport: http(mantleSepolia.rpcUrls.default.http[0]),
@@ -575,9 +707,33 @@ export function useOnchainRunnerActivity({
       return;
     }
 
-    const cacheKey = `${agentId}:${walletAddress.toLowerCase()}`;
+    const requestedAgentId = agentId;
+    const requestedWallet = walletAddress;
+    const cacheKey = `${requestedAgentId}:${requestedWallet.toLowerCase()}`;
+    const matchesRequest = (candidate?: OnchainRunnerActivity) =>
+      Boolean(
+        candidate &&
+          candidate.agentId === requestedAgentId &&
+          candidate.walletAddress.toLowerCase() === requestedWallet.toLowerCase(),
+      );
+
+    // Seed instantly from last-known-good (memory or sessionStorage) so records
+    // survive remounts/tab switches before the network read resolves. Never let
+    // a stale other-agent value linger on the screen.
+    const seeded =
+      activityCache.get(cacheKey)?.activity ??
+      readActivityFromSession(requestedAgentId, requestedWallet);
+    if (seeded) {
+      if (!activityCache.has(cacheKey)) {
+        activityCache.set(cacheKey, { activity: seeded, timestamp: 0 });
+      }
+      setActivity((current) => (matchesRequest(current) ? current : seeded));
+    } else {
+      setActivity((current) => (matchesRequest(current) ? current : undefined));
+    }
+
     const cached = activityCache.get(cacheKey);
-    if (cached && Date.now() - cached.timestamp < cacheTtlMs) {
+    if (cached && cached.timestamp > 0 && Date.now() - cached.timestamp < cacheTtlMs) {
       setActivity(cached.activity);
       return;
     }
@@ -589,7 +745,7 @@ export function useOnchainRunnerActivity({
       const existingRead = inFlightReads.get(cacheKey);
       const nextActivity =
         existingRead ??
-        readActivity(agentId, walletAddress).finally(() => {
+        readActivity(requestedAgentId, requestedWallet).finally(() => {
           inFlightReads.delete(cacheKey);
         });
 
@@ -598,13 +754,21 @@ export function useOnchainRunnerActivity({
       }
 
       const resolvedActivity = await nextActivity;
-      activityCache.set(cacheKey, {
-        activity: resolvedActivity,
-        timestamp: Date.now(),
-      });
-      setActivity(resolvedActivity);
+      // Merge with last-known-good: an empty/partial refresh must not erase
+      // records we have already seen for this agent + wallet.
+      const previous = activityCache.get(cacheKey)?.activity;
+      const merged = mergeActivity(previous, resolvedActivity);
+
+      activityCache.set(cacheKey, { activity: merged, timestamp: Date.now() });
+      writeActivityToSession(merged);
+      setActivity(merged);
     } catch (caughtError) {
-      setError(caughtError instanceof Error ? caughtError.message : "Could not read on-chain runner activity.");
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "Could not read on-chain runner activity.",
+      );
+      // Keep the last-known records visible on transient errors.
     } finally {
       setLoading(false);
     }

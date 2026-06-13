@@ -426,6 +426,7 @@ export function OnchainAgentReportPanel({
     stats.benchmarkRuns > 0 ||
     stats.safeActions > 0 ||
     stats.blockedActions > 0;
+  const hasTimeline = (activity?.timeline?.length ?? 0) > 0;
   const reportHealthy = reportIssues.length === 0 && Boolean(identity);
   const reportStatusLabel = isLoading
     ? "Loading"
@@ -750,7 +751,11 @@ export function OnchainAgentReportPanel({
           <div className="console-topline">
             <span>Executions & txs</span>
             <span className="status-pill status-ready">
-              {activityLoading ? "Scanning" : `${activity?.timeline?.length ?? 0} tx`}
+              {activityLoading
+                ? hasTimeline
+                  ? "Refreshing"
+                  : "Scanning"
+                : `${activity?.timeline?.length ?? 0} tx`}
             </span>
           </div>
 
@@ -793,17 +798,20 @@ export function OnchainAgentReportPanel({
             </div>
           </dl>
 
-          {activityError && <p className="error-text">{activityError}</p>}
-          {activityLoading ? (
-            <p>Scanning Mantle logs for setup, validation, reputation, and execution txs.</p>
-          ) : !activity?.timeline?.length ? (
-            <p>
-              No setup, validation, reputation, or wallet execution transactions found in
-              the indexed window.
-            </p>
-          ) : (
-            <ol className="tool-trace-list onchain-transaction-list">
-              {activity.timeline.slice(0, 10).map((event) => (
+          {activityError &&
+            (hasTimeline ? (
+              <p className="error-text">
+                Could not refresh latest records. Showing last known on-chain records.
+              </p>
+            ) : (
+              <p className="error-text">{activityError}</p>
+            ))}
+
+          {hasTimeline ? (
+            <>
+              {activityLoading && <p>Refreshing records…</p>}
+              <ol className="tool-trace-list onchain-transaction-list">
+                {activity!.timeline!.slice(0, 10).map((event) => (
                 <li key={`${event.type}-${event.txHash}`}>
                   <span
                     className={`status-pill ${
@@ -827,7 +835,15 @@ export function OnchainAgentReportPanel({
                   </div>
                 </li>
               ))}
-            </ol>
+              </ol>
+            </>
+          ) : activityLoading ? (
+            <p>Scanning Mantle logs for setup, validation, reputation, and execution txs.</p>
+          ) : (
+            <p>
+              No setup, validation, reputation, or wallet execution transactions found in
+              the indexed window.
+            </p>
           )}
         </section>
       </div>
